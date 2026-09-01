@@ -7,6 +7,8 @@ import { Board } from './views/board2d/Board.js';
 import { Breadcrumb } from './views/chrome/Breadcrumb.js';
 import { FilterBar } from './views/chrome/FilterBar.js';
 import { TopBar } from './views/chrome/TopBar.js';
+import { Inspector } from './panel/Inspector.js';
+import { LinkKindDialog } from './views/dialogs/LinkKindDialog.js';
 import { hydrateFleetStore, useFleetStore } from './store/fleetStore.js';
 import { solarluxFleet } from './model/seed.js';
 import { attachPersistence, createIndexedDbRepository } from './store/persistence.js';
@@ -55,6 +57,8 @@ export function App(): React.JSX.Element {
       <TopBar />
       <FilterBar />
       <Breadcrumb />
+      <Inspector />
+      <LinkKindDialog />
     </main>
   );
 }

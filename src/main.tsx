@@ -2,6 +2,8 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './ui/tokens.css';
 import './ui/board.css';
+import './ui/panel.css';
+import './ui/dialog.css';
 import { App } from './App.js';
 
 const container = document.getElementById('root');

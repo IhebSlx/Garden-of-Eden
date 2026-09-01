@@ -1,0 +1,468 @@
+/*
+ * Inspector panel, translated from the prototype's `#panel` rules (SPEC 5.7, 6).
+ */
+
+.inspector {
+  position: fixed;
+  top: 64px;
+  right: 16px;
+  width: min(288px, 78vw);
+  max-height: calc(100vh - 84px);
+  overflow-y: auto;
+  z-index: 40;
+  background: rgb(16 21 42 / 0.72);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgb(124 140 255 / 0.28);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 20px 50px rgb(2 4 16 / 0.7);
+  transform: translateX(16px);
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.25s;
+}
+.inspector.open {
+  transform: none;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.ins-close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  all: unset;
+  cursor: pointer;
+  color: #6f7fb4;
+  font-size: 15px;
+  padding: 2px 6px;
+}
+.ins-close:hover {
+  color: #fff;
+}
+
+.inspector .kind {
+  display: inline-block;
+  font-size: 10px;
+  padding: 2px 9px;
+  border-radius: 99px;
+  margin-bottom: 8px;
+  border: 1px solid var(--kc);
+  color: var(--kc);
+}
+
+.ins-name,
+.ins-role,
+.ins-instructions {
+  all: unset;
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  border-radius: 6px;
+  padding: 1px 4px;
+  margin-left: -4px;
+}
+.ins-name:hover,
+.ins-role:hover,
+.ins-instructions:hover {
+  background: rgb(124 140 255 / 0.08);
+}
+.ins-name:focus,
+.ins-role:focus,
+.ins-instructions:focus {
+  outline: 1px solid var(--kc);
+  background: rgb(124 140 255 / 0.1);
+}
+.ins-name {
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 3px;
+}
+.ins-role {
+  font-size: 11.5px;
+  color: #93a4d0;
+  line-height: 1.45;
+  margin-bottom: 12px;
+}
+.ins-instructions {
+  font-size: 10.5px;
+  color: #93a4d0;
+  line-height: 1.45;
+  resize: vertical;
+  font-family: inherit;
+  margin-top: 4px;
+}
+
+.inspector h3 {
+  margin: 12px 0 6px;
+  font-size: 10.5px;
+  color: #6f7fb4;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.addchip {
+  all: unset;
+  cursor: pointer;
+  margin-left: auto;
+  width: 16px;
+  height: 16px;
+  text-align: center;
+  line-height: 15px;
+  border-radius: 5px;
+  border: 1px solid rgb(124 140 255 / 0.3);
+  color: #9db0e8;
+  font-size: 12px;
+}
+.addchip:hover {
+  border-color: var(--kc);
+  color: #fff;
+}
+
+.inspector .rel {
+  font-size: 11.5px;
+  color: #9db0e8;
+  line-height: 1.5;
+}
+
+.inspector .instr {
+  all: unset;
+  display: block;
+  cursor: pointer;
+  font-size: 10.5px;
+  color: #93a4d0;
+  font-style: italic;
+  line-height: 1.45;
+}
+.inspector .instr:hover {
+  color: #c7d2f5;
+}
+
+.inspector .chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.inspector .chip {
+  font-size: 10.5px;
+  padding: 2px 8px;
+  border-radius: 99px;
+  color: #cfe3ff;
+  background: rgb(90 110 200 / 0.16);
+  border: 1px solid rgb(124 140 255 / 0.22);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.inspector .chip.empty {
+  opacity: 0.5;
+}
+.inspector .chip.ichip:hover {
+  border-color: rgb(124 140 255 / 0.6);
+}
+.inspector .chip button {
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.inspector .chip .chip-x {
+  opacity: 0;
+  font-size: 9px;
+  color: #9db0e8;
+  transition: opacity 0.15s;
+}
+.inspector .chip:hover .chip-x {
+  opacity: 0.75;
+}
+.inspector .chip .chip-x:hover {
+  opacity: 1;
+  color: #fff;
+}
+.inspector .chip .sdot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-left: 2px;
+}
+
+/* ---------- status chip row (SPEC 5.6) ---------- */
+
+.strow {
+  display: flex;
+  gap: 5px;
+  margin: 8px 0 12px;
+  flex-wrap: wrap;
+}
+.stbtn {
+  all: unset;
+  cursor: pointer;
+  font-size: 9.5px;
+  padding: 2px 9px;
+  border-radius: 99px;
+  border: 1px solid rgb(124 140 255 / 0.25);
+  color: #8ea2d6;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.stbtn .sd {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+.stbtn.on {
+  border-color: var(--sc);
+  color: #fff;
+  background: color-mix(in srgb, var(--sc) 20%, transparent);
+}
+
+/* ---------- detail card (SPEC 5.7) ---------- */
+
+.tool-detail {
+  margin-top: 8px;
+  background: rgb(10 14 30 / 0.72);
+  border: 1px solid rgb(124 140 255 / 0.22);
+  border-radius: 10px;
+  padding: 10px;
+}
+.tool-detail .tname {
+  font-size: 11.5px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.tool-detail .ttag {
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  border: 1px solid currentColor;
+}
+.tool-detail .tdesc {
+  font-size: 10.5px;
+  color: #93a4d0;
+  margin-top: 4px;
+  line-height: 1.4;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.tool-detail .stag,
+.tool-detail .lnk {
+  font-size: 9px;
+  padding: 1px 7px;
+  border-radius: 6px;
+  border: 1px solid;
+}
+.tool-detail .ub {
+  margin-top: 9px;
+  font-size: 9.5px;
+  color: #6f7fb4;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+.tool-detail .ubn {
+  all: unset;
+  cursor: pointer;
+  font-size: 9.5px;
+  padding: 1px 8px;
+  border-radius: 99px;
+  background: rgb(90 110 200 / 0.16);
+  border: 1px solid rgb(124 140 255 / 0.25);
+  color: #cfe3ff;
+}
+.tool-detail .ubn:hover {
+  border-color: var(--color-orchestrator);
+}
+
+/* Workflow mini-DAG (SPEC 8.6) - rows stack, branches sit side by side. */
+.wf {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.wfrow {
+  display: flex;
+  gap: 4px;
+}
+.wfs {
+  flex: 1;
+  font-size: 9.5px;
+  color: #cfe3ff;
+  background: rgb(56 110 225 / 0.14);
+  border: 1px solid rgb(124 140 255 / 0.28);
+  border-radius: 7px;
+  padding: 4px 8px;
+}
+.wfs.kind-trigger {
+  border-color: rgb(74 222 128 / 0.5);
+}
+.wfs.kind-condition {
+  border-color: rgb(246 185 84 / 0.5);
+}
+.wfa {
+  text-align: center;
+  color: #4d5a8c;
+  font-size: 9px;
+  line-height: 1;
+}
+
+/* ---------- actions ---------- */
+
+.inspector .actions {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.inspector .btn {
+  all: unset;
+  cursor: pointer;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 0;
+  border-radius: 10px;
+  background: rgb(124 92 246 / 0.22);
+  border: 1px solid rgb(139 92 246 / 0.55);
+  color: #dcd2ff;
+  transition: background 0.2s;
+}
+.inspector .btn:hover {
+  background: rgb(124 92 246 / 0.38);
+}
+.inspector .btn.ghost {
+  background: transparent;
+  border-color: rgb(124 140 255 / 0.3);
+  color: #9db0e8;
+}
+.inspector .btn.ghost:hover {
+  background: rgb(124 140 255 / 0.12);
+  color: #fff;
+}
+.inspector .btn.danger {
+  background: rgb(248 113 113 / 0.14);
+  border-color: rgb(248 113 113 / 0.45);
+  color: #fca5a5;
+}
+.inspector .btn.danger:hover {
+  background: rgb(248 113 113 / 0.26);
+}
+
+.confirm {
+  margin-top: 10px;
+  border: 1px solid rgb(248 113 113 / 0.4);
+  background: rgb(60 16 22 / 0.5);
+  border-radius: 10px;
+  padding: 10px;
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: #f5d0d0;
+}
+.confirm p {
+  margin: 0 0 8px;
+}
+.confirm-row {
+  display: flex;
+  gap: 6px;
+}
+.confirm-row .btn {
+  flex: 1;
+  padding: 6px 0;
+  font-size: 11px;
+}
+
+.notice {
+  margin-top: 10px;
+  font-size: 10.5px;
+  color: var(--color-status-building);
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+}
+.notice button {
+  all: unset;
+  cursor: pointer;
+  margin-left: auto;
+  opacity: 0.7;
+}
+
+.hintline {
+  margin-top: 10px;
+  font-size: 9.5px;
+  color: #4d5a8c;
+}
+
+/* ---------- picker (SPEC 5.8) ---------- */
+
+.picker {
+  margin-top: 10px;
+  background: rgb(10 14 30 / 0.92);
+  border: 1px solid rgb(124 140 255 / 0.3);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.picker-head {
+  display: flex;
+  align-items: center;
+  padding: 7px 10px;
+  font-size: 10.5px;
+  color: #9db0e8;
+  border-bottom: 1px solid rgb(124 140 255 / 0.18);
+}
+.picker-head button {
+  all: unset;
+  cursor: pointer;
+  margin-left: auto;
+  color: #6f7fb4;
+}
+.picker-head button:hover {
+  color: #fff;
+}
+.picker-input {
+  all: unset;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 7px 10px;
+  font-size: 11.5px;
+  color: #e8ecff;
+  border-bottom: 1px solid rgb(124 140 255 / 0.18);
+}
+.picker-list {
+  max-height: 168px;
+  overflow-y: auto;
+}
+.picker-row {
+  all: unset;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 10px;
+  font-size: 11.5px;
+  color: #cfe3ff;
+}
+.picker-row:hover {
+  background: rgb(124 92 246 / 0.22);
+}
+.picker-row small {
+  margin-left: auto;
+  font-size: 9.5px;
+  color: #6f7fb4;
+}
+.picker-empty {
+  padding: 10px;
+  font-size: 10.5px;
+  color: #6f7fb4;
+}

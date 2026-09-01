@@ -41,19 +41,20 @@ export const SEED_SKILLS: Skill[] = [
   skill('fachbegriffe', 'Fachbegriffe'),
 ];
 
-/** Linear prototype chains become explicit steps; the first is the trigger. */
+/**
+ * The prototype stored workflows as flat string arrays with no step kinds, so the
+ * kinds are assigned here: a flow's entry step is its trigger, the rest are actions.
+ * Two of the three chains spelled that out with a "Trigger · " prefix, which is
+ * stripped from the label.
+ */
 function chain(prefix: string, steps: string[]): Tool['workflow'] {
   return {
-    steps: steps.map((label, index) => {
-      const isTrigger = index === 0 && label.startsWith('Trigger');
-      const next = index < steps.length - 1 ? [`stp_${prefix}_${index + 1}`] : [];
-      return {
-        id: `stp_${prefix}_${index}`,
-        name: label.replace(/^Trigger · /, ''),
-        kind: isTrigger ? ('trigger' as const) : ('action' as const),
-        next,
-      };
-    }),
+    steps: steps.map((label, index) => ({
+      id: `stp_${prefix}_${index}`,
+      name: label.replace(/^Trigger · /, ''),
+      kind: index === 0 ? ('trigger' as const) : ('action' as const),
+      next: index < steps.length - 1 ? [`stp_${prefix}_${index + 1}`] : [],
+    })),
   };
 }
 

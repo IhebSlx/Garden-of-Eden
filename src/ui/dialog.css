@@ -1,0 +1,157 @@
+/* Modal dialogs: link kind (SPEC 5.8), fleet actions (SPEC 5.11), library manager (SPEC 8.7). */
+
+.dialog-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  background: rgb(2 4 12 / 0.62);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  padding: 24px;
+}
+
+.dialog {
+  width: min(420px, 92vw);
+  max-height: min(80vh, 640px);
+  overflow-y: auto;
+  background: rgb(16 21 42 / 0.94);
+  border: 1px solid rgb(124 140 255 / 0.3);
+  border-radius: 16px;
+  padding: 18px;
+  box-shadow: 0 24px 60px rgb(2 4 16 / 0.75);
+}
+.dialog h2 {
+  margin: 0 0 4px;
+  font-size: 15px;
+}
+.dialog-lead {
+  margin: 0 0 14px;
+  font-size: 11.5px;
+  color: #93a4d0;
+  line-height: 1.5;
+}
+
+.dialog-option {
+  all: unset;
+  cursor: pointer;
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgb(124 140 255 / 0.28);
+  background: rgb(90 110 200 / 0.1);
+  transition: border-color 0.15s, background 0.15s;
+}
+.dialog-option:hover {
+  border-color: var(--color-orchestrator);
+  background: rgb(124 92 246 / 0.2);
+}
+.dialog-option-title {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.dialog-option-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 10.5px;
+  color: #93a4d0;
+  line-height: 1.4;
+}
+
+.dialog-cancel {
+  all: unset;
+  cursor: pointer;
+  display: block;
+  width: 100%;
+  text-align: center;
+  margin-top: 6px;
+  padding: 7px 0;
+  font-size: 11.5px;
+  color: #9db0e8;
+  border-radius: 10px;
+  border: 1px solid transparent;
+}
+.dialog-cancel:hover {
+  color: #fff;
+  border-color: rgb(124 140 255 / 0.3);
+}
+
+.dialog-error {
+  margin: 6px 0 0;
+  font-size: 10.5px;
+  color: var(--color-status-building);
+}
+
+.dialog-field {
+  display: block;
+  margin-bottom: 10px;
+}
+.dialog-field span {
+  display: block;
+  font-size: 10.5px;
+  color: #6f7fb4;
+  margin-bottom: 4px;
+}
+.dialog-field input,
+.dialog-field textarea,
+.dialog-field select {
+  all: unset;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 7px 10px;
+  font-size: 12px;
+  color: #e8ecff;
+  background: rgb(10 14 30 / 0.7);
+  border: 1px solid rgb(124 140 255 / 0.25);
+  border-radius: 8px;
+  font-family: inherit;
+}
+.dialog-field select option {
+  background: #0d1330;
+}
+.dialog-field input:focus,
+.dialog-field textarea:focus,
+.dialog-field select:focus {
+  border-color: rgb(139 92 246 / 0.6);
+}
+
+.dialog-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+.dialog-row .btn {
+  all: unset;
+  cursor: pointer;
+  flex: 1;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 0;
+  border-radius: 10px;
+  background: rgb(124 92 246 / 0.22);
+  border: 1px solid rgb(139 92 246 / 0.55);
+  color: #dcd2ff;
+}
+.dialog-row .btn:hover {
+  background: rgb(124 92 246 / 0.38);
+}
+.dialog-row .btn.ghost {
+  background: transparent;
+  border-color: rgb(124 140 255 / 0.3);
+  color: #9db0e8;
+}
+.dialog-row .btn.danger {
+  background: rgb(248 113 113 / 0.14);
+  border-color: rgb(248 113 113 / 0.45);
+  color: #fca5a5;
+}
+.dialog-row .btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
