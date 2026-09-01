@@ -100,6 +100,21 @@ export function useBoardModel(bucket: ZoomBucket): BoardModel {
     const toolsById = new Map(fleet.tools.map((t) => [t.id, t]));
     const depthByKey = new Map(instanceList.map((i) => [i.key, i.depth]));
 
+    // Arrow-key neighbours, so the board is reachable without a pointer.
+    const siblingsByParent = new Map<string, string[]>();
+    for (const instance of instanceList) {
+      const bucket = instance.parentKey ?? '__roots__';
+      const list = siblingsByParent.get(bucket);
+      if (list) list.push(instance.key);
+      else siblingsByParent.set(bucket, [instance.key]);
+    }
+    const firstChildByKey = new Map<string, string>();
+    for (const instance of instanceList) {
+      if (instance.parentKey !== null && !firstChildByKey.has(instance.parentKey)) {
+        firstChildByKey.set(instance.parentKey, instance.key);
+      }
+    }
+
     const sizeOf = (key: string): { width: number; height: number } =>
       cardSizeAt(depthByKey.get(key) ?? 2, bucket);
 
@@ -134,6 +149,17 @@ export function useBoardModel(bucket: ZoomBucket): BoardModel {
             focusId !== null && lit
               ? Math.max(0, instance.depth - visibility.focusDepth) * FOCUS_CASCADE_STAGGER_MS
               : null,
+          neighbours: (() => {
+            const bucket = instance.parentKey ?? '__roots__';
+            const siblings = siblingsByParent.get(bucket) ?? [];
+            const at = siblings.indexOf(instance.key);
+            return {
+              parent: instance.parentKey,
+              child: firstChildByKey.get(instance.key) ?? null,
+              previous: at > 0 ? (siblings[at - 1] ?? null) : null,
+              next: at >= 0 && at < siblings.length - 1 ? (siblings[at + 1] ?? null) : null,
+            };
+          })(),
           skillNames: agent.skillIds
             .map((id) => skillsById.get(id)?.name)
             .filter((name): name is string => name !== undefined),

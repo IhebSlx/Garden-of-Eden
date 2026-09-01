@@ -602,3 +602,142 @@
   cursor: not-allowed;
   opacity: 0.4;
 }
+
+/* ---------- model config (SPEC 4) ---------- */
+
+.model-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.model-summary {
+  margin: 0;
+  font-size: 10.5px;
+  color: #93a4d0;
+}
+
+/* ---------- library item editors (SPEC 8.7) ---------- */
+
+.lib-entry.editing {
+  background: rgb(124 140 255 / 0.05);
+}
+.lib-edit {
+  all: unset;
+  cursor: pointer;
+  color: #6f7fb4;
+  font-size: 11px;
+  padding: 2px 5px;
+}
+.lib-edit:hover {
+  color: #fff;
+}
+.lib-fields {
+  padding: 4px 12px 12px 26px;
+}
+.lib-field-row {
+  display: flex;
+  gap: 8px;
+}
+.lib-field-row .dialog-field {
+  flex: 1;
+}
+.lib-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 10px;
+  font-size: 11px;
+  color: #cfe3ff;
+  cursor: pointer;
+}
+
+/* ---------- tool + workflow editor (SPEC 8.6) ---------- */
+
+.tool-editor {
+  padding: 4px 12px 12px 26px;
+}
+.tool-editor-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+.tool-editor-head button {
+  all: unset;
+  cursor: pointer;
+  margin-left: auto;
+  color: #6f7fb4;
+}
+.tool-editor-head button:hover {
+  color: #fff;
+}
+.wf-editor {
+  border-top: 1px solid rgb(124 140 255 / 0.15);
+  padding-top: 10px;
+}
+.wf-editor-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 10.5px;
+  color: #6f7fb4;
+  margin-bottom: 6px;
+}
+.wf-editor-head small {
+  margin-left: auto;
+  font-size: 9.5px;
+  color: #4d5a8c;
+}
+.wf-step {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 5px 0;
+  border-bottom: 1px solid rgb(124 140 255 / 0.1);
+}
+.wf-step-name {
+  all: unset;
+  flex: 1 1 130px;
+  min-width: 90px;
+  font-size: 11.5px;
+  color: #e8ecff;
+  padding: 3px 5px;
+  border-radius: 6px;
+}
+.wf-step-name:hover,
+.wf-step-name:focus {
+  background: rgb(124 140 255 / 0.1);
+}
+.wf-next {
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  padding-left: 5px;
+}
+.wf-next small {
+  font-size: 9.5px;
+  color: #4d5a8c;
+}
+.wf-next-chip {
+  all: unset;
+  cursor: pointer;
+  font-size: 9.5px;
+  padding: 1px 8px;
+  border-radius: 99px;
+  border: 1px solid rgb(124 140 255 / 0.25);
+  color: #8ea2d6;
+}
+.wf-next-chip.on {
+  border-color: var(--color-orchestrator);
+  background: rgb(124 92 246 / 0.25);
+  color: #fff;
+}
+.wf-hint {
+  margin: 8px 0 0;
+  font-size: 9.5px;
+  color: #4d5a8c;
+}

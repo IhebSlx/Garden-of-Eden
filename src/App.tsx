@@ -20,8 +20,19 @@ import { hydrateFleetStore, selectActiveFleet, useFleetStore } from './store/fle
 import { solarluxFleet } from './model/seed.js';
 import { attachPersistence, createIndexedDbRepository } from './store/persistence.js';
 
-function useBootstrap(): boolean {
+type Bootstrap = {
+  ready: boolean;
+  /** A save failed - the user is editing something that is not being persisted. */
+  storageError: string | null;
+  /** Another tab saved a fleet this tab also has open. */
+  changedElsewhere: boolean;
+  dismissStorageError: () => void;
+};
+
+function useBootstrap(): Bootstrap {
   const [ready, setReady] = useState(false);
+  const [storageError, setStorageError] = useState<string | null>(null);
+  const [changedElsewhere, setChangedElsewhere] = useState(false);
   const started = useRef(false);
 
   useEffect(() => {
@@ -41,14 +52,25 @@ function useBootstrap(): boolean {
       const activeFleetId = loaded.fleets.length > 0 ? loaded.activeFleetId : (fleets[0]?.id ?? null);
 
       hydrateFleetStore({ fleets, activeFleetId });
-      handle = attachPersistence(useFleetStore, repository);
+      handle = attachPersistence(useFleetStore, repository, {
+        onError: (error) => {
+          console.error(error.cause);
+          setStorageError(error.message);
+        },
+        onExternalChange: () => setChangedElsewhere(true),
+      });
       setReady(true);
     })();
 
     return () => handle?.stop();
   }, []);
 
-  return ready;
+  return {
+    ready,
+    storageError,
+    changedElsewhere,
+    dismissStorageError: () => setStorageError(null),
+  };
 }
 
 /** SPEC 5.11 + Phase 3: what the board says when there is nothing to draw. */
@@ -76,7 +98,7 @@ function EmptyState(): React.JSX.Element {
 }
 
 export function App(): React.JSX.Element {
-  const ready = useBootstrap();
+  const { ready, storageError, changedElsewhere, dismissStorageError } = useBootstrap();
   const fleet = useFleetStore(selectActiveFleet);
 
   if (!ready) {
@@ -98,6 +120,27 @@ export function App(): React.JSX.Element {
       <Hint />
       <ShortcutsHelp />
       <Shortcuts />
+
+      {storageError && (
+        <div className="appbanner" role="alert" data-testid="storage-error">
+          <span>{storageError}</span>
+          <button type="button" onClick={dismissStorageError}>
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {!storageError && changedElsewhere && (
+        <div className="appbanner info" role="status" data-testid="changed-elsewhere">
+          <span>
+            This fleet was also edited in another tab. Reload to pick up those changes - otherwise
+            whichever tab saves last wins.
+          </span>
+          <button type="button" onClick={() => window.location.reload()}>
+            Reload
+          </button>
+        </div>
+      )}
     </main>
   );
 }

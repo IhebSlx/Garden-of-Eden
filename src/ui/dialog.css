@@ -191,3 +191,116 @@
 .shortcut-row span {
   color: #93a4d0;
 }
+
+/* ---------- crash floor ---------- */
+
+.crash {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  padding: 24px;
+}
+.crash-card {
+  width: min(520px, 92vw);
+  background: rgb(16 21 42 / 0.9);
+  border: 1px solid rgb(248 113 113 / 0.4);
+  border-radius: 16px;
+  padding: 20px;
+}
+.crash-card h1 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+.crash-card p {
+  margin: 0 0 12px;
+  font-size: 12.5px;
+  color: #93a4d0;
+  line-height: 1.55;
+}
+.crash-detail {
+  margin: 0 0 14px;
+  padding: 10px;
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #fca5a5;
+  background: rgb(10 14 30 / 0.7);
+  border: 1px solid rgb(124 140 255 / 0.2);
+  border-radius: 8px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+.crash-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.crash-actions .btn {
+  all: unset;
+  cursor: pointer;
+  padding: 8px 16px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgb(124 92 246 / 0.22);
+  border: 1px solid rgb(139 92 246 / 0.55);
+  color: #dcd2ff;
+}
+.crash-actions .btn.ghost {
+  background: transparent;
+  border-color: rgb(124 140 255 / 0.3);
+  color: #9db0e8;
+}
+
+/* ---------- storage / sync banner ---------- */
+
+.appbanner {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 70;
+  max-width: min(620px, 92vw);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 14px;
+  border-radius: 12px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  background: rgb(60 16 22 / 0.92);
+  border: 1px solid rgb(248 113 113 / 0.45);
+  color: #f5d0d0;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.appbanner.info {
+  background: rgb(16 21 42 / 0.92);
+  border-color: rgb(124 140 255 / 0.4);
+  color: #cfe3ff;
+}
+.appbanner button {
+  all: unset;
+  cursor: pointer;
+  flex: none;
+  padding: 2px 9px;
+  border-radius: 99px;
+  border: 1px solid currentColor;
+  font-size: 10.5px;
+}
+.appbanner button:hover {
+  background: rgb(255 255 255 / 0.1);
+}
+
+/* ---------- 3D context loss ---------- */
+
+.context-lost {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 24px;
+  font-size: 12.5px;
+  color: #93a4d0;
+  background: rgb(5 6 15 / 0.75);
+}

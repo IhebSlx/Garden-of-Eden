@@ -18,7 +18,7 @@ import {
   peerIdsOf,
   sharedCount,
 } from '../model/selectors.js';
-import type { LibraryKind } from '../model/schemas.js';
+import type { Agent, LibraryKind } from '../model/schemas.js';
 import {
   DATA_TYPE_COLOR,
   KIND_COLOR,
@@ -119,6 +119,7 @@ export function Inspector(): React.JSX.Element | null {
   const [picker, setPicker] = useState<PickerMode>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [editingInstructions, setEditingInstructions] = useState(false);
+  const [editingModel, setEditingModel] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
   const agent = fleet && selectedId !== null ? fleet.agents.find((a) => a.id === selectedId) : undefined;
@@ -143,6 +144,23 @@ export function Inspector(): React.JSX.Element | null {
     agents: agentsUsing(fleet, kind, itemId),
     onJump: jump,
   });
+
+  // SPEC 4 model config: provider + name are both required by the schema, so a
+  // half-filled form must not be pushed into the store.
+  const commitModel = (patch: Partial<NonNullable<Agent['model']>>): void => {
+    const next = {
+      provider: (patch.provider ?? agent.model?.provider ?? '').trim(),
+      name: (patch.name ?? agent.model?.name ?? '').trim(),
+      temperature: 'temperature' in patch ? patch.temperature : agent.model?.temperature,
+    };
+    if (next.provider === '' || next.name === '') return;
+    const result = updateAgent(agent.id, {
+      model: next.temperature === undefined
+        ? { provider: next.provider, name: next.name }
+        : { provider: next.provider, name: next.name, temperature: next.temperature },
+    });
+    if (!result.ok) setNotice(result.reason);
+  };
 
   const kindColor = shared ? SHARED_COLOR : KIND_COLOR[agent.kind];
   const deletion = confirmingDelete ? previewAgentDeletion(agent.id) : null;
@@ -292,6 +310,61 @@ export function Inspector(): React.JSX.Element | null {
         <button type="button" className="instr" onClick={() => toggleDetail(`instr:${agent.id}`)}>
           {agent.instructions ?? 'none yet'}
         </button>
+      )}
+
+      <h3>
+        Model
+        <button
+          type="button"
+          className="addchip"
+          onClick={() => setEditingModel((on) => !on)}
+          aria-label={editingModel ? 'Done editing model' : 'Edit model'}
+        >
+          {editingModel ? '✓' : '✎'}
+        </button>
+      </h3>
+      {editingModel ? (
+        <div className="model-fields" data-testid="model-editor">
+          <input
+            className="ins-role"
+            defaultValue={agent.model?.provider ?? ''}
+            placeholder="Provider (e.g. Sorakel)"
+            aria-label="Model provider"
+            data-testid="model-provider"
+            onBlur={(event) => commitModel({ provider: event.target.value })}
+          />
+          <input
+            className="ins-role"
+            defaultValue={agent.model?.name ?? ''}
+            placeholder="Model name"
+            aria-label="Model name"
+            data-testid="model-name"
+            onBlur={(event) => commitModel({ name: event.target.value })}
+          />
+          <input
+            className="ins-role"
+            type="number"
+            step="0.1"
+            min="0"
+            max="2"
+            defaultValue={agent.model?.temperature ?? ''}
+            placeholder="Temperature"
+            aria-label="Model temperature"
+            onBlur={(event) =>
+              commitModel({
+                temperature: event.target.value === '' ? undefined : Number(event.target.value),
+              })
+            }
+          />
+        </div>
+      ) : (
+        <p className="model-summary" data-testid="model-summary">
+          {agent.model
+            ? `${agent.model.provider} · ${agent.model.name}${
+                agent.model.temperature === undefined ? '' : ` · temp ${agent.model.temperature}`
+              }`
+            : 'not set'}
+        </p>
       )}
 
       <h3>

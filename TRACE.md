@@ -217,6 +217,32 @@ Status: **✅** covered by a named test · **◻** deliberately out of v1 scope 
 | Keyboard shortcuts | ✅ | e2e › "keyboard shortcuts drive view, filter, details, search and help"; "a shortcut key typed into a field stays in the field" |
 | Empty states | ✅ | `App.tsx` `empty-state`; `fleetStore.test.ts` › "leaves no active fleet once the last one is deleted" |
 
+## Robustness & authoring (post-Phase-3 hardening)
+
+| Item | Status | Test(s) |
+|---|---|---|
+| A save failure is reported, not swallowed | ✅ | `persistence.test.ts` › "calls onError and keeps the fleet queued"; "reports a failed delete" |
+| A failed save is retried on the next flush | ✅ | `persistence.test.ts` › "calls onError and keeps the fleet queued" |
+| A second tab editing the same fleet is announced | ✅ | `persistence.test.ts` › cross-tab awareness (5 tests) |
+| A render crash offers reload + rescue export | ✅ | `ErrorBoundary.tsx` (`crash-screen`), wired in `main.tsx` |
+| WebGL context loss is recovered and explained | ✅ | `useContextLoss.ts`; `Scene.tsx` (`context-lost`) |
+| Tool description, type and workflow steps are editable | ✅ | `ToolEditor.tsx` (`tool-editor`, `wf-step`, `wf-new-step`); `workflowLayout.test.ts` covers the layout it feeds |
+| Skill description and instructions are editable | ✅ | `LibraryManager.tsx` (`skill-editor`, `skill-instructions`) |
+| Data source type, status, `linked` and `ref` are editable | ✅ | `LibraryManager.tsx` (`data-editor`, `data-linked`) |
+| `Agent.model` (provider / name / temperature) is editable | ✅ | `Inspector.tsx` (`model-editor`, `model-provider`); `fleetStore.test.ts` › "edits role, status, instructions and model" |
+| Board cards are keyboard reachable and labelled | ✅ | `AgentNode.tsx` `role=button` + `aria-label` + arrow-key walk; verified in-browser via the accessibility tree |
+
+## Vision fleet (`agenten_02_vision.pdf`)
+
+| Item | Status | Test(s) |
+|---|---|---|
+| Structure: orchestrator + five specialist columns | ✅ | `visionFleet.test.ts` › "has the orchestrator and the five specialist columns" |
+| Statuses derived from the "heute" legend | ✅ | `visionFleet.test.ts` › "carries the roadmap statuses"; "carries the per-source statuses" |
+| Sorakel modelled as the orchestrator's LLM | ✅ | `visionFleet.test.ts` › "models Sorakel as the orchestrator's LLM, not as an agent" |
+| Dataverse & SharePoint modelled as shared substrate | ✅ | `visionFleet.test.ts` › "models Dataverse & SharePoint as the substrate" |
+| "Kontext für alle" shared by every agent | ✅ | `visionFleet.test.ts` › "gives every agent the shared Unternehmenskontext" |
+| Loadable from the fleet menu | ✅ | `FleetBar.tsx` `load-vision` |
+
 ## Backlog (SPEC §9 — deliberately not built)
 
 | Item | Status |

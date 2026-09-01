@@ -3,6 +3,12 @@
  *
  * The repository is an interface so the store can be tested against an in-memory
  * implementation, and so a future backend (backlog) is a drop-in.
+ *
+ * Two failure modes are handled explicitly, because both silently destroy work:
+ *  - a write that throws (quota exceeded, private browsing, corrupted store) is
+ *    reported instead of vanishing into an unhandled rejection;
+ *  - a second tab editing the same fleet is detected and announced, rather than
+ *    the two tabs overwriting each other last-write-wins.
  */
 import { openDB } from 'idb';
 import type { DBSchema, IDBPDatabase } from 'idb';
@@ -11,6 +17,7 @@ import type { Fleet } from '../model/schemas.js';
 
 export const DB_NAME = 'agent-fleet-studio';
 export const DB_VERSION = 1;
+export const SYNC_CHANNEL = 'agent-fleet-studio:saves';
 
 const FLEET_STORE = 'fleets';
 const META_STORE = 'meta';
@@ -108,7 +115,9 @@ export function createIndexedDbRepository(): FleetRepository {
 }
 
 /** In-memory stand-in used by unit tests and by any environment without IndexedDB. */
-export function createMemoryRepository(initial: LoadedState = { fleets: [], activeFleetId: null, errors: [] }): FleetRepository {
+export function createMemoryRepository(
+  initial: LoadedState = { fleets: [], activeFleetId: null, errors: [] },
+): FleetRepository {
   const fleets = new Map<string, Fleet>(initial.fleets.map((f) => [f.id, f]));
   let activeFleetId = initial.activeFleetId;
 
@@ -139,6 +148,12 @@ export type PersistenceSnapshot = {
   activeFleetId: string | null;
 };
 
+/** What went wrong, in words a user can act on. */
+export type PersistenceError = {
+  message: string;
+  cause: unknown;
+};
+
 export type PersistenceHandle = {
   /** Write everything still pending right now (tests, and beforeunload). */
   flush: () => Promise<void>;
@@ -150,6 +165,42 @@ type Subscribable<T> = {
   subscribe: (listener: (state: T, previous: T) => void) => () => void;
 };
 
+/** Minimal shape of the cross-tab channel, so tests can pass a fake. */
+export type SaveBroadcast = {
+  postMessage: (message: unknown) => void;
+  close: () => void;
+  onmessage: ((event: { data: unknown }) => void) | null;
+};
+
+export type AttachOptions = {
+  debounceMs?: number;
+  /** Called when a write fails - the app turns this into a visible warning. */
+  onError?: (error: PersistenceError) => void;
+  /** Called when another tab saved a fleet this tab also has open. */
+  onExternalChange?: (fleetId: string) => void;
+  /** Injectable for tests; defaults to a BroadcastChannel when available. */
+  channel?: SaveBroadcast | null;
+};
+
+/** Identifies this tab, so it can ignore the echoes of its own saves. */
+const TAB_ID = `tab-${Math.random().toString(36).slice(2)}-${Date.now().toString(36)}`;
+
+type SaveMessage = { tabId: string; fleetId: string };
+
+function isSaveMessage(data: unknown): data is SaveMessage {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    typeof (data as SaveMessage).tabId === 'string' &&
+    typeof (data as SaveMessage).fleetId === 'string'
+  );
+}
+
+function defaultChannel(): SaveBroadcast | null {
+  if (typeof BroadcastChannel === 'undefined') return null;
+  return new BroadcastChannel(SYNC_CHANNEL) as unknown as SaveBroadcast;
+}
+
 /**
  * Mirror store mutations into the repository. Only fleets whose object identity
  * changed are written, so an unrelated mutation never rewrites the whole database.
@@ -157,15 +208,33 @@ type Subscribable<T> = {
 export function attachPersistence(
   store: Subscribable<PersistenceSnapshot>,
   repository: FleetRepository,
-  options: { debounceMs?: number } = {},
+  options: AttachOptions = {},
 ): PersistenceHandle {
   const debounceMs = options.debounceMs ?? 300;
+  const onError = options.onError;
+  const onExternalChange = options.onExternalChange;
+  const channel = options.channel === undefined ? defaultChannel() : options.channel;
 
   const dirtyFleetIds = new Set<string>();
   const deletedFleetIds = new Set<string>();
   let activeFleetDirty = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let inFlight: Promise<void> = Promise.resolve();
+
+  if (channel) {
+    channel.onmessage = (event) => {
+      if (!isSaveMessage(event.data)) return;
+      // Our own broadcast comes back to us on some platforms; ignore it.
+      if (event.data.tabId === TAB_ID) return;
+      if (!(event.data.fleetId in store.getState().fleets)) return;
+      onExternalChange?.(event.data.fleetId);
+    };
+  }
+
+  const report = (message: string, cause: unknown): void => {
+    if (onError) onError({ message, cause });
+    else console.error(message, cause);
+  };
 
   const write = async (): Promise<void> => {
     const { fleets, activeFleetId } = store.getState();
@@ -177,12 +246,37 @@ export function attachPersistence(
     dirtyFleetIds.clear();
     activeFleetDirty = false;
 
-    for (const fleetId of toDelete) await repository.deleteFleet(fleetId);
+    for (const fleetId of toDelete) {
+      try {
+        await repository.deleteFleet(fleetId);
+      } catch (cause) {
+        report('A fleet could not be removed from local storage.', cause);
+      }
+    }
+
     for (const fleetId of toSave) {
       const fleet = fleets[fleetId];
-      if (fleet) await repository.saveFleet(fleet);
+      if (!fleet) continue;
+      try {
+        await repository.saveFleet(fleet);
+        channel?.postMessage({ tabId: TAB_ID, fleetId } satisfies SaveMessage);
+      } catch (cause) {
+        // Put it back in the queue: the next mutation retries it.
+        dirtyFleetIds.add(fleetId);
+        report(
+          `Changes to "${fleet.name}" could not be saved. Your browser may be out of storage or in private mode - export the fleet to keep your work.`,
+          cause,
+        );
+      }
     }
-    if (saveActive) await repository.setActiveFleetId(activeFleetId);
+
+    if (saveActive) {
+      try {
+        await repository.setActiveFleetId(activeFleetId);
+      } catch (cause) {
+        report('The active fleet could not be remembered for next time.', cause);
+      }
+    }
   };
 
   const schedule = (): void => {
@@ -220,6 +314,10 @@ export function attachPersistence(
     stop: () => {
       if (timer !== undefined) clearTimeout(timer);
       timer = undefined;
+      if (channel) {
+        channel.onmessage = null;
+        channel.close();
+      }
       unsubscribe();
     },
   };

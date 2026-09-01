@@ -17,6 +17,7 @@ import {
 import { useUiStore } from '../../store/uiStore.js';
 import { exportFleetToJson, suggestFleetFileName } from '../../store/io.js';
 import { solarluxFleet } from '../../model/seed.js';
+import { solarluxVisionFleet } from '../../model/visionFleet.js';
 import { FLEET_TEMPLATE_LABELS } from '../../model/templates.js';
 import type { Fleet } from '../../model/schemas.js';
 
@@ -50,6 +51,13 @@ export function FleetBar(): React.JSX.Element {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+
+  const loadExample = (fleet: Fleet): void => {
+    const result = importFleet(fleet);
+    if (!result.ok) setNotice(result.errors.join(' · '));
+    resetForFleet();
+    setMenuOpen(false);
+  };
 
   const switchTo = (id: string): void => {
     setActiveFleet(id);
@@ -137,15 +145,19 @@ export function FleetBar(): React.JSX.Element {
             type="button"
             className="fleetmenu-row"
             data-testid="load-example"
-            onClick={() => {
-              const result = importFleet(solarluxFleet());
-              if (!result.ok) setNotice(result.errors.join(' · '));
-              resetForFleet();
-              setMenuOpen(false);
-            }}
+            onClick={() => loadExample(solarluxFleet())}
           >
             Solarlux example
             <small>demo fleet</small>
+          </button>
+          <button
+            type="button"
+            className="fleetmenu-row"
+            data-testid="load-vision"
+            onClick={() => loadExample(solarluxVisionFleet())}
+          >
+            Solarlux Vision
+            <small>target architecture</small>
           </button>
 
           {fleet && (

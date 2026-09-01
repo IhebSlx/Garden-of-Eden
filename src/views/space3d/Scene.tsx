@@ -3,7 +3,7 @@
  * (SPEC 2.1). Focus, selection, filter and search all carry across the switch
  * because they live in the shared ui store, not in either view.
  */
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { FogExp2, Vector3 } from 'three';
 import { AgentSphere } from './AgentSphere.js';
@@ -24,6 +24,7 @@ import { selectActiveFleet, useFleetStore } from '../../store/fleetStore.js';
 import { useUiStore } from '../../store/uiStore.js';
 import { CAMERA_3D, FOCUS_CAMERA_3D, MORPH_MS, MORPH_PLANE_Y, MORPH_SPAN } from '../../ui/constants.js';
 import { usePrefersReducedMotion } from '../../ui/usePrefersReducedMotion.js';
+import { useContextLoss } from './useContextLoss.js';
 
 function Fleet3d(): React.JSX.Element | null {
   const fleet = useFleetStore(selectActiveFleet);
@@ -212,6 +213,13 @@ function MorphDriver({ morphRef }: { morphRef: { current: number } }): null {
   return null;
 }
 
+/** Reports a lost WebGL context up to the DOM overlay (it can only be read inside the Canvas). */
+function ContextLossWatch({ onChange }: { onChange: (lost: boolean) => void }): null {
+  const lost = useContextLoss();
+  useEffect(() => onChange(lost), [lost, onChange]);
+  return null;
+}
+
 /** Stable per-instance phase so In-progress halos do not pulse in lockstep. */
 function hashPhase(key: string): number {
   let hash = 0;
@@ -221,6 +229,7 @@ function hashPhase(key: string): number {
 
 export function Scene(): React.JSX.Element {
   const fog = useMemo(() => new FogExp2(0x05060f, 0.0011), []);
+  const [contextLost, setContextLost] = useState(false);
 
   return (
     <div className="scene3d" data-testid="scene3d">
@@ -234,7 +243,16 @@ export function Scene(): React.JSX.Element {
         }}
       >
         <Fleet3d />
+        <ContextLossWatch onChange={setContextLost} />
       </Canvas>
+
+      {contextLost && (
+        <div className="context-lost" role="status" data-testid="context-lost">
+          The 3D view lost its graphics context - usually a graphics driver switching or the
+          machine waking from sleep. It will come back on its own in a moment; the 2D board still
+          works in the meantime.
+        </div>
+      )}
     </div>
   );
 }

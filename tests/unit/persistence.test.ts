@@ -6,7 +6,7 @@ import {
   createIndexedDbRepository,
   createMemoryRepository,
 } from '../../src/store/persistence.js';
-import type { FleetRepository } from '../../src/store/persistence.js';
+import type { FleetRepository, SaveBroadcast } from '../../src/store/persistence.js';
 import {
   hydrateFleetStore,
   resetFleetStore,
@@ -197,5 +197,163 @@ describe('hydration', () => {
     hydrateFleetStore({ fleets: [], activeFleetId: null });
     expect(store().activeFleetId).toBeNull();
     expect(store().fleetOrder).toEqual([]);
+  });
+});
+
+describe('write failures are reported, never swallowed', () => {
+  it('calls onError and keeps the fleet queued for the next attempt', async () => {
+    const base = createMemoryRepository();
+    let failNext = true;
+    const errors: string[] = [];
+    const repository: FleetRepository = {
+      ...base,
+      saveFleet: (fleet) => {
+        if (failNext) return Promise.reject(new Error('QuotaExceededError'));
+        return base.saveFleet(fleet);
+      },
+    };
+
+    const handle = attachPersistence(useFleetStore, repository, {
+      debounceMs: 0,
+      channel: null,
+      onError: (error) => errors.push(error.message),
+    });
+    try {
+      store().createFleet('blank', 'Autosaved');
+      await handle.flush();
+
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toContain('could not be saved');
+      expect((await repository.loadAll()).fleets).toEqual([]);
+
+      // The failed fleet stays dirty, so the next flush retries it.
+      failNext = false;
+      await handle.flush();
+      expect((await repository.loadAll()).fleets).toHaveLength(1);
+    } finally {
+      handle.stop();
+    }
+  });
+
+  it('reports a failed delete without losing the rest of the batch', async () => {
+    const base = createMemoryRepository();
+    const errors: string[] = [];
+    const repository: FleetRepository = {
+      ...base,
+      deleteFleet: () => Promise.reject(new Error('blocked')),
+    };
+
+    const handle = attachPersistence(useFleetStore, repository, {
+      debounceMs: 0,
+      channel: null,
+      onError: (error) => errors.push(error.message),
+    });
+    try {
+      const id = store().createFleet('blank', 'Doomed');
+      await handle.flush();
+      store().deleteFleet(id);
+      await handle.flush();
+      expect(errors.some((message) => message.includes('could not be removed'))).toBe(true);
+    } finally {
+      handle.stop();
+    }
+  });
+});
+
+describe('cross-tab awareness', () => {
+  type Listener = ((event: { data: unknown }) => void) | null;
+
+  function fakeChannel(): { channel: SaveBroadcast; sent: unknown[]; deliver: (data: unknown) => void } {
+    const sent: unknown[] = [];
+    const channel: SaveBroadcast = {
+      postMessage: (message) => sent.push(message),
+      close: () => undefined,
+      onmessage: null as Listener,
+    };
+    return { channel, sent, deliver: (data) => channel.onmessage?.({ data }) };
+  }
+
+  it('broadcasts each successful save', async () => {
+    const { channel, sent } = fakeChannel();
+    const handle = attachPersistence(useFleetStore, createMemoryRepository(), { debounceMs: 0, channel });
+    try {
+      const id = store().createFleet('blank', 'Shared');
+      await handle.flush();
+      expect(sent).toHaveLength(1);
+      expect(sent[0]).toMatchObject({ fleetId: id });
+    } finally {
+      handle.stop();
+    }
+  });
+
+  it('announces a save that came from another tab', async () => {
+    const { channel, deliver } = fakeChannel();
+    const seen: string[] = [];
+    const handle = attachPersistence(useFleetStore, createMemoryRepository(), {
+      debounceMs: 0,
+      channel,
+      onExternalChange: (fleetId) => seen.push(fleetId),
+    });
+    try {
+      const id = store().createFleet('blank', 'Shared');
+      await handle.flush();
+
+      deliver({ tabId: 'another-tab', fleetId: id });
+      expect(seen).toEqual([id]);
+    } finally {
+      handle.stop();
+    }
+  });
+
+  it('ignores the echo of its own save', async () => {
+    const { channel, sent, deliver } = fakeChannel();
+    const seen: string[] = [];
+    const handle = attachPersistence(useFleetStore, createMemoryRepository(), {
+      debounceMs: 0,
+      channel,
+      onExternalChange: (fleetId) => seen.push(fleetId),
+    });
+    try {
+      store().createFleet('blank', 'Shared');
+      await handle.flush();
+      // Replay exactly what this tab broadcast.
+      deliver(sent[0]);
+      expect(seen).toEqual([]);
+    } finally {
+      handle.stop();
+    }
+  });
+
+  it('ignores a save for a fleet this tab does not have open', () => {
+    const { channel, deliver } = fakeChannel();
+    const seen: string[] = [];
+    const handle = attachPersistence(useFleetStore, createMemoryRepository(), {
+      debounceMs: 0,
+      channel,
+      onExternalChange: (fleetId) => seen.push(fleetId),
+    });
+    try {
+      deliver({ tabId: 'another-tab', fleetId: 'flt_not_here' });
+      expect(seen).toEqual([]);
+    } finally {
+      handle.stop();
+    }
+  });
+
+  it('ignores malformed messages', () => {
+    const { channel, deliver } = fakeChannel();
+    const seen: string[] = [];
+    const handle = attachPersistence(useFleetStore, createMemoryRepository(), {
+      debounceMs: 0,
+      channel,
+      onExternalChange: (fleetId) => seen.push(fleetId),
+    });
+    try {
+      expect(() => deliver({ nonsense: true })).not.toThrow();
+      expect(() => deliver(null)).not.toThrow();
+      expect(seen).toEqual([]);
+    } finally {
+      handle.stop();
+    }
   });
 });

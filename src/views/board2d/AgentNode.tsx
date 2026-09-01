@@ -6,6 +6,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import type { NodeProps, Node } from '@xyflow/react';
+import { STATUS_LABELS } from '../../model/schemas.js';
 import type { Agent } from '../../model/schemas.js';
 import { KIND_COLOR, STATUS_COLOR, TOOL_TYPE_COLOR } from '../../ui/palette.js';
 import { useFleetStore } from '../../store/fleetStore.js';
@@ -24,6 +25,13 @@ export type AgentNodeData = {
   popDelayMs: number | null;
   /** Changes on every new focus so the same delay still replays the pop. */
   popToken: number;
+  /** Instance keys reachable with the arrow keys. */
+  neighbours: {
+    parent: string | null;
+    child: string | null;
+    previous: string | null;
+    next: string | null;
+  };
   skillNames: string[];
   tools: { name: string; type: keyof typeof TOOL_TYPE_COLOR }[];
 };
@@ -32,6 +40,8 @@ export type AgentFlowNode = Node<AgentNodeData, 'agent'>;
 
 function AgentNodeComponent({ data }: NodeProps<AgentFlowNode>): React.JSX.Element {
   const { agent, depth, sharedCount, ghosted, selected, popDelayMs, popToken, skillNames, tools } = data;
+  const { instanceKey, neighbours } = data;
+  const activate = useUiStore((s) => s.activate);
   const renameAgent = useFleetStore((s) => s.renameAgent);
   // SPEC 5.9: an expanding ring in the kind colour, fired by a click or a search pick.
   const burstAt = useUiStore((s) => (s.burst?.agentId === agent.id ? s.burst.at : null));
@@ -90,6 +100,45 @@ function AgentNodeComponent({ data }: NodeProps<AgentFlowNode>): React.JSX.Eleme
     .filter(Boolean)
     .join(' ');
 
+  /**
+   * The board is a graph, so the arrow keys walk it: up to the parent, down to the
+   * first child, left/right between siblings. Without this the whole board was
+   * pointer-only and unreachable by keyboard or screen reader.
+   */
+  const onCardKeyDown = (event: React.KeyboardEvent): void => {
+    if (editing) return;
+
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      activate(agent.id);
+      return;
+    }
+
+    const target =
+      event.key === 'ArrowUp'
+        ? neighbours.parent
+        : event.key === 'ArrowDown'
+          ? neighbours.child
+          : event.key === 'ArrowLeft'
+            ? neighbours.previous
+            : event.key === 'ArrowRight'
+              ? neighbours.next
+              : null;
+    if (target === null) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    document
+      .querySelector<HTMLElement>(`[data-instance-key="${CSS.escape(target)}"]`)
+      ?.focus({ preventScroll: false });
+  };
+
+  const relation =
+    sharedCount > 1 ? `shared by ${sharedCount} parents` : depth === 0 ? 'top of the fleet' : '';
+  const label = [agent.name, agent.role, STATUS_LABELS[agent.status], relation]
+    .filter((part) => part !== '')
+    .join(', ');
+
   return (
     <div
       ref={cardRef}
@@ -101,7 +150,14 @@ function AgentNodeComponent({ data }: NodeProps<AgentFlowNode>): React.JSX.Eleme
         } as React.CSSProperties
       }
       data-agent-id={agent.id}
+      data-instance-key={instanceKey}
       data-testid="agent-card"
+      /* Ghosted copies are inert, so they must not be tab stops either. */
+      tabIndex={ghosted ? -1 : 0}
+      role="button"
+      aria-label={label}
+      aria-pressed={selected}
+      onKeyDown={onCardKeyDown}
     >
       <Handle type="target" position={Position.Top} id="in" isConnectable />
       <Handle type="source" position={Position.Bottom} id="out" isConnectable />

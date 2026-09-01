@@ -786,3 +786,12 @@
     transition: none;
   }
 }
+
+/* Keyboard reachability: the board is a graph, so cards are real tab stops. */
+.card:focus-visible {
+  outline: 2px solid var(--ac);
+  outline-offset: 3px;
+}
+.card:focus-visible .nm {
+  color: #fff;
+}
