@@ -1,0 +1,90 @@
+@import 'tailwindcss';
+
+/*
+ * SPEC 6 - Visual design system. Dark futuristic glass.
+ * These values are normative: they come from the spec's token table and its
+ * "Normative constants" paragraph. Changing any of them is a DEVIATION.
+ */
+@theme {
+  /* surfaces */
+  --color-bg-deep: #05060f;
+  --color-bg-glow: #0d1330;
+
+  /* agent kinds */
+  --color-orchestrator: #8b5cf6;
+  --color-department: #38e1ff;
+  --color-worker: #3ce8b0;
+  --color-shared: #f6b954;
+
+  /* status */
+  --color-status-live: #4ade80;
+  --color-status-building: #fbbf24;
+  --color-status-planned: #6b7a9e;
+
+  /* tool type dots */
+  --color-tool-workflow: #f6b954;
+  --color-tool-python: #38e1ff;
+  --color-tool-microsoft: #818cf8;
+
+  /* data source type dots */
+  --color-data-md: #c9b6ff;
+  --color-data-dataverse: #3ce8b0;
+  --color-data-sharepoint: #38e1ff;
+
+  --font-sans:
+    Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+/*
+ * SPEC 6 "Normative constants" - tuned in the prototype, consumed by both renderers.
+ * Kept as plain custom properties (not @theme) because they are behaviour, not utilities.
+ */
+:root {
+  --glass-fill: rgb(19 25 48 / 0.62);
+
+  /* focus & ghosting (SPEC 5.2) */
+  --ghost-opacity: 0.05;
+  --focus-cascade-stagger: 110ms;
+  --focused-wire-brightness: 1.7;
+
+  /* status wire opacity multipliers (SPEC 5.6) */
+  --edge-opacity-planned: 0.35;
+  --edge-opacity-building: 0.7;
+
+  /* semantic zoom stages (SPEC 5.5) */
+  --zoom-hide-roles: 0.55;
+  --zoom-collapse-to-dots: 0.36;
+
+  /* motion (SPEC 5.4, 5.9) */
+  --auto-rotate-idle-delay: 6s;
+  --orbit-inertia-decay: 0.92;
+  --selection-pulse-duration: 2.4s;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at 50% 38%, var(--color-bg-glow) 0%, transparent 62%),
+    var(--color-bg-deep);
+  color: #e8ecf8;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* SPEC 5.9 / 10: all animation respects reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
