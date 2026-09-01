@@ -744,3 +744,45 @@
     opacity: 0;
   }
 }
+
+/* ---------- 2D / 3D crossfade (SPEC 5.1) ---------- */
+
+.viewswitch {
+  position: absolute;
+  inset: 0;
+}
+.viewlayer {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+}
+.viewlayer.on {
+  opacity: 1;
+  pointer-events: auto;
+}
+.scene3d {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(1100px 720px at 50% 32%, #0d1330, #05060f 72%);
+}
+.scene3d canvas {
+  display: block;
+  cursor: grab;
+  touch-action: none;
+}
+.scene-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  color: #5f6d9c;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .viewlayer {
+    transition: none;
+  }
+}

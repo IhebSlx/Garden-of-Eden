@@ -255,3 +255,40 @@ test('the fleet survives a reload (SPEC 7 autosave)', async ({ page }) => {
   await expect(page.getByTestId('agent-card')).toHaveCount(20);
   await expect(cards(page, 'People Ops')).toHaveCount(1);
 });
+
+test('2D and 3D share one state: focus and selection round-trip across the switch (SPEC 5.1)', async ({
+  page,
+}) => {
+  await cards(page, 'Marketing').first().click();
+  await expect(page.getByTestId('breadcrumb-here')).toHaveText('Marketing');
+  await page.getByTestId('filter-live').click();
+
+  await page.getByTestId('view-3d').click();
+  await expect(page.getByTestId('scene3d')).toBeVisible();
+  // The whole view state survives: focus, selection, panel and filter.
+  await expect(page.getByTestId('breadcrumb-here')).toHaveText('Marketing');
+  await expect(page.getByTestId('panel-name')).toHaveValue('Marketing');
+  await expect(page.getByTestId('filter-live')).toHaveClass(/on/);
+
+  await page.getByTestId('view-2d').click();
+  await expect(page.getByTestId('breadcrumb-here')).toHaveText('Marketing');
+  await expect(page.getByTestId('panel-name')).toHaveValue('Marketing');
+  await expect(page.getByTestId('filter-live')).toHaveClass(/on/);
+  // ...and the board still has the same ghosting it had before the round-trip.
+  await expect(cards(page, 'HR').first()).toHaveClass(/ghost/);
+});
+
+test('the 3D scene renders and its canvas is interactive', async ({ page }) => {
+  await page.getByTestId('view-3d').click();
+  const scene = page.getByTestId('scene3d');
+  await expect(scene).toBeVisible();
+  await expect(scene.locator('canvas')).toBeVisible();
+
+  // Esc still leaves focus while the 3D view is up (SPEC 5.2).
+  await page.getByTestId('view-2d').click();
+  await cards(page, 'HR').first().click();
+  await page.getByTestId('view-3d').click();
+  await expect(page.getByTestId('breadcrumb-here')).toHaveText('HR');
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('breadcrumb-here')).toHaveCount(0);
+});

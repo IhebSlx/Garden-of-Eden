@@ -3,7 +3,7 @@
  * subscriber, the chrome is a subscriber, nothing here owns fleet data.
  */
 import { useEffect, useRef, useState } from 'react';
-import { Board } from './views/board2d/Board.js';
+import { ViewSwitch } from './views/ViewSwitch.js';
 import { Breadcrumb } from './views/chrome/Breadcrumb.js';
 import { FilterBar } from './views/chrome/FilterBar.js';
 import { FleetBar } from './views/chrome/FleetBar.js';
@@ -84,7 +84,7 @@ export function App(): React.JSX.Element {
 
   return (
     <main className="relative h-full w-full overflow-hidden">
-      {fleet ? <Board /> : <EmptyState />}
+      {fleet ? <ViewSwitch /> : <EmptyState />}
       <TopBar />
       <FleetBar />
       <FilterBar />

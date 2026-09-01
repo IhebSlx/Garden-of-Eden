@@ -20,12 +20,16 @@
     "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
+    "@react-three/drei": "10.7.8",
+    "@react-three/fiber": "9.7.0",
+    "@react-three/postprocessing": "3.1.1",
     "@xyflow/react": "12.11.6",
     "fuse.js": "7.5.0",
     "idb": "8.0.3",
     "motion": "13.1.1",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "three": "0.185.1",
     "zod": "4.5.4",
     "zundo": "2.3.0",
     "zustand": "5.0.15"
@@ -40,6 +44,7 @@
     "@types/node": "26.4.0",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.5",
+    "@types/three": "0.185.4",
     "@vitejs/plugin-react": "6.1.1",
     "eslint": "10.9.1",
     "eslint-plugin-react-hooks": "7.1.1",
