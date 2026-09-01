@@ -51,6 +51,7 @@ function BoardCanvas(): React.JSX.Element {
   const model = useBoardModel(bucket);
   const activate = useUiStore((s) => s.activate);
   const clearFocus = useUiStore((s) => s.clearFocus);
+  const selectEdge = useUiStore((s) => s.selectEdge);
   const focusId = useUiStore((s) => s.focusId);
   const showDetails = useUiStore((s) => s.showDetails);
   const setAgentPosition = useFleetStore((s) => s.setAgentPosition);
@@ -204,6 +205,7 @@ function BoardCanvas(): React.JSX.Element {
         onNodeClick={onNodeClick}
         onNodeDragStop={onNodeDragStop}
         onPaneClick={onPaneClick}
+        onEdgeClick={(_event, edge) => selectEdge(edge.data?.edgeId ?? null)}
         onConnect={onConnect}
         onInit={() => setInitialized(true)}
         minZoom={ZOOM.min}

@@ -31,7 +31,7 @@ import type {
   Status,
   Tool,
 } from '../model/schemas.js';
-import { formatZodError } from '../model/migrations.js';
+import { formatZodError, migrateFleetDocument } from '../model/migrations.js';
 import { agentsUsing, descendantIds, isShared, parentsOf } from '../model/selectors.js';
 import { fleetFromTemplate } from '../model/templates.js';
 import type { FleetTemplate } from '../model/templates.js';
@@ -99,6 +99,8 @@ export type FleetStoreState = {
   deleteFleet: (fleetId: string) => ActionResult;
   setActiveFleet: (fleetId: string) => ActionResult;
   importFleetFromJson: (text: string) => { ok: true; id: string } | { ok: false; errors: string[] };
+  /** Load an in-memory fleet (the shipped Solarlux example, SPEC 5.11). */
+  importFleetObject: (fleet: Fleet) => { ok: true; id: string } | { ok: false; errors: string[] };
 
   // --- agents (SPEC 5.8) ---
   addAgent: (input: NewAgentInput) => CreateResult;
@@ -274,6 +276,12 @@ export const useFleetStore = create<FleetStoreState>()(
 
         importFleetFromJson: (text) => {
           const parsed = parseFleetJson(text);
+          if (!parsed.ok) return parsed;
+          return get().importFleetObject(parsed.fleet);
+        },
+
+        importFleetObject: (candidate) => {
+          const parsed = migrateFleetDocument(candidate);
           if (!parsed.ok) return parsed;
 
           // A second fleet with the same id would collide in the switcher and in IndexedDB.

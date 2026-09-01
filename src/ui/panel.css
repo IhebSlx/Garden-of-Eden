@@ -466,3 +466,139 @@
   font-size: 10.5px;
   color: #6f7fb4;
 }
+
+/* ---------- edge inspector (SPEC 8.5) ---------- */
+
+.edge-inspector {
+  top: auto;
+  bottom: 60px;
+  width: min(260px, 78vw);
+}
+.ins-name-static {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+/* ---------- library manager (SPEC 8.7) ---------- */
+
+.library-dialog {
+  width: min(640px, 94vw);
+}
+.lib-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.lib-list {
+  max-height: 320px;
+  overflow-y: auto;
+  border: 1px solid rgb(124 140 255 / 0.18);
+  border-radius: 10px;
+}
+.lib-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-bottom: 1px solid rgb(124 140 255 / 0.12);
+}
+.lib-row:last-child {
+  border-bottom: none;
+}
+.lib-name {
+  all: unset;
+  flex: 1 1 130px;
+  min-width: 90px;
+  font-size: 12px;
+  color: #e8ecff;
+  padding: 3px 5px;
+  border-radius: 6px;
+}
+.lib-name:hover,
+.lib-name:focus {
+  background: rgb(124 140 255 / 0.1);
+}
+.lib-meta {
+  font-size: 9.5px;
+  color: #6f7fb4;
+}
+.lib-select {
+  all: unset;
+  cursor: pointer;
+  font-size: 9.5px;
+  color: #9db0e8;
+  padding: 2px 6px;
+  border-radius: 6px;
+  border: 1px solid rgb(124 140 255 / 0.25);
+}
+.lib-select option {
+  background: #0d1330;
+  color: #e8ecff;
+}
+.lib-users {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  flex: 1 1 140px;
+  justify-content: flex-end;
+}
+.lib-users small {
+  font-size: 9.5px;
+  color: #4d5a8c;
+}
+.lib-users .ubn {
+  all: unset;
+  cursor: pointer;
+  font-size: 9.5px;
+  padding: 1px 8px;
+  border-radius: 99px;
+  background: rgb(90 110 200 / 0.16);
+  border: 1px solid rgb(124 140 255 / 0.25);
+  color: #cfe3ff;
+}
+.lib-users .ubn:hover {
+  border-color: var(--color-orchestrator);
+}
+.lib-delete {
+  all: unset;
+  cursor: pointer;
+  color: #6f7fb4;
+  font-size: 11px;
+  padding: 2px 4px;
+}
+.lib-delete:hover {
+  color: #fca5a5;
+}
+.lib-add {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.lib-add input {
+  all: unset;
+  flex: 1;
+  box-sizing: border-box;
+  padding: 7px 10px;
+  font-size: 12px;
+  color: #e8ecff;
+  background: rgb(10 14 30 / 0.7);
+  border: 1px solid rgb(124 140 255 / 0.25);
+  border-radius: 8px;
+}
+.lib-add button {
+  all: unset;
+  cursor: pointer;
+  padding: 7px 16px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgb(124 92 246 / 0.22);
+  border: 1px solid rgb(139 92 246 / 0.55);
+  color: #dcd2ff;
+}
+.lib-add button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}

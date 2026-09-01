@@ -20,6 +20,8 @@ export type UiState = {
   view: ViewMode;
   focusId: string | null;
   selectedId: string | null;
+  /** SPEC 8.5: a wire can be selected instead of an agent. */
+  selectedEdgeId: string | null;
   /** null = "All" (SPEC 5.6 filter bar). */
   statusFilter: Status | null;
   searchQuery: string;
@@ -28,6 +30,10 @@ export type UiState = {
   openDetail: DetailKey;
   /** Timestamp a focus was applied, so the cascade can stagger from it. */
   focusStartedAt: number;
+  /** SPEC 8.7: the library manager (list, edit, see usage). */
+  libraryOpen: boolean;
+  openLibrary: () => void;
+  closeLibrary: () => void;
   /** Bumped by Auto-arrange and the fit control so the board refits. */
   fitRequest: number;
   requestFit: () => void;
@@ -38,6 +44,7 @@ export type UiState = {
   toggleView: () => void;
   focus: (agentId: string | null) => void;
   select: (agentId: string | null) => void;
+  selectEdge: (edgeId: string | null) => void;
   /** Click on a card: focus its branch, select it and fire the burst at once. */
   activate: (agentId: string) => void;
   clearFocus: () => void;
@@ -59,32 +66,40 @@ export const useUiStore = create<UiState>()((set, get) => ({
   view: '2d',
   focusId: null,
   selectedId: null,
+  selectedEdgeId: null,
   statusFilter: null,
   searchQuery: '',
   showDetails: false,
   openDetail: null,
   focusStartedAt: 0,
+  libraryOpen: false,
   fitRequest: 0,
   burst: null,
 
+  openLibrary: () => set({ libraryOpen: true }),
+  closeLibrary: () => set({ libraryOpen: false }),
   requestFit: () => set((state) => ({ fitRequest: state.fitRequest + 1 })),
 
   setView: (view) => set({ view }),
   toggleView: () => set((state) => ({ view: state.view === '2d' ? '3d' : '2d' })),
 
   focus: (agentId) => set({ focusId: agentId, focusStartedAt: now() }),
-  select: (agentId) => set({ selectedId: agentId, openDetail: null }),
+  select: (agentId) => set({ selectedId: agentId, selectedEdgeId: null, openDetail: null }),
+  // Selecting a wire closes the agent panel - only one inspector at a time.
+  selectEdge: (edgeId) => set({ selectedEdgeId: edgeId, selectedId: edgeId === null ? get().selectedId : null }),
 
   activate: (agentId) =>
     set({
       focusId: agentId,
       selectedId: agentId,
+      selectedEdgeId: null,
       focusStartedAt: now(),
       openDetail: null,
       burst: { agentId, at: now() },
     }),
 
-  clearFocus: () => set({ focusId: null, selectedId: null, openDetail: null, focusStartedAt: now() }),
+  clearFocus: () =>
+    set({ focusId: null, selectedId: null, selectedEdgeId: null, openDetail: null, focusStartedAt: now() }),
 
   setStatusFilter: (statusFilter) => set({ statusFilter }),
   toggleStatusFilter: (status) =>
@@ -100,7 +115,15 @@ export const useUiStore = create<UiState>()((set, get) => ({
   fireBurst: (agentId) => set({ burst: { agentId, at: now() } }),
 
   resetForFleet: () =>
-    set({ focusId: null, selectedId: null, openDetail: null, searchQuery: '', focusStartedAt: 0, burst: null }),
+    set({
+      focusId: null,
+      selectedId: null,
+      selectedEdgeId: null,
+      openDetail: null,
+      searchQuery: '',
+      focusStartedAt: 0,
+      burst: null,
+    }),
 }));
 
 /** SPEC 5.6: a component matches when no filter is set or its status equals it. */

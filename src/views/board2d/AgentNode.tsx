@@ -9,6 +9,7 @@ import type { NodeProps, Node } from '@xyflow/react';
 import type { Agent } from '../../model/schemas.js';
 import { KIND_COLOR, STATUS_COLOR, TOOL_TYPE_COLOR } from '../../ui/palette.js';
 import { useFleetStore } from '../../store/fleetStore.js';
+import { useUiStore } from '../../store/uiStore.js';
 
 
 export type AgentNodeData = {
@@ -32,6 +33,8 @@ export type AgentFlowNode = Node<AgentNodeData, 'agent'>;
 function AgentNodeComponent({ data }: NodeProps<AgentFlowNode>): React.JSX.Element {
   const { agent, depth, sharedCount, ghosted, selected, popDelayMs, popToken, skillNames, tools } = data;
   const renameAgent = useFleetStore((s) => s.renameAgent);
+  // SPEC 5.9: an expanding ring in the kind colour, fired by a click or a search pick.
+  const burstAt = useUiStore((s) => (s.burst?.agentId === agent.id ? s.burst.at : null));
   const nameRef = useRef<HTMLSpanElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -116,6 +119,8 @@ function AgentNodeComponent({ data }: NodeProps<AgentFlowNode>): React.JSX.Eleme
       <Handle type="target" position={Position.Top} id="in" isConnectable />
       <Handle type="source" position={Position.Bottom} id="out" isConnectable />
       <Handle type="source" position={Position.Top} id="peer-out" isConnectable />
+
+      {burstAt !== null && <span key={burstAt} className="burst" aria-hidden="true" />}
 
       <div className="nm">
         <i />

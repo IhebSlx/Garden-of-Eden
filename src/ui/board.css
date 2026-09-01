@@ -488,3 +488,256 @@
   border-radius: 50%;
   flex: none;
 }
+
+/* ---------- search (SPEC 5.10) ---------- */
+
+.searchinput {
+  all: unset;
+  box-sizing: border-box;
+  width: 100%;
+  background: rgb(16 21 42 / 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgb(124 140 255 / 0.25);
+  border-radius: 12px;
+  padding: 7px 12px;
+  font-size: 12px;
+  color: #e8ecff;
+}
+.searchinput:focus {
+  border-color: rgb(139 92 246 / 0.6);
+}
+.searchinput::placeholder {
+  color: #5f6d9c;
+}
+
+.sres {
+  margin-top: 5px;
+  background: rgb(12 17 36 / 0.92);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgb(124 140 255 / 0.28);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.srow {
+  all: unset;
+  cursor: pointer;
+  box-sizing: border-box;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 11px;
+  font-size: 12px;
+  color: #e8ecff;
+}
+.srow.hl,
+.srow:hover {
+  background: rgb(124 92 246 / 0.22);
+}
+.srow .sd {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+}
+.srow small {
+  margin-left: auto;
+  font-size: 9.5px;
+  color: #6f7fb4;
+  padding-left: 8px;
+}
+
+/* ---------- fleet bar (SPEC 5.11) ---------- */
+
+.fleetbar {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 45;
+}
+.fleetmenu {
+  position: absolute;
+  top: 40px;
+  right: 0;
+  width: 250px;
+  background: rgb(12 17 36 / 0.95);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgb(124 140 255 / 0.28);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 20px 50px rgb(2 4 16 / 0.7);
+}
+.fleetmenu-section {
+  padding: 7px 11px 3px;
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #4d5a8c;
+}
+.fleetmenu-row {
+  all: unset;
+  cursor: pointer;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 11px;
+  font-size: 11.5px;
+  color: #cfe3ff;
+}
+.fleetmenu-row:hover {
+  background: rgb(124 92 246 / 0.22);
+}
+.fleetmenu-row.on {
+  color: #fff;
+  background: rgb(124 92 246 / 0.16);
+}
+.fleetmenu-row.danger {
+  color: #fca5a5;
+}
+.fleetmenu-row small {
+  margin-left: auto;
+  font-size: 9.5px;
+  color: #6f7fb4;
+}
+.fleetmenu-input {
+  all: unset;
+  box-sizing: border-box;
+  width: calc(100% - 22px);
+  margin: 2px 11px 6px;
+  padding: 5px 8px;
+  font-size: 11.5px;
+  color: #e8ecff;
+  background: rgb(10 14 30 / 0.7);
+  border: 1px solid rgb(124 140 255 / 0.25);
+  border-radius: 7px;
+}
+.fleetmenu-confirm {
+  padding: 8px 11px;
+  font-size: 10.5px;
+  color: #f5d0d0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.fleetmenu-confirm button {
+  all: unset;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 99px;
+  border: 1px solid rgb(248 113 113 / 0.45);
+}
+.fleetmenu-confirm button:last-child {
+  border-color: rgb(124 140 255 / 0.3);
+  color: #9db0e8;
+}
+.fleetmenu-notice {
+  padding: 8px 11px;
+  font-size: 10px;
+  color: var(--color-status-building);
+}
+
+/* ---------- hint lines ---------- */
+
+.hintstack {
+  position: fixed;
+  bottom: 14px;
+  left: 20px;
+  right: 210px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  pointer-events: none;
+}
+.tagline {
+  font-size: 11px;
+  color: #4d5a8c;
+}
+.hintline-bottom {
+  font-size: 11.5px;
+  color: #5f6d9c;
+}
+
+/* ---------- empty state ---------- */
+
+.empty-state {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 6px;
+  text-align: center;
+  padding: 24px;
+}
+.empty-state h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+.empty-state p {
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  color: #93a4d0;
+}
+.empty-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.empty-actions .btn {
+  all: unset;
+  cursor: pointer;
+  padding: 8px 16px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgb(124 92 246 / 0.22);
+  border: 1px solid rgb(139 92 246 / 0.55);
+  color: #dcd2ff;
+}
+.empty-actions .btn:hover {
+  background: rgb(124 92 246 / 0.38);
+}
+.empty-actions .btn.ghost {
+  background: transparent;
+  border-color: rgb(124 140 255 / 0.3);
+  color: #9db0e8;
+}
+
+/* SPEC 5.9: expanding ring burst at the clicked node, in its kind colour. */
+.card .burst {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  border: 2px solid var(--ac);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  animation: burstring 0.5s ease-out forwards;
+}
+@keyframes burstring {
+  from {
+    opacity: 0.9;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(2.6);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card .burst {
+    animation: none;
+    opacity: 0;
+  }
+}
