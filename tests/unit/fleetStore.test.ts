@@ -207,6 +207,14 @@ describe('agents (SPEC 5.8)', () => {
     expect(store().deleteAgent(active().agents[0]?.id ?? '')).toMatchObject({ ok: false });
   });
 
+  it('refuses to delete the orchestrator, keeping the fleet valid (SPEC 4)', () => {
+    load();
+    const result = store().deleteAgent('agt_orchestrator');
+    expect(result).toMatchObject({ ok: false });
+    if (!result.ok) expect(result.reason).toContain('exactly one orchestrator');
+    expect(checkFleetIntegrity(active())).toEqual([]);
+  });
+
   it('stores and clears manual positions (SPEC 5.8 auto-arrange)', () => {
     load();
     store().setAgentPosition('agt_sales', { x: 10, y: 20 });

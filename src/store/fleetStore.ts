@@ -381,9 +381,14 @@ export const useFleetStore = create<FleetStoreState>()(
 
         deleteAgent: (agentId) =>
           mutateActive((fleet) => {
-            if (!fleet.agents.some((a) => a.id === agentId)) return fail(`Unknown agent "${agentId}".`);
+            const target = fleet.agents.find((a) => a.id === agentId);
+            if (!target) return fail(`Unknown agent "${agentId}".`);
             if (fleet.agents.length === 1) {
               return fail('A fleet needs at least one agent - delete the fleet instead.');
+            }
+            // SPEC 4: a fleet has exactly one orchestrator, so it cannot be deleted away.
+            if (target.kind === 'orchestrator') {
+              return fail('A fleet needs exactly one orchestrator - promote another agent first.');
             }
             // SPEC 5.8: "delete agents (removes their edges)".
             return {

@@ -119,6 +119,7 @@ Test files live in `tests/unit/`; Playwright specs land in `tests/e2e/` from Pha
 | Link existing agent (hierarchy or peer) | ✅ | `fleetStore.test.ts` › links (7 tests) |
 | Link never creates a cycle | ✅ | `fleetStore.test.ts` › "refuses a link that would close a hierarchy cycle" |
 | Delete agent removes its edges | ✅ | `fleetStore.test.ts` › "deletes an agent together with all its links" |
+| Orchestrator cannot be deleted away (§4) | ✅ | `fleetStore.test.ts` › "refuses to delete the orchestrator" |
 | Deleting a shared agent warns + lists parents | ✅ | `fleetStore.test.ts` › "describes a shared-agent deletion before it happens" |
 | Unlink = delete edge | ✅ | `fleetStore.test.ts` › "unlinks a hierarchy edge when another parent remains" |
 | Removing last hierarchy parent blocked | ✅ | `fleetStore.test.ts` › "blocks removing the last hierarchy parent" |
