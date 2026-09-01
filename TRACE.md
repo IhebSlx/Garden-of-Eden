@@ -405,9 +405,13 @@ one) and stays enabled on a shared agent, which is precisely when it is needed.
 | Shared badge and level shown together | ✅ | e2e › "a shared agent shows its level and its shared badge side by side" |
 
 **Vision fleet re-shaped (from the user's own architecture).** PPTX-Creator is a `worker`
-commissioned by Objektvertrieb, Business Development and Holzoffensive Buddy — three parents, so
-three instances of one agent (SPEC §2.2, §2.3). Objektvertrieb gains two sub-agents from the
-Angebotsprozess: Leistungsverzeichnis-Decoder and Kalkulationsagent.
-Covered by `visionFleet.test.ts` › "has the orchestrator, four departments and three sub-agents";
-"hangs the deck builder off every department that commissions decks";
-"puts the Angebotsprozess sub-agents under Objektvertrieb".
+commissioned by Objektvertrieb and Business Development — two parents, so two instances of one
+agent (SPEC §2.2, §2.3). Objektvertrieb gains two Angebotsprozess sub-agents,
+Leistungsverzeichnis-Decoder and Kalkulationsagent. Holzoffensive Buddy drops from a department
+to a sub-agent of Business Development, sitting beside the deck builder rather than above it,
+with a **peer** hand-off between the two (SPEC §5.2: a peer link never expands focus, so it adds
+no instance).
+Covered by `visionFleet.test.ts` › "has the orchestrator, three departments and four sub-agents";
+"hangs the deck builder off both departments that commission decks";
+"puts the Angebotsprozess sub-agents under Objektvertrieb";
+"puts the Holzoffensive answers beside the deck builder, not above it".

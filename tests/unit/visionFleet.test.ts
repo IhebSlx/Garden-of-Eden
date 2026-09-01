@@ -17,16 +17,15 @@ describe('Solarlux vision fleet', () => {
     expect(checkFleetIntegrity(fleet)).toEqual([]);
   });
 
-  it('has the orchestrator, four departments and three sub-agents', () => {
+  it('has the orchestrator, three departments and four sub-agents', () => {
     expect(fleet.agents).toHaveLength(8);
     const orchestrators = fleet.agents.filter((a) => a.kind === 'orchestrator');
     expect(orchestrators).toHaveLength(1);
     expect(orchestrators[0]?.name).toBe('Orchestrator');
 
-    expect(childIdsOf(fleet, 'vagt_orchestrator')).toHaveLength(4);
+    expect(childIdsOf(fleet, 'vagt_orchestrator')).toHaveLength(3);
     expect(fleet.agents.filter((a) => a.kind === 'department').map((a) => a.name)).toEqual([
       'Objektvertrieb',
-      'Holzoffensive Buddy',
       'Business Development',
       'Weitere Fachagenten',
     ]);
@@ -34,18 +33,29 @@ describe('Solarlux vision fleet', () => {
       'PPTX-Creator',
       'Leistungsverzeichnis-Decoder',
       'Kalkulationsagent',
+      'Holzoffensive Buddy',
     ]);
   });
 
-  it('hangs the deck builder off every department that commissions decks', () => {
-    // A sub-agent, one level below the departments, shared by three of them (SPEC §2.2).
+  it('hangs the deck builder off both departments that commission decks', () => {
+    // A sub-agent, one level below the departments, shared by two of them (SPEC §2.2).
     expect(parentsOf(fleet, 'vagt_pptx').map((p) => p.name)).toEqual([
       'Objektvertrieb',
       'Business Development',
-      'Holzoffensive Buddy',
     ]);
     expect(parentsOf(fleet, 'vagt_pptx').some((p) => p.kind === 'orchestrator')).toBe(false);
     expect(isShared(fleet, 'vagt_pptx')).toBe(true);
+  });
+
+  it('puts the Holzoffensive answers beside the deck builder, not above it', () => {
+    expect(parentsOf(fleet, 'vagt_holzoffensive').map((p) => p.name)).toEqual(['Business Development']);
+    // Same level, so neither reports to the other.
+    expect(childIdsOf(fleet, 'vagt_holzoffensive')).toEqual([]);
+
+    const peer = fleet.edges.find((e) => e.kind === 'peer');
+    expect(peer).toMatchObject({ source: 'vagt_holzoffensive', target: 'vagt_pptx' });
+    // SPEC §5.2: a peer link never expands focus, so it adds no instance.
+    expect(instances(fleet).filter((i) => i.agentId === 'vagt_holzoffensive')).toHaveLength(1);
   });
 
   it('every department reports to the orchestrator and the edge says "delegiert"', () => {
@@ -53,17 +63,17 @@ describe('Solarlux vision fleet', () => {
       expect(parentsOf(fleet, agent.id).map((p) => p.name)).toEqual(['Orchestrator']);
     }
     const fromOrchestrator = fleet.edges.filter((e) => e.source === 'vagt_orchestrator');
-    expect(fromOrchestrator).toHaveLength(4);
+    expect(fromOrchestrator).toHaveLength(3);
     for (const edge of fromOrchestrator) {
       expect(edge.kind).toBe('hierarchy');
       expect(edge.label).toBe('delegiert');
     }
     // The sub-agent is commissioned by its departments, not delegated to by the top.
-    for (const edge of fleet.edges.filter((e) => e.target === 'vagt_pptx')) {
-      expect(edge.kind).toBe('hierarchy');
-      expect(edge.label).toBe('beauftragt');
-    }
-    expect(fleet.edges.every((e) => e.kind === 'hierarchy')).toBe(true);
+    const commissions = fleet.edges.filter((e) => e.target === 'vagt_pptx' && e.kind === 'hierarchy');
+    expect(commissions).toHaveLength(2);
+    for (const edge of commissions) expect(edge.label).toBe('beauftragt');
+    // One peer hand-off aside, every edge is hierarchy.
+    expect(fleet.edges.filter((e) => e.kind !== 'hierarchy')).toHaveLength(1);
   });
 
   it('carries the roadmap statuses from the "heute" diagram', () => {
@@ -136,9 +146,9 @@ describe('Solarlux vision fleet', () => {
   });
 
   it('draws the shared sub-agent once under each parent (SPEC §2.3)', () => {
-    // Eight agents, but the deck builder has three parents, so ten instances.
-    expect(instances(fleet)).toHaveLength(fleet.agents.length + 2);
-    expect(instances(fleet).filter((i) => i.agentId === 'vagt_pptx')).toHaveLength(3);
+    // Eight agents, but the deck builder has two parents, so nine instances.
+    expect(instances(fleet)).toHaveLength(fleet.agents.length + 1);
+    expect(instances(fleet).filter((i) => i.agentId === 'vagt_pptx')).toHaveLength(2);
   });
 
   it('puts the Angebotsprozess sub-agents under Objektvertrieb', () => {

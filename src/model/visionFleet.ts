@@ -191,7 +191,8 @@ const agents: Agent[] = [
   },
   {
     id: 'vagt_holzoffensive',
-    kind: 'department',
+    // A sub-agent of Business Development, working alongside the deck builder.
+    kind: 'worker',
     name: 'Holzoffensive Buddy',
     role: 'Q&A zur Holzoffensive',
     status: 'planned',
@@ -226,7 +227,6 @@ const agents: Agent[] = [
 
 const HIERARCHY: [child: string, status: Edge['status']][] = [
   ['vagt_objektvertrieb', 'live'],
-  ['vagt_holzoffensive', 'planned'],
   ['vagt_businessdev', 'planned'],
   ['vagt_weitere', 'planned'],
 ];
@@ -238,9 +238,18 @@ const HIERARCHY: [child: string, status: Edge['status']][] = [
 const SUB_AGENTS: [parent: string, child: string, status: Edge['status']][] = [
   ['vagt_objektvertrieb', 'vagt_pptx', 'building'],
   ['vagt_businessdev', 'vagt_pptx', 'planned'],
-  ['vagt_holzoffensive', 'vagt_pptx', 'planned'],
+  ['vagt_businessdev', 'vagt_holzoffensive', 'planned'],
   ['vagt_objektvertrieb', 'vagt_lvdecoder', 'planned'],
   ['vagt_objektvertrieb', 'vagt_kalkulation', 'planned'],
+];
+
+/**
+ * SPEC §5.2: a peer link is a same-level hand-off and never expands focus. The
+ * Holzoffensive answers feed the deck the builder produces, so the two are peers
+ * rather than one reporting to the other.
+ */
+const PEERS: [a: string, b: string, status: Edge['status'], label: string][] = [
+  ['vagt_holzoffensive', 'vagt_pptx', 'planned', 'liefert Inhalte'],
 ];
 
 const edges: Edge[] = [
@@ -259,6 +268,14 @@ const edges: Edge[] = [
     kind: 'hierarchy' as const,
     status,
     label: 'beauftragt',
+  })),
+  ...PEERS.map(([source, target, status, label], index) => ({
+    id: `vedg_peer_${String(index + 1).padStart(2, '0')}`,
+    source,
+    target,
+    kind: 'peer' as const,
+    status,
+    label,
   })),
 ];
 
