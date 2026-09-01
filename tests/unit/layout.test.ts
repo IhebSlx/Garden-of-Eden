@@ -12,7 +12,17 @@ import {
   visibleBoardRect,
   zoomAt,
 } from '../../src/layout/viewport.js';
-import { LAYOUT, ZOOM, cardSize } from '../../src/ui/constants.js';
+import {
+  CARD_SIZE,
+  HIERARCHY_ANCHOR_DEPTH,
+  HIERARCHY_SCALE_STEP,
+  LABEL_SCALE_3D,
+  LAYOUT,
+  NODE_SIZE_3D,
+  ZOOM,
+  cardSize,
+  hierarchyScale,
+} from '../../src/ui/constants.js';
 import { instances } from '../../src/model/selectors.js';
 import { solarluxFleet } from '../../src/model/seed.js';
 import { AGENT, makeFleet } from '../fixtures/fleets.js';
@@ -234,5 +244,36 @@ describe('viewport helpers', () => {
     const rect = visibleBoardRect(viewport, screen);
     expect(rect.x).toBeCloseTo(screenToBoard(viewport, 0, 0).x, 6);
     expect(rect.width).toBeCloseTo(screen.width / viewport.zoom, 6);
+  });
+});
+
+describe('hierarchy sizing (1.5x per level)', () => {
+  it('makes each level exactly 50% larger than the level below it', () => {
+    for (let depth = 0; depth < CARD_SIZE.length - 1; depth += 1) {
+      const above = CARD_SIZE[depth];
+      const below = CARD_SIZE[depth + 1];
+      if (!above || !below) throw new Error('missing depth');
+      expect(above.width / below.width).toBeCloseTo(HIERARCHY_SCALE_STEP, 2);
+      expect(above.height / below.height).toBeCloseTo(HIERARCHY_SCALE_STEP, 2);
+    }
+  });
+
+  it('holds the anchor depth at the size it has always had', () => {
+    // Depth 1 is where specialists sit; changing the ratio must not move it.
+    expect(hierarchyScale(HIERARCHY_ANCHOR_DEPTH)).toBe(1);
+    expect(CARD_SIZE[HIERARCHY_ANCHOR_DEPTH]).toEqual({ width: 182, height: 64 });
+  });
+
+  it('clamps depths past the deepest card rather than shrinking forever', () => {
+    expect(hierarchyScale(99)).toBe(hierarchyScale(CARD_SIZE.length - 1));
+    expect(cardSize(99)).toEqual(CARD_SIZE[CARD_SIZE.length - 1]);
+    expect(cardSize(-3)).toEqual(CARD_SIZE[0]);
+  });
+
+  it('scales the 3D spheres and their labels by the same step', () => {
+    expect(NODE_SIZE_3D.orchestrator / NODE_SIZE_3D.department).toBeCloseTo(HIERARCHY_SCALE_STEP, 2);
+    expect(NODE_SIZE_3D.department / NODE_SIZE_3D.worker).toBeCloseTo(HIERARCHY_SCALE_STEP, 2);
+    expect(LABEL_SCALE_3D.orchestrator / LABEL_SCALE_3D.department).toBeCloseTo(HIERARCHY_SCALE_STEP, 2);
+    expect(LABEL_SCALE_3D.department / LABEL_SCALE_3D.worker).toBeCloseTo(HIERARCHY_SCALE_STEP, 2);
   });
 });

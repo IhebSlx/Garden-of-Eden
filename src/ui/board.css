@@ -186,56 +186,123 @@
   line-height: 1.35;
 }
 
-/* SPEC 5.5: node size by depth. */
+/*
+ * SPEC §5.5 node size by depth, expressed as one geometric series: every level is
+ * HIERARCHY_SCALE_STEP (1.5×) the size of the level below it — box, padding and
+ * text alike, so the proportions inside a card never change. `--s` is that factor,
+ * anchored on depth 1 (see HIERARCHY_ANCHOR_DEPTH) so the level most specialists
+ * sit at keeps the size it has always had.
+ *
+ * Keep these in step with CARD_SIZE in src/ui/constants.ts, which the layout uses
+ * to reserve space before React Flow has measured the real DOM node.
+ */
 .card.d0 {
-  width: 216px;
-  padding: 14px 16px;
-  border-radius: 18px;
-}
-.card.d0 .nm {
-  font-size: 16.5px;
-}
-.card.d0 .rl {
-  font-size: 12px;
+  --s: 1.5;
 }
 .card.d1 {
-  width: 182px;
-  padding: 12px 14px;
+  --s: 1;
 }
-.card.d1 .nm {
-  font-size: 14px;
+.card.d2 {
+  --s: 0.6667;
 }
-.card.d1 .rl {
-  font-size: 11px;
+.card.d3 {
+  --s: 0.4444;
 }
+.card.d0,
+.card.d1,
 .card.d2,
 .card.d3 {
-  width: 126px;
-  padding: 8px 10px;
+  width: calc(182px * var(--s));
+  padding: calc(12px * var(--s)) calc(14px * var(--s));
+  border-radius: calc(14px * var(--s));
 }
+.card.d0 .nm,
+.card.d1 .nm,
 .card.d2 .nm,
 .card.d3 .nm {
-  font-size: 11px;
+  font-size: calc(14px * var(--s));
+  gap: calc(7px * var(--s));
 }
+.card.d0 .nm i,
+.card.d1 .nm i,
+.card.d2 .nm i,
+.card.d3 .nm i {
+  width: calc(8px * var(--s));
+  height: calc(8px * var(--s));
+}
+.card.d0 .rl,
+.card.d1 .rl,
 .card.d2 .rl,
 .card.d3 .rl {
-  font-size: 9.5px;
+  font-size: calc(11px * var(--s));
+}
+.card.d0 .shx,
+.card.d1 .shx,
+.card.d2 .shx,
+.card.d3 .shx {
+  font-size: calc(9px * var(--s));
 }
 
-/* Details toggle: skills/tools as chips inside the card (SPEC 5.8). */
+/*
+ * Grouped chips: a header per kind that expands its list (see CardSectionGroup).
+ * The row itself becomes a column so the three groups stack.
+ */
 .card .ext {
   display: none;
-  margin-top: 7px;
-  padding-top: 7px;
+  margin-top: calc(7px * var(--s, 1));
+  padding-top: calc(7px * var(--s, 1));
   border-top: 1px solid rgb(124 140 255 / 0.18);
-  flex-wrap: wrap;
-  gap: 4px;
+  flex-direction: column;
+  gap: calc(3px * var(--s, 1));
 }
 .board-surface.showdet .card .ext {
   display: flex;
 }
+.card .exh {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: calc(4px * var(--s, 1));
+  width: 100%;
+  padding: calc(2px * var(--s, 1)) calc(3px * var(--s, 1));
+  border-radius: calc(5px * var(--s, 1));
+  font-size: calc(8.5px * var(--s, 1));
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #8fa1cd;
+  cursor: pointer;
+}
+.card .exh:hover {
+  color: #cddaff;
+  background: rgb(90 110 200 / 0.16);
+}
+.card .exh:focus-visible {
+  outline: 2px solid var(--ac);
+  outline-offset: 1px;
+}
+.card .exchev {
+  font-size: calc(7px * var(--s, 1));
+  opacity: 0.75;
+}
+/* The count carries the information the collapsed list is hiding. */
+.card .exn {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  color: #b9c8ef;
+  background: rgb(90 110 200 / 0.2);
+  border-radius: 99px;
+  padding: 0 calc(5px * var(--s, 1));
+}
+.card .exl {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(4px * var(--s, 1));
+  padding: calc(3px * var(--s, 1)) 0 calc(4px * var(--s, 1)) calc(11px * var(--s, 1));
+}
 .card .ec {
-  font-size: 8.5px;
+  font-size: calc(8.5px * var(--s, 1));
   padding: 1px 6px;
   border-radius: 99px;
   color: #b9c8ef;
@@ -253,6 +320,13 @@
   width: 5px;
   height: 5px;
   margin-right: 0;
+}
+/* Status of a data source, read at a glance beside its name (SPEC 5.6). */
+.card .ec .sdot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  display: inline-block;
 }
 
 /*

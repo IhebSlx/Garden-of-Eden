@@ -128,7 +128,7 @@ describe('importing a Copilot Studio export', () => {
     if (!result.ok) return;
 
     expect(result.agentName).toBe('Objektvertrieb');
-    expect(result.counts).toEqual({ skills: 7, tools: 8, dataSources: 1 });
+    expect(result.counts).toEqual({ skills: 7, tools: 8, dataSources: 4 });
     expect(catalog().catalog.agents).toHaveLength(1);
     expect(catalog().catalog.skills).toHaveLength(7);
     expect(catalog().catalog.tools).toHaveLength(8);
@@ -198,7 +198,7 @@ describe('adding a catalog agent to a fleet', () => {
     expect(fleet?.agents.some((a) => a.name === 'Objektvertrieb')).toBe(true);
     expect(fleet?.skills).toHaveLength(7);
     expect(fleet?.tools).toHaveLength(8);
-    expect(fleet?.dataSources).toHaveLength(1);
+    expect(fleet?.dataSources).toHaveLength(4);
   });
 
   it('leaves the fleet valid and self-contained (SPEC 7)', () => {

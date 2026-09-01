@@ -10,7 +10,11 @@
  *       displayName -> name, description -> description, dialog.content -> instructions
  *   flows[] CloudFlowDefinition               -> Tool (type 'workflow')
  *       displayName / description, plus the input+output signature in `config`
- *   KnowledgeSourceComponent SharePoint...    -> DataSource (sharepoint, ref = siteUrl)
+ *   KnowledgeSourceComponent SharePoint...    -> DataSource (sharepoint)
+ *       displayName -> name, description -> description, siteUrl -> ref
+ *   GlobalVariableComponent groups            -> DataSource per table/list reached
+ *       e.g. VCSucheDataverse.* names a Dataverse environment and its table;
+ *       PortalSucheObjektportal.* names a SharePoint site and its lists
  *
  * Deliberately NOT invented: a Copilot Studio export carries a flow's *signature*
  * but not its internal steps, so imported workflow tools arrive with no
@@ -305,46 +309,142 @@ function readTools(flows: unknown[], warnings: string[]): Tool[] {
   return tools;
 }
 
+/**
+ * Knowledge sources attached in Copilot Studio. The component carries its own
+ * `displayName` and `description` - "Projektakte", plus prose on when to use it -
+ * so those are kept rather than a label guessed from the URL.
+ */
 function readKnowledge(components: unknown[]): DataSource[] {
   const sources: DataSource[] = [];
 
-  const visit = (value: unknown): void => {
-    if (Array.isArray(value)) {
-      value.forEach(visit);
-      return;
-    }
-    if (!isDict(value)) return;
+  for (const component of components) {
+    if (!isDict(component) || component['kind'] !== 'KnowledgeSourceComponent') continue;
 
-    if (value['kind'] === 'SharePointKnowledgeSource') {
-      const url = str(value['siteUrl']);
-      if (url !== undefined) {
-        // The last meaningful path segment reads better than the whole URL.
-        let label = 'SharePoint';
-        try {
-          const decoded = decodeURIComponent(new URL(url).pathname);
-          const segments = decoded.split('/').filter((part) => part !== '');
-          // /sites/IhebTest/Shared Documents reads best as "IhebTest / Shared Documents".
-          const after = segments[0] === 'sites' ? segments.slice(1) : segments;
-          if (after.length > 0) label = after.join(' / ');
-        } catch {
-          // A malformed URL still deserves a data source; just keep the default label.
-        }
+    const configuration = component['configuration'];
+    const source = isDict(configuration) ? configuration['source'] : undefined;
+    if (!isDict(source) || source['kind'] !== 'SharePointKnowledgeSource') continue;
+
+    const url = str(source['siteUrl']);
+    if (url === undefined) continue;
+
+    const name = str(component['displayName']) ?? humanise(sharePointLabel(url));
+    const description = str(component['description']);
+
+    sources.push({
+      id: newId(ID_PREFIX.dataSource),
+      name,
+      type: 'sharepoint',
+      // Knowledge attached in Copilot Studio is genuinely connected.
+      status: 'live',
+      linked: true,
+      ref: url,
+      ...(description !== undefined ? { description } : {}),
+    });
+  }
+
+  return sources;
+}
+
+/** `/sites/IhebTest/Shared Documents` reads best as "IhebTest / Shared Documents". */
+function sharePointLabel(url: string): string {
+  try {
+    const decoded = decodeURIComponent(new URL(url).pathname);
+    const segments = decoded.split('/').filter((part) => part !== '');
+    const after = segments[0] === 'sites' || segments[0] === 'teams' ? segments.slice(1) : segments;
+    return after.length > 0 ? after.join(' / ') : 'SharePoint';
+  } catch {
+    return 'SharePoint';
+  }
+}
+
+/** The environment host, `https://slxcrowd.crm4.dynamics.com` -> "slxcrowd". */
+function dataverseLabel(url: string): string {
+  try {
+    return new URL(url).hostname.split('.')[0] ?? url;
+  } catch {
+    return url;
+  }
+}
+
+const DATAVERSE_HOST = /\.dynamics\.com$/i;
+const SHAREPOINT_HOST = /\.sharepoint\.com$/i;
+/** A saved list value is sometimes the list's GUID rather than its name. */
+const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function hostMatches(value: unknown, pattern: RegExp): string | undefined {
+  const text = str(value);
+  if (text === undefined || !text.startsWith('http')) return undefined;
+  try {
+    return pattern.test(new URL(text).hostname) ? text : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The data platforms a tool actually reads through.
+ *
+ * A `GlobalVariableComponent` group such as `VCSucheDataverse.*` is the saved
+ * configuration of one connection: which environment, which table, which columns.
+ * Those values name a real Dataverse table or SharePoint list the agent queries,
+ * so each becomes a data source in its own right - not only a parameter blob on a
+ * tool. Without this, an export whose only knowledge source is a document library
+ * looks as if the agent reads nothing from CRM, which is the opposite of the truth.
+ */
+function connectionSources(variables: Map<string, Record<string, unknown>>): DataSource[] {
+  const sources: DataSource[] = [];
+
+  for (const [prefix, values] of variables) {
+    const entries = Object.entries(values);
+
+    const organisation = entries.map(([, v]) => hostMatches(v, DATAVERSE_HOST)).find((v) => v !== undefined);
+    const site = entries.map(([, v]) => hostMatches(v, SHAREPOINT_HOST)).find((v) => v !== undefined);
+
+    // `entityName` for Dataverse, `table`/`table1`/… for SharePoint lists.
+    const named = (test: (key: string) => boolean): string[] => {
+      const found = entries
+        .filter(([key]) => test(key))
+        .map(([, value]) => str(value))
+        .filter((value): value is string => value !== undefined && value !== '' && !GUID.test(value));
+      return [...new Set(found)];
+    };
+
+    if (organisation !== undefined) {
+      const environment = dataverseLabel(organisation);
+      const tables = named((key) => key === 'entityName');
+      const columns = str(values['$select']);
+      for (const table of tables.length > 0 ? tables : [environment]) {
         sources.push({
           id: newId(ID_PREFIX.dataSource),
-          name: humanise(label),
-          type: 'sharepoint',
-          // Knowledge attached in Copilot Studio is genuinely connected.
+          name: tables.length > 0 ? `${environment} / ${table}` : environment,
+          type: 'dataverse',
           status: 'live',
           linked: true,
-          ref: url,
+          ref: organisation,
+          description:
+            `Queried by the "${humanise(prefix)}" connection` +
+            (columns !== undefined ? `, reading ${columns}.` : '.'),
         });
       }
     }
 
-    for (const nested of Object.values(value)) visit(nested);
-  };
+    if (site !== undefined) {
+      const siteLabel = sharePointLabel(site);
+      const lists = named((key) => /^table\d*$/.test(key));
+      for (const list of lists.length > 0 ? lists : [siteLabel]) {
+        sources.push({
+          id: newId(ID_PREFIX.dataSource),
+          name: lists.length > 0 ? `${siteLabel} / ${list}` : siteLabel,
+          type: 'sharepoint',
+          status: 'live',
+          linked: true,
+          ref: site,
+          description: `Queried by the "${humanise(prefix)}" connection.`,
+        });
+      }
+    }
+  }
 
-  visit(components);
   return sources;
 }
 
@@ -384,14 +484,24 @@ export function parseCopilotAgent(text: string, fallbackName: string): CopilotIm
 
   // Saved tool parameters travel with the tool they belong to.
   const variables = readGlobalVariables(components);
-  for (const tool of flowTools) {
-    for (const [prefix, values] of variables) {
-      if (normaliseKey(prefix) !== normaliseKey(tool.name)) continue;
-      tool.config = { ...tool.config, parameters: values };
+  for (const [prefix, values] of variables) {
+    const owner = flowTools.find((tool) => normaliseKey(prefix) === normaliseKey(tool.name));
+    if (owner) {
+      owner.config = { ...owner.config, parameters: values };
+      continue;
     }
+    // The saved configuration of a connection whose tool is not in this export.
+    // It still names a real table, so say so rather than dropping it in silence.
+    warnings.push(
+      `Saved settings for "${humanise(prefix)}" belong to no tool in this export; kept as a data source.`,
+    );
   }
 
-  const dataSources = [...readKnowledge(components), ...dataFromResources(resources)];
+  const dataSources = [
+    ...readKnowledge(components),
+    ...connectionSources(variables),
+    ...dataFromResources(resources),
+  ];
 
   if (skills.length === 0) warnings.push('No agent skills were found in this export.');
   if (flowTools.length > 0) {

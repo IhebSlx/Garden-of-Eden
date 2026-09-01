@@ -3,7 +3,8 @@
  * These pin the behaviours the board and the 3D scene both depend on.
  */
 import { beforeEach, describe, expect, it } from 'vitest';
-import { matchesFilter, useUiStore } from '../../src/store/uiStore.js';
+import { cardSectionKey, matchesFilter, useUiStore } from '../../src/store/uiStore.js';
+import { useFleetStore } from '../../src/store/fleetStore.js';
 
 const ui = () => useUiStore.getState();
 
@@ -23,6 +24,7 @@ beforeEach(() => {
     shortcutsOpen: false,
     fitRequest: 0,
     burst: null,
+    openCardSections: {},
   });
 });
 
@@ -207,5 +209,38 @@ describe('modal and fit requests', () => {
     ui().requestFit();
     ui().requestFit();
     expect(ui().fitRequest).toBe(before + 2);
+  });
+});
+
+describe('collapsible card sections', () => {
+  it('starts every section collapsed, so a busy card stays readable', () => {
+    expect(ui().openCardSections).toEqual({});
+  });
+
+  it('opens and closes one section at a time', () => {
+    ui().toggleCardSection('agt_1', 'tools');
+    expect(ui().openCardSections[cardSectionKey('agt_1', 'tools')]).toBe(true);
+    expect(ui().openCardSections[cardSectionKey('agt_1', 'skills')]).toBeUndefined();
+
+    ui().toggleCardSection('agt_1', 'tools');
+    expect(ui().openCardSections[cardSectionKey('agt_1', 'tools')]).toBeUndefined();
+  });
+
+  it('keys by agent, so every instance of a shared agent opens together', () => {
+    // SPEC 2.3: one agent, many instances - they must not disagree.
+    expect(cardSectionKey('agt_7', 'data')).toBe('agt_7|data');
+  });
+
+  it('keeps sections out of the fleet document and its undo history', () => {
+    // SPEC 2: view state lives here precisely so undo cannot reach it.
+    ui().toggleCardSection('agt_1', 'data');
+    expect(Object.keys(useUiStore.getState())).toContain('openCardSections');
+    expect(useFleetStore.temporal.getState().pastStates).toHaveLength(0);
+  });
+
+  it('forgets open sections when a different fleet is loaded', () => {
+    ui().toggleCardSection('agt_1', 'skills');
+    ui().resetForFleet();
+    expect(ui().openCardSections).toEqual({});
   });
 });

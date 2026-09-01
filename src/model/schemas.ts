@@ -124,6 +124,12 @@ export const DataSourceSchema = z.object({
    */
   linked: z.boolean().optional(),
   ref: z.string().optional(),
+  /**
+   * DEVIATION: beyond SPEC §4's field list. A Copilot Studio knowledge source
+   * carries prose telling the agent when the source is and is not the right one
+   * to consult. Dropping it would lose the only text that explains the source.
+   */
+  description: z.string().optional(),
 });
 export type DataSource = z.infer<typeof DataSourceSchema>;
 

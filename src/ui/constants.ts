@@ -72,20 +72,43 @@ export const LAYOUT = {
 } as const;
 
 /**
- * Card width by depth (`.card.d0` … `.card.d3`) and the height the layout assumes
- * before React Flow has measured the real DOM node.
+ * DEVIATION from the prototype, at the user's request: card size by depth was a
+ * hand-tuned table (216/182/126/126, ratios 1.19, 1.44 and 1.00). It is now one
+ * geometric series - every level is exactly 50% larger than the level below it,
+ * box and text alike - so hierarchy is legible from size alone at any depth.
  */
-export const CARD_SIZE = [
-  { width: 216, height: 74 },
-  { width: 182, height: 64 },
-  { width: 126, height: 50 },
-  { width: 126, height: 50 },
-] as const;
+export const HIERARCHY_SCALE_STEP = 1.5;
+
+/**
+ * The depth whose size is held fixed; every other level is derived from it, so
+ * depth 1 - where most specialists sit - keeps the size it has always had while
+ * the orchestrator above it grows and workers below shrink.
+ */
+export const HIERARCHY_ANCHOR_DEPTH = 1;
+
+/** 1.5x per level up the hierarchy, 1/1.5 per level down. */
+export function hierarchyScale(depth: number): number {
+  const clamped = Math.min(Math.max(depth, 0), CARD_DEPTHS - 1);
+  return HIERARCHY_SCALE_STEP ** (HIERARCHY_ANCHOR_DEPTH - clamped);
+}
+
+export const CARD_DEPTHS = 4;
+
+/** Anchor box: the depth-1 card, unchanged from the prototype's second level. */
+const CARD_ANCHOR = { width: 182, height: 64 } as const;
+
+const round = (value: number): number => Math.round(value * 10) / 10;
+
+export const CARD_SIZE = Array.from({ length: CARD_DEPTHS }, (_, depth) => ({
+  width: round(CARD_ANCHOR.width * hierarchyScale(depth)),
+  height: round(CARD_ANCHOR.height * hierarchyScale(depth)),
+}));
 
 export const COLLAPSED_CARD_WIDTH = 40;
 
 export function cardSize(depth: number): { width: number; height: number } {
-  return CARD_SIZE[Math.min(Math.max(depth, 0), CARD_SIZE.length - 1)] ?? CARD_SIZE[3];
+  const clamped = Math.min(Math.max(depth, 0), CARD_SIZE.length - 1);
+  return CARD_SIZE[clamped] ?? { width: CARD_ANCHOR.width, height: CARD_ANCHOR.height };
 }
 
 // ---------- 2D viewport (prototype `zoom2dAt`, `fit2d`, `frame2d`) ----------
@@ -125,8 +148,18 @@ export const MINIMAP = { width: 168, height: 112, innerWidth: 166, innerHeight: 
 
 // ---------- 3D (SPEC 5.4, Phase 2) ----------
 
-export const NODE_SIZE_3D = { orchestrator: 13, department: 8.5, worker: 5 } as const;
-export const LABEL_SCALE_3D = { orchestrator: 1.5, department: 1.15, worker: 0.85 } as const;
+/** Same 1.5x-per-level rule as the 2D cards, anchored on the department sphere. */
+const SPHERE_ANCHOR = 8.5;
+export const NODE_SIZE_3D = {
+  orchestrator: SPHERE_ANCHOR * HIERARCHY_SCALE_STEP,
+  department: SPHERE_ANCHOR,
+  worker: SPHERE_ANCHOR / HIERARCHY_SCALE_STEP,
+} as const;
+export const LABEL_SCALE_3D = {
+  orchestrator: 1.15 * HIERARCHY_SCALE_STEP,
+  department: 1.15,
+  worker: 1.15 / HIERARCHY_SCALE_STEP,
+} as const;
 
 export const CAMERA_3D = {
   theta: 0.55,

@@ -116,16 +116,56 @@ describe('the Objektvertrieb export', () => {
     expect(warnings.join(' ')).toContain('not its internal steps');
   });
 
-  it('reads the SharePoint knowledge source', () => {
+  it('reads the SharePoint knowledge source under its own name', () => {
     const { dataSources } = importFixture();
-    expect(dataSources).toHaveLength(1);
-    expect(dataSources[0]).toMatchObject({
-      name: 'IhebTest / Shared Documents',
+    const projektakte = dataSources.find((d) => d.name === 'Projektakte');
+    expect(projektakte).toMatchObject({
       type: 'sharepoint',
       status: 'live',
       linked: true,
     });
-    expect(dataSources[0]?.ref).toContain('solarlux.sharepoint.com');
+    expect(projektakte?.ref).toContain('solarlux.sharepoint.com');
+    // The component's own prose says when the source is the right one to consult.
+    expect(projektakte?.description).toContain('Angebotsphase');
+  });
+
+  it('reads the Dataverse table the agent queries through', () => {
+    const { dataSources } = importFixture();
+    const crm = dataSources.find((d) => d.type === 'dataverse');
+    expect(crm).toMatchObject({
+      name: 'slxcrowd / opportunities',
+      ref: 'https://slxcrowd.crm4.dynamics.com',
+      status: 'live',
+      linked: true,
+    });
+    expect(crm?.description).toContain('ax_opportunity_number');
+  });
+
+  it('reads both SharePoint lists behind the Objektportal connection', () => {
+    const { dataSources } = importFixture();
+    const lists = dataSources.filter((d) => d.ref === 'https://solarlux.sharepoint.com/teams/Objektportal');
+    expect(lists.map((d) => d.name).sort()).toEqual([
+      'Objektportal / Bauprojektübersicht',
+      'Objektportal / Objektübersicht',
+    ]);
+  });
+
+  it('skips a list recorded only as a GUID, so the same list is not listed twice', () => {
+    // `table2` holds 71192f2d-…, the id of a list already named by `table1`.
+    const { dataSources } = importFixture();
+    expect(dataSources.some((d) => /[0-9a-f]{8}-[0-9a-f]{4}-/.test(d.name))).toBe(false);
+  });
+
+  it('says so when saved settings belong to no tool in the export', () => {
+    // VCSucheDataverse.* configures a connection whose tool was not exported.
+    const { tools, warnings } = importFixture();
+    expect(tools.some((t) => t.name === 'VC-Suche Dataverse')).toBe(false);
+    expect(warnings.join(' ')).toContain('belong to no tool in this export');
+  });
+
+  it('finds four data sources in total, not just the knowledge source', () => {
+    const { dataSources } = importFixture();
+    expect(dataSources).toHaveLength(4);
   });
 
   it('wires every imported item onto the agent', () => {

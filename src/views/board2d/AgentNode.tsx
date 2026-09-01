@@ -7,10 +7,11 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import type { NodeProps, Node } from '@xyflow/react';
 import { STATUS_LABELS } from '../../model/schemas.js';
-import type { Agent } from '../../model/schemas.js';
-import { KIND_COLOR, STATUS_COLOR, TOOL_TYPE_COLOR } from '../../ui/palette.js';
+import type { Agent, Status } from '../../model/schemas.js';
+import { DATA_TYPE_COLOR, KIND_COLOR, STATUS_COLOR, TOOL_TYPE_COLOR } from '../../ui/palette.js';
 import { useFleetStore } from '../../store/fleetStore.js';
-import { useUiStore } from '../../store/uiStore.js';
+import { cardSectionKey, useUiStore } from '../../store/uiStore.js';
+import type { CardSection } from '../../store/uiStore.js';
 
 
 export type AgentNodeData = {
@@ -34,12 +35,64 @@ export type AgentNodeData = {
   };
   skillNames: string[];
   tools: { name: string; type: keyof typeof TOOL_TYPE_COLOR }[];
+  dataSources: { name: string; type: keyof typeof DATA_TYPE_COLOR; status: Status }[];
 };
+
+/**
+ * One collapsible group of chips inside a card.
+ *
+ * DEVIATION from the prototype (line 787), which prints skills and tools as a
+ * single unheaded row and never shows data sources at all. A real imported agent
+ * carries dozens of chips, which made the card unreadable, so each kind gets a
+ * header with its count and starts collapsed. The counts mean nothing is hidden -
+ * you can see at a glance what an agent carries without expanding anything.
+ */
+function CardSectionGroup({
+  agentId,
+  section,
+  label,
+  count,
+  children,
+}: {
+  agentId: string;
+  section: CardSection;
+  label: string;
+  count: number;
+  children: React.ReactNode;
+}): React.JSX.Element | null {
+  const open = useUiStore((s) => s.openCardSections[cardSectionKey(agentId, section)] === true);
+  const toggle = useUiStore((s) => s.toggleCardSection);
+  if (count === 0) return null;
+
+  return (
+    <div className="exg" data-testid={`card-section-${section}`} data-open={open}>
+      <button
+        type="button"
+        className="exh nodrag"
+        aria-expanded={open}
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          // The card itself focuses its branch on click; a header must not.
+          event.stopPropagation();
+          toggle(agentId, section);
+        }}
+      >
+        <span className="exchev" aria-hidden="true">
+          {open ? '▾' : '▸'}
+        </span>
+        {label}
+        <span className="exn">{count}</span>
+      </button>
+      {open && <div className="exl">{children}</div>}
+    </div>
+  );
+}
 
 export type AgentFlowNode = Node<AgentNodeData, 'agent'>;
 
 function AgentNodeComponent({ data }: NodeProps<AgentFlowNode>): React.JSX.Element {
   const { agent, depth, sharedCount, ghosted, selected, popDelayMs, popToken, skillNames, tools } = data;
+  const { dataSources } = data;
   const { instanceKey, neighbours } = data;
   const activate = useUiStore((s) => s.activate);
   const renameAgent = useFleetStore((s) => s.renameAgent);
@@ -200,19 +253,34 @@ function AgentNodeComponent({ data }: NodeProps<AgentFlowNode>): React.JSX.Eleme
       </div>
       <div className="rl">{agent.role}</div>
 
-      {(skillNames.length > 0 || tools.length > 0) && (
+      {(skillNames.length > 0 || tools.length > 0 || dataSources.length > 0) && (
         <div className="ext">
-          {skillNames.map((name) => (
-            <span className="ec sk" key={`s-${name}`}>
-              {name}
-            </span>
-          ))}
-          {tools.map((tool) => (
-            <span className="ec" key={`t-${tool.name}`}>
-              <span className="tdot" style={{ background: TOOL_TYPE_COLOR[tool.type] }} />
-              {tool.name}
-            </span>
-          ))}
+          <CardSectionGroup agentId={agent.id} section="skills" label="Skills" count={skillNames.length}>
+            {skillNames.map((name) => (
+              <span className="ec sk" key={`s-${name}`}>
+                {name}
+              </span>
+            ))}
+          </CardSectionGroup>
+
+          <CardSectionGroup agentId={agent.id} section="tools" label="Tools" count={tools.length}>
+            {tools.map((tool) => (
+              <span className="ec" key={`t-${tool.name}`}>
+                <span className="tdot" style={{ background: TOOL_TYPE_COLOR[tool.type] }} />
+                {tool.name}
+              </span>
+            ))}
+          </CardSectionGroup>
+
+          <CardSectionGroup agentId={agent.id} section="data" label="Data" count={dataSources.length}>
+            {dataSources.map((source) => (
+              <span className="ec" key={`d-${source.name}`}>
+                <span className="tdot" style={{ background: DATA_TYPE_COLOR[source.type] }} />
+                {source.name}
+                <span className="sdot" style={{ background: STATUS_COLOR[source.status] }} />
+              </span>
+            ))}
+          </CardSectionGroup>
         </div>
       )}
     </div>

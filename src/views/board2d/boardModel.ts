@@ -98,6 +98,7 @@ export function useBoardModel(bucket: ZoomBucket): BoardModel {
     const agentsById = new Map(fleet.agents.map((a) => [a.id, a]));
     const skillsById = new Map(fleet.skills.map((s) => [s.id, s]));
     const toolsById = new Map(fleet.tools.map((t) => [t.id, t]));
+    const dataById = new Map(fleet.dataSources.map((d) => [d.id, d]));
     const depthByKey = new Map(instanceList.map((i) => [i.key, i.depth]));
 
     // Arrow-key neighbours, so the board is reachable without a pointer.
@@ -167,6 +168,10 @@ export function useBoardModel(bucket: ZoomBucket): BoardModel {
             .map((id) => toolsById.get(id))
             .filter((tool) => tool !== undefined)
             .map((tool) => ({ name: tool.name, type: tool.type })),
+          dataSources: agent.dataSourceIds
+            .map((id) => dataById.get(id))
+            .filter((source) => source !== undefined)
+            .map((source) => ({ name: source.name, type: source.type, status: source.status })),
         },
       });
     }
