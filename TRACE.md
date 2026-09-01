@@ -304,3 +304,46 @@ opacity, no rotation. Recorded in `PARITY.md`.
 name span in place. In React the selecting click re-renders the node and resets the editable
 span's text mid-typing, so the same double-click / Enter / Esc flow is driven by React state.
 Covered by e2e › "inline rename on the card propagates to every copy of a shared agent".
+
+**DEVIATION 6 — `DataSourceType` gains `file`, `DataSource` gains `description`.** SPEC §4 lists
+three data-source types and no description. A Copilot Studio skill folder ships templates, images
+and JSON schemas — genuinely data the agent reads, and none of them `md`, Dataverse or SharePoint —
+and a knowledge source carries prose saying when it is the right source to consult. §4 calls the
+type enum extensible; forcing a `.pptx` into `md` would misreport where the data lives, and dropping
+the prose would lose the only text that explains the source.
+Covered by `copilotImport.test.ts` › "types markdown as md and everything else as file";
+"reads the SharePoint knowledge source under its own name".
+
+**DEVIATION 7 — card chips are grouped into collapsible sections, and include data sources.**
+`reference/prototype.html:787` prints skills and tools as one unheaded chip row and never shows
+data sources on a card. An imported agent carries up to 19 data chips, which made the card
+unreadable, so each kind gets a header with its count and starts collapsed — nothing is hidden,
+the counts are always visible. Section state is view state: outside undo, outside the document.
+Covered by `uiStore.test.ts` › "collapsible card sections" (5 tests).
+
+**DEVIATION 8 — card size by depth is a 1.5× geometric series.** The prototype's table was
+216/182/126/126 (ratios 1.19, 1.44, 1.00). Every level is now exactly 50% larger than the level
+below it — box, padding and text together — so hierarchy is legible from size alone. Depth 1 is
+the anchor, so the level most specialists sit at is unchanged. Row spacing scales by the same
+step, otherwise the larger depth-0 card overlaps the row beneath it. The 3D spheres and their
+labels follow the same rule.
+Covered by `layout.test.ts` › "hierarchy sizing (1.5x per level)" (4 tests);
+"rows leave room for the cards they hold" (2 tests).
+
+---
+
+## Copilot Studio import — what is read, and what is deliberately not
+
+| Export element | Becomes | Test |
+|---|---|---|
+| `entity.displayName` / `schemaName` | Agent name, source fingerprint | `copilotImport.test.ts` › "reads the agent identity" |
+| `InlineAgentSkill` × N | Skill + instructions | › "reads all seven agent skills with their instructions" |
+| `skill.md` / `AGENT_INSTRUCTIONS.md` resource | Skill instructions, preferred over a bundle marker | › "takes the instructions from skill.md, not the bundle marker" |
+| `CloudFlowDefinition` × N | Tool (`workflow`) + input/output signature | › "reads all eight Power Automate flows as workflow tools" |
+| `dialog.resources[]` scripts | Tool (`python`) carrying its source, sized and described from its docstring | › "imports the Python script as a tool, with its source" |
+| `dialog.resources[]` others | DataSource (`md` / `file`), path kept as `ref` | › "imports every other skill resource as a data source" |
+| `KnowledgeSourceComponent` | DataSource (`sharepoint`) under its own display name and description | › "reads the SharePoint knowledge source under its own name" |
+| `GlobalVariableComponent` groups | Saved parameters on the owning tool, **and** a DataSource per Dataverse table / SharePoint list reached | › "reads the Dataverse table the agent queries through"; "reads both SharePoint lists behind the Objektportal connection" |
+| A variable group matching no tool | Kept as a data source, reported in the warnings | › "says so when saved settings belong to no tool in the export" |
+| Flow *internal steps* | **Not invented** — the export does not contain them | › "does NOT invent workflow steps the export does not contain" |
+| GUIDs, `managedProperties`, `auditInfo`, `solutionId`, base64 icons, `EnvironmentVariableDefinition` | Not modelled; the original file is stored verbatim and stays downloadable | `catalog.test.ts` › "keeps the uploaded file byte-for-byte so it can be downloaded back" |

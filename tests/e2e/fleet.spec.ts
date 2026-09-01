@@ -426,7 +426,10 @@ test('a Copilot Studio export becomes an agent, and the file stays downloadable'
   await expect(page.getByTestId('panel-name')).toHaveValue('Objektvertrieb');
   await expect(panel).toContainText('Produktfamilien');
   await expect(panel).toContainText('Portal-Suche Objektportal');
-  await expect(panel).toContainText('Shared Documents');
+  // Every data platform the export reaches, not only the knowledge source.
+  await expect(panel).toContainText('Projektakte');
+  await expect(panel).toContainText('slxcrowd / opportunities');
+  await expect(panel).toContainText('Objektportal / Objektübersicht');
 });
 
 test('a file that is not a Copilot export is refused with a readable reason', async ({ page }) => {

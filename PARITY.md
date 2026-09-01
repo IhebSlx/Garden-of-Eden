@@ -125,3 +125,20 @@ and would put the SPEC §6 quality bar at risk for no measured gain.
 3. **Shared agents are not draggable** — SPEC §4 gives an agent one `position`, which cannot place
    its N instances. See `src/views/board2d/boardModel.ts`.
 4. **Orchestrator shell is static** — see the 3D table above.
+
+## Card sizing and chip sections (this pass)
+
+| Item | Prototype | App | Verdict |
+|---|---|---|---|
+| Card width by depth | 216 / 182 / 126 / 126 px | 273 / 182 / 121.3 / 80.9 px | **DEVIATION 8**, requested: exactly ×1.5 per level. Depth 1 unchanged. |
+| Name text by depth | 16.5 / 14 / 11 / 11 px | 21 / 14 / 9.3 / 6.2 px | Same ×1.5 series, measured live at d0=21px, d1=14px. |
+| Row spacing | flat 185 px | 277.5 / 185 / 185 px | Scaled by the same step; without it the depth-0 card overlapped the row below (measured 109×26 px of overlap before the fix). |
+| Chips on a card | one unheaded row, skills + tools only | `SKILLS n` / `TOOLS n` / `DATA n` headers, collapsed by default | **DEVIATION 7**, requested. |
+| Data sources on a card | never shown | shown, with type colour and status dot | **DEVIATION 7**. |
+| 3D sphere radius | 13 / 8.5 / 5 | 12.75 / 8.5 / 5.667 | Same ×1.5 rule; within ~2% of the prototype's hand-tuned values. |
+
+Verified live at http://localhost:5178 on the Solarlux Vision fleet after importing both
+Copilot Studio exports: 6 cards, **0 card-to-card overlaps** (measured over all 15 pairs),
+Objektvertrieb reporting `Skills 7 · Tools 8 · Data 4` and its Data section listing
+Projektakte, slxcrowd / opportunities, Objektportal / Bauprojektübersicht,
+Objektportal / Objektübersicht.

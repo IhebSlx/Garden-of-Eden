@@ -3,7 +3,7 @@
  * in reference/prototype.html (SPEC 6: those constants are normative).
  */
 import { describe, expect, it } from 'vitest';
-import { boundsOf, layoutInstances } from '../../src/layout/treeLayout.js';
+import { boundsOf, layoutInstances, rowOffset } from '../../src/layout/treeLayout.js';
 import {
   centerOn,
   fitViewport,
@@ -33,12 +33,17 @@ const layoutFor = (fleet: Parameters<typeof instances>[0]) => {
 };
 
 describe('layoutInstances', () => {
-  it('puts the root row at the prototype top and spaces depths by rowHeight', () => {
+  it('puts the root row at the prototype top and spaces depths by the scaled rowHeight', () => {
     const { list, result } = layoutFor(makeFleet());
     const byKey = (agentId: string) => list.find((i) => i.agentId === agentId)?.key ?? '';
 
     expect(result.positions.get(byKey(AGENT.orchestrator))?.y).toBe(LAYOUT.top);
-    expect(result.positions.get(byKey(AGENT.sales))?.y).toBe(LAYOUT.top + LAYOUT.rowHeight);
+    // DEVIATION: rows are spaced by rowHeight x hierarchyScale, not a flat rowHeight,
+    // so the 50%-larger depth-0 card cannot overlap the row beneath it.
+    expect(result.positions.get(byKey(AGENT.sales))?.y).toBe(LAYOUT.top + rowOffset(1));
+    expect(rowOffset(1)).toBe(LAYOUT.rowHeight * HIERARCHY_SCALE_STEP);
+    // Below the anchor the prototype's own 185px spacing is untouched.
+    expect(rowOffset(2) - rowOffset(1)).toBe(LAYOUT.rowHeight);
     expect(LAYOUT.top).toBe(120);
     expect(LAYOUT.rowHeight).toBe(185);
     expect(LAYOUT.slotWidth).toBe(170);
@@ -65,7 +70,7 @@ describe('layoutInstances', () => {
     const { list, result } = layoutFor(solarluxFleet());
     const deep = list.filter((i) => i.depth >= LAYOUT.staggerFromDepth);
     const offsets = new Set(
-      deep.map((i) => (result.positions.get(i.key)?.y ?? 0) - (LAYOUT.top + i.depth * LAYOUT.rowHeight)),
+      deep.map((i) => (result.positions.get(i.key)?.y ?? 0) - (LAYOUT.top + rowOffset(i.depth))),
     );
     expect([...offsets].sort((a, b) => a - b)).toEqual([0, LAYOUT.stagger]);
   });
@@ -73,7 +78,7 @@ describe('layoutInstances', () => {
   it('does not stagger the root or department rows', () => {
     const { list, result } = layoutFor(solarluxFleet());
     for (const instance of list.filter((i) => i.depth < LAYOUT.staggerFromDepth)) {
-      expect(result.positions.get(instance.key)?.y).toBe(LAYOUT.top + instance.depth * LAYOUT.rowHeight);
+      expect(result.positions.get(instance.key)?.y).toBe(LAYOUT.top + rowOffset(instance.depth));
     }
   });
 
@@ -275,5 +280,22 @@ describe('hierarchy sizing (1.5x per level)', () => {
     expect(NODE_SIZE_3D.department / NODE_SIZE_3D.worker).toBeCloseTo(HIERARCHY_SCALE_STEP, 2);
     expect(LABEL_SCALE_3D.orchestrator / LABEL_SCALE_3D.department).toBeCloseTo(HIERARCHY_SCALE_STEP, 2);
     expect(LABEL_SCALE_3D.department / LABEL_SCALE_3D.worker).toBeCloseTo(HIERARCHY_SCALE_STEP, 2);
+  });
+});
+
+describe('rows leave room for the cards they hold', () => {
+  it('never lets a row overlap the one below it, at any depth', () => {
+    // The 1.5x depth-0 card used to collide with the departments beneath it.
+    for (let depth = 0; depth + 1 < CARD_SIZE.length; depth += 1) {
+      const gap = rowOffset(depth + 1) - rowOffset(depth);
+      const half = cardSize(depth).height / 2 + cardSize(depth + 1).height / 2;
+      expect(gap).toBeGreaterThan(half + LAYOUT.stagger);
+    }
+  });
+
+  it('grows the gap under a level in proportion to that level\'s cards', () => {
+    const topGap = rowOffset(1) - rowOffset(0);
+    const nextGap = rowOffset(2) - rowOffset(1);
+    expect(topGap / nextGap).toBeCloseTo(HIERARCHY_SCALE_STEP, 5);
   });
 });

@@ -298,7 +298,9 @@ export const useFleetStore = create<FleetStoreState>()(
           mutateActive((fleet) => {
             const target = fleet.agents.find((a) => a.id === targetAgentId);
             if (!target) return fail(`Unknown agent "${targetAgentId}".`);
-            if (target.id === catalogAgent.id) return fail('That agent is already the one in the tree.');
+            // Same id means the catalog copy was re-imported from an updated export.
+            // That is a refresh in place, not an error: the agent keeps its position
+            // and edges untouched and takes the newer name, role and libraries.
 
             // The replacement takes the old agent's place in the hierarchy: its
             // kind and board position, but its own name, role, status and library.
@@ -334,7 +336,12 @@ export const useFleetStore = create<FleetStoreState>()(
 
             return {
               ...withPlace,
-              agents: placed.filter((agent) => agent.id !== targetAgentId),
+              // On a refresh in place the replacement *is* the target, so removing
+              // the target would remove the agent that was just written.
+              agents:
+                targetAgentId === catalogAgent.id
+                  ? placed
+                  : placed.filter((agent) => agent.id !== targetAgentId),
               edges,
             };
           }),

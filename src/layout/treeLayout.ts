@@ -14,7 +14,7 @@
  * Coordinates are CARD CENTRES, like the prototype. The board converts to
  * top-left when handing nodes to React Flow.
  */
-import { LAYOUT } from '../ui/constants.js';
+import { LAYOUT, hierarchyScale } from '../ui/constants.js';
 import type { Instance } from '../model/selectors.js';
 import type { Position } from '../model/schemas.js';
 
@@ -25,6 +25,21 @@ export type LayoutResult = {
   width: number;
   height: number;
 };
+
+/**
+ * Distance from the top of the board to the centre of a row.
+ *
+ * Row spacing follows the same hierarchy scale as the cards themselves
+ * (HIERARCHY_SCALE_STEP): a level whose cards are 50% larger needs 50% more room
+ * beneath it, otherwise the biggest card at the top of the tree overlaps the row
+ * below. Depth 1 is the anchor, so a fleet of same-size cards keeps exactly the
+ * prototype's 185px rows.
+ */
+export function rowOffset(depth: number): number {
+  let offset = 0;
+  for (let level = 0; level < depth; level += 1) offset += LAYOUT.rowHeight * hierarchyScale(level);
+  return offset;
+}
 
 /**
  * @param instances pre-order instance list from `instances(fleet)`
@@ -82,7 +97,7 @@ export function layoutInstances(
 
     positions.set(instance.key, {
       x,
-      y: LAYOUT.top + instance.depth * LAYOUT.rowHeight + stagger,
+      y: LAYOUT.top + rowOffset(instance.depth) + stagger,
     });
   };
 
@@ -109,7 +124,7 @@ export function layoutInstances(
 
   // Manual drags may push a card past the auto extent; the board must still contain it.
   let widest = autoWidth;
-  let tallest = LAYOUT.top + maxDepth * LAYOUT.rowHeight + LAYOUT.boardPaddingY;
+  let tallest = LAYOUT.top + rowOffset(maxDepth) + LAYOUT.boardPaddingY;
   for (const point of positions.values()) {
     widest = Math.max(widest, point.x + LAYOUT.slotWidth);
     tallest = Math.max(tallest, point.y + LAYOUT.boardPaddingY);

@@ -412,13 +412,29 @@ describe('replacing an agent in the tree with a catalog one', () => {
     });
   });
 
-  it('refuses to replace an agent with itself', () => {
-    setupTree();
-    const created = catalog().addAgent({ name: 'Self' });
-    if (!created.ok) throw new Error('setup failed');
-    const agent = catalog().catalog.agents[0]!;
-    fleetStore().addCatalogAgent(agent);
-    expect(fleetStore().replaceWithCatalogAgent(agent.id, agent)).toMatchObject({ ok: false });
+  it('refreshes in place when the same agent is re-imported from an updated file', () => {
+    // Re-importing keeps the agent id, so replacing it with itself is an update,
+    // not an error - otherwise a corrected export could never reach the tree.
+    const { rootId } = setupTree();
+    catalog().importCopilotYaml(yaml, 'o.yaml');
+    const imported = catalog().catalog.agents[0];
+    if (!imported) throw new Error('import failed');
+    fleetStore().addCatalogAgent(imported);
+    fleetStore().linkAgents(rootId, imported.id, 'hierarchy');
+
+    catalog().updateAgent(imported.id, { role: 'Objektgeschaeft end to end' });
+    const refreshed = catalog().catalog.agents.find((a) => a.id === imported.id);
+    if (!refreshed) throw new Error('missing');
+
+    expect(fleetStore().replaceWithCatalogAgent(imported.id, refreshed).ok).toBe(true);
+
+    const fleet = selectActiveFleet(fleetStore());
+    const inTree = fleet?.agents.filter((a) => a.id === imported.id) ?? [];
+    expect(inTree).toHaveLength(1);
+    expect(inTree[0]?.role).toBe('Objektgeschaeft end to end');
+    // It is still hanging off the orchestrator, not detached by the refresh.
+    expect(parentsOf(fleet!, imported.id).map((a) => a.id)).toEqual([rootId]);
+    expect(checkFleetIntegrity(fleet!)).toEqual([]);
   });
 
   it('is undoable', () => {
