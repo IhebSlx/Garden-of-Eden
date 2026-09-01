@@ -10,7 +10,7 @@
 import { useState } from 'react';
 import { selectActiveFleet, useFleetStore } from '../store/fleetStore.js';
 import { useUiStore } from '../store/uiStore.js';
-import { agentsUsing } from '../model/selectors.js';
+import { agentsUsing, knownOwners } from '../model/selectors.js';
 import { DATA_SOURCE_STATUS_LABELS } from '../model/schemas.js';
 import type { DataSourceType, LibraryKind, Status } from '../model/schemas.js';
 import { DATA_TYPE_COLOR, SKILL_COLOR, STATUS_COLOR, TOOL_TYPE_COLOR } from '../ui/palette.js';
@@ -201,7 +201,7 @@ export function LibraryManager(): React.JSX.Element | null {
                 </div>
 
                 {editing && tab === 'skill' && <SkillFields id={item.id} />}
-                {editing && tab === 'tool' && <ToolFields id={item.id} onClose={() => setEditingId(null)} />}
+                {editing && tab === 'tool' && <ToolFields id={item.id} onClose={() => setEditingId(null)} error={error} onError={setError} />}
                 {editing && tab === 'dataSource' && <DataFields id={item.id} />}
               </div>
             );
@@ -239,110 +239,161 @@ export function LibraryManager(): React.JSX.Element | null {
       </div>
     </div>
   );
+}
+/**
+ * The three editors are top-level components on purpose. Declared inside
+ * LibraryManager they got a new component identity on every render, so React
+ * remounted them after each commit and the uncontrolled fields lost whatever had
+ * just been typed into the next one.
+ */
+function SkillFields({ id }: { id: string }): React.JSX.Element | null {
+  const fleet = useFleetStore(selectActiveFleet);
+  const updateSkill = useFleetStore((s) => s.updateSkill);
+  const skill = fleet?.skills.find((s) => s.id === id);
+  if (!skill) return null;
+  return (
+    <div className="lib-fields" data-testid="skill-editor">
+      <label className="dialog-field">
+        <span>Description</span>
+        <input
+          defaultValue={skill.description ?? ''}
+          aria-label={`Description of ${skill.name}`}
+          onBlur={(event) => updateSkill(id, { description: event.target.value })}
+        />
+      </label>
+      <label className="dialog-field">
+        <span>Instructions</span>
+        <textarea
+          rows={2}
+          defaultValue={skill.instructions ?? ''}
+          aria-label={`Instructions for ${skill.name}`}
+          data-testid="skill-instructions"
+          onBlur={(event) => updateSkill(id, { instructions: event.target.value })}
+        />
+      </label>
+    </div>
+  );
+}
 
-  function SkillFields({ id }: { id: string }): React.JSX.Element | null {
-    const skill = fleet?.skills.find((s) => s.id === id);
-    if (!skill) return null;
-    return (
-      <div className="lib-fields" data-testid="skill-editor">
+function ToolFields({
+  id,
+  onClose,
+  error,
+  onError,
+}: {
+  id: string;
+  onClose: () => void;
+  error: string | null;
+  onError: (reason: string | null) => void;
+}): React.JSX.Element | null {
+  const fleet = useFleetStore(selectActiveFleet);
+  const updateTool = useFleetStore((s) => s.updateTool);
+  const tool = fleet?.tools.find((t) => t.id === id);
+  if (!tool) return null;
+  return (
+    <ToolEditor
+      tool={tool}
+      error={error}
+      onClose={onClose}
+      onChange={(patch) => {
+        const result = updateTool(id, patch);
+        onError(result.ok ? null : result.reason);
+      }}
+    />
+  );
+}
+
+function DataFields({ id }: { id: string }): React.JSX.Element | null {
+  const fleet = useFleetStore(selectActiveFleet);
+  const updateDataSource = useFleetStore((s) => s.updateDataSource);
+  const source = fleet?.dataSources.find((d) => d.id === id);
+  const owners = fleet ? knownOwners(fleet) : [];
+  if (!source) return null;
+  return (
+    <div className="lib-fields" data-testid="data-editor">
+      <div className="lib-field-row">
         <label className="dialog-field">
-          <span>Description</span>
-          <input
-            defaultValue={skill.description ?? ''}
-            aria-label={`Description of ${skill.name}`}
-            onBlur={(event) => updateSkill(id, { description: event.target.value })}
-          />
+          <span>Type</span>
+          <select
+            value={source.type}
+            aria-label={`Type of ${source.name}`}
+            onChange={(event) => updateDataSource(id, { type: event.target.value as DataSourceType })}
+          >
+            {DATA_TYPES.map((type) => (
+              <option key={type} value={type}>
+                {type}
+              </option>
+            ))}
+          </select>
         </label>
         <label className="dialog-field">
-          <span>Instructions</span>
-          <textarea
-            rows={2}
-            defaultValue={skill.instructions ?? ''}
-            aria-label={`Instructions for ${skill.name}`}
-            data-testid="skill-instructions"
-            onBlur={(event) => updateSkill(id, { instructions: event.target.value })}
+          <span>Status</span>
+          <select
+            value={source.status}
+            style={{ color: STATUS_COLOR[source.status] }}
+            aria-label={`Status of ${source.name}`}
+            onChange={(event) => updateDataSource(id, { status: event.target.value as Status })}
+          >
+            {STATUSES.map((status) => (
+              <option key={status} value={status}>
+                {DATA_SOURCE_STATUS_LABELS[status]}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      {/* SPEC §4: `linked` is only meaningful once the source is Ready. */}
+      {source.status === 'live' && (
+        <label className="lib-check">
+          <input
+            type="checkbox"
+            checked={source.linked ?? false}
+            data-testid="data-linked"
+            onChange={(event) => updateDataSource(id, { linked: event.target.checked })}
+          />
+          <span>Linked — the agent can actually read it</span>
+        </label>
+      )}
+
+      <div className="lib-field-row">
+        <label className="dialog-field">
+          <span>Prepared by</span>
+          <input
+            defaultValue={source.owner ?? ''}
+            aria-label={`Who prepares ${source.name}`}
+            placeholder="Marketing"
+            list="known-owners"
+            onBlur={(event) => updateDataSource(id, { owner: event.target.value })}
           />
         </label>
       </div>
-    );
-  }
+      <datalist id="known-owners">
+        {owners.map((owner) => (
+          <option key={owner} value={owner} />
+        ))}
+      </datalist>
 
-  function ToolFields({ id, onClose }: { id: string; onClose: () => void }): React.JSX.Element | null {
-    const tool = fleet?.tools.find((t) => t.id === id);
-    if (!tool) return null;
-    return (
-      <ToolEditor
-        tool={tool}
-        error={error}
-        onClose={onClose}
-        onChange={(patch) => {
-          const result = updateTool(id, patch);
-          setError(result.ok ? null : result.reason);
-        }}
-      />
-    );
-  }
+      <label className="dialog-field">
+        <span>What has to be prepared</span>
+        <textarea
+          rows={2}
+          defaultValue={source.requirement ?? ''}
+          aria-label={`Requirement for ${source.name}`}
+          placeholder="Every product image, named produkt_variante.png, 2000px on the long edge"
+          onBlur={(event) => updateDataSource(id, { requirement: event.target.value })}
+        />
+      </label>
 
-  function DataFields({ id }: { id: string }): React.JSX.Element | null {
-    const source = fleet?.dataSources.find((d) => d.id === id);
-    if (!source) return null;
-    return (
-      <div className="lib-fields" data-testid="data-editor">
-        <div className="lib-field-row">
-          <label className="dialog-field">
-            <span>Type</span>
-            <select
-              value={source.type}
-              aria-label={`Type of ${source.name}`}
-              onChange={(event) => updateDataSource(id, { type: event.target.value as DataSourceType })}
-            >
-              {DATA_TYPES.map((type) => (
-                <option key={type} value={type}>
-                  {type}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="dialog-field">
-            <span>Status</span>
-            <select
-              value={source.status}
-              style={{ color: STATUS_COLOR[source.status] }}
-              aria-label={`Status of ${source.name}`}
-              onChange={(event) => updateDataSource(id, { status: event.target.value as Status })}
-            >
-              {STATUSES.map((status) => (
-                <option key={status} value={status}>
-                  {DATA_SOURCE_STATUS_LABELS[status]}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        {/* SPEC §4: `linked` is only meaningful once the source is Ready. */}
-        {source.status === 'live' && (
-          <label className="lib-check">
-            <input
-              type="checkbox"
-              checked={source.linked ?? false}
-              data-testid="data-linked"
-              onChange={(event) => updateDataSource(id, { linked: event.target.checked })}
-            />
-            <span>Linked — the agent can actually read it</span>
-          </label>
-        )}
-
-        <label className="dialog-field">
-          <span>Reference (URI, path or table)</span>
-          <input
-            defaultValue={source.ref ?? ''}
-            aria-label={`Reference for ${source.name}`}
-            placeholder="sites/sales/prices"
-            onBlur={(event) => updateDataSource(id, { ref: event.target.value })}
-          />
-        </label>
-      </div>
-    );
-  }
+      <label className="dialog-field">
+        <span>Reference (URI, path or table)</span>
+        <input
+          defaultValue={source.ref ?? ''}
+          aria-label={`Reference for ${source.name}`}
+          placeholder="sites/sales/prices"
+          onBlur={(event) => updateDataSource(id, { ref: event.target.value })}
+        />
+      </label>
+    </div>
+  );
 }

@@ -48,6 +48,10 @@ export type UiState = {
   catalogOpen: boolean;
   openCatalog: () => void;
   closeCatalog: () => void;
+  /** "Data prep": every data source grouped by whoever prepares it. */
+  dataPrepOpen: boolean;
+  openDataPrep: () => void;
+  closeDataPrep: () => void;
   /** The "?" keyboard-shortcut sheet. */
   shortcutsOpen: boolean;
   openShortcuts: () => void;
@@ -104,6 +108,7 @@ export const useUiStore = create<UiState>()((set, get) => ({
   libraryOpen: false,
   shortcutsOpen: false,
   catalogOpen: false,
+  dataPrepOpen: false,
   fitRequest: 0,
   burst: null,
   openCardSections: {},
@@ -112,6 +117,8 @@ export const useUiStore = create<UiState>()((set, get) => ({
   closeLibrary: () => set({ libraryOpen: false }),
   openCatalog: () => set({ catalogOpen: true }),
   closeCatalog: () => set({ catalogOpen: false }),
+  openDataPrep: () => set({ dataPrepOpen: true }),
+  closeDataPrep: () => set({ dataPrepOpen: false }),
   openShortcuts: () => set({ shortcutsOpen: true }),
   closeShortcuts: () => set({ shortcutsOpen: false }),
   requestFit: () => set((state) => ({ fitRequest: state.fitRequest + 1 })),

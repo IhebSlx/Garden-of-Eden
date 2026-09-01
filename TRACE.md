@@ -347,3 +347,29 @@ Covered by `layout.test.ts` › "hierarchy sizing (1.5x per level)" (4 tests);
 | A variable group matching no tool | Kept as a data source, reported in the warnings | › "says so when saved settings belong to no tool in the export" |
 | Flow *internal steps* | **Not invented** — the export does not contain them | › "does NOT invent workflow steps the export does not contain" |
 | GUIDs, `managedProperties`, `auditInfo`, `solutionId`, base64 icons, `EnvironmentVariableDefinition` | Not modelled; the original file is stored verbatim and stays downloadable | `catalog.test.ts` › "keeps the uploaded file byte-for-byte so it can be downloaded back" |
+
+**DEVIATION 9 — data sources carry an owner and a requirement, and "Data prep" reads the fleet
+backwards.** SPEC §1 calls the board a roadmap and §5.6 gives every component a status, but nothing
+in the spec says *who* turns Planned into Live or what finished looks like. `DataSource` gains
+optional `owner` and `requirement`, and a new view groups every source by the party that prepares
+it, shows the requirement, and names the agents blocked without it. `owner` is free text because
+the party who prepares data is usually a human team, not an agent in any fleet.
+
+| Item | Status | Test(s) |
+|---|---|---|
+| Sources grouped by the party that owes them | ✅ | `selectors.test.ts` › "groups sources by the party that owes them" |
+| Only non-Live counts as outstanding | ✅ | › "counts only what is not Live as outstanding" |
+| Biggest backlog first | ✅ | › "puts whoever is holding up the most at the top" |
+| Agents waiting on a source are named | ✅ | › "names the agents that are waiting on each source" |
+| Unclaimed work gathered last | ✅ | › "collects unclaimed sources last, so they read as a prompt to assign them" |
+| Casing / stray spaces do not split a team | ✅ | › "does not split one team in two over casing or stray spaces" |
+| Blank owner means no owner | ✅ | › "treats a blank owner as no owner at all" |
+| Known owners offered as suggestions | ✅ | › "offers every owner already in use as a suggestion, deduplicated" |
+| Record a requirement, read it back as an obligation | ✅ | e2e › "data prep says who owes each source and who is blocked without it" |
+| Jump from an obligation to the waiting agent | ✅ | e2e › "data prep jumps from an obligation to the agent waiting on it" |
+| Outstanding count surfaced in the fleet menu | ✅ | e2e › "the fleet menu counts what is still to prepare" |
+
+**Bug fixed alongside it:** `SkillFields` / `ToolFields` / `DataFields` were declared inside
+`LibraryManager`, so every render gave them a new component identity and React remounted the
+editor. Committing one field wiped whatever had just been typed into the next. They are now
+top-level components reading the store directly.

@@ -458,3 +458,52 @@ test('the catalog survives a reload', async ({ page }) => {
   // The name lives in an editable input, so assert its value rather than text.
   await expect(page.getByTestId('catalog').locator('.lib-name').first()).toHaveValue('Persistent Bot');
 });
+
+test('data prep says who owes each source and who is blocked without it', async ({ page }) => {
+  // Record the requirement the way a planning conversation states it...
+  await page.getByTestId('fleet-menu-toggle').click();
+  await page.getByRole('button', { name: /Libraries/ }).click();
+  const manager = page.getByTestId('library-manager');
+  await manager.getByRole('button', { name: 'Data sources' }).click();
+  await manager.getByRole('button', { name: 'Edit Brand guidelines' }).click();
+
+  await manager.getByLabel('Who prepares Brand guidelines').fill('Marketing');
+  const requirement = manager.getByLabel('Requirement for Brand guidelines');
+  await requirement.fill('Every product image, named produkt_variante.png');
+  // These fields commit on blur, as every other field in the manager does.
+  await requirement.blur();
+  await page.getByRole('button', { name: 'Done' }).click();
+
+  // ...then read it back as an obligation on Marketing.
+  await page.getByTestId('fleet-menu-toggle').click();
+  await page.getByTestId('open-data-prep').click();
+
+  const prep = page.getByTestId('data-prep');
+  await expect(prep).toBeVisible();
+
+  const marketing = prep.getByTestId('prep-group').filter({ hasText: 'Marketing' }).first();
+  await expect(marketing).toContainText('Brand guidelines');
+  await expect(marketing).toContainText('named produkt_variante.png');
+  // The point of the view: who cannot work until Marketing delivers.
+  await expect(marketing).toContainText('needed by');
+
+  // Everything nobody has claimed is still gathered under Unassigned.
+  await expect(prep.getByTestId('prep-group').filter({ hasText: 'Unassigned' })).toHaveCount(1);
+});
+
+test('data prep jumps from an obligation to the agent waiting on it', async ({ page }) => {
+  await page.getByTestId('fleet-menu-toggle').click();
+  await page.getByTestId('open-data-prep').click();
+
+  const prep = page.getByTestId('data-prep');
+  const item = prep.getByTestId('prep-item').filter({ hasText: 'Unternehmenskontext' }).first();
+  await item.getByRole('button', { name: 'Solarlux Orchestrator' }).first().click();
+
+  await expect(prep).toBeHidden();
+  await expect(page.getByTestId('breadcrumb')).toContainText('Solarlux Orchestrator');
+});
+
+test('the fleet menu counts what is still to prepare', async ({ page }) => {
+  await page.getByTestId('fleet-menu-toggle').click();
+  await expect(page.getByTestId('open-data-prep')).toContainText('still to prepare');
+});

@@ -12,7 +12,7 @@
  * that want to address the (agent, parent) pair. Where no shared agent has children the
  * two are 1:1, so the spec's key survives as an alias.
  */
-import type { Agent, Edge, Fleet, LibraryKind } from './schemas.js';
+import type { Agent, DataSource, Edge, Fleet, LibraryKind } from './schemas.js';
 
 /** Stand-in parent id for root instances in the SPEC 4 `agentId@parentId` key form. */
 export const ROOT_PARENT = '__root__';
@@ -258,4 +258,75 @@ export function libraryUsage(fleet: Fleet, kind: LibraryKind): Map<string, strin
 export function agentsUsing(fleet: Fleet, kind: LibraryKind, itemId: string): Agent[] {
   const field = USAGE_FIELD[kind];
   return fleet.agents.filter((agent) => agent[field].includes(itemId));
+}
+
+/** A data source together with who owes it and which agents are waiting for it. */
+export type DataObligation = {
+  source: DataSource;
+  /** Agents that reference this source, in fleet order. */
+  waitingAgents: Agent[];
+};
+
+/** Everything one party has to prepare, with a count of what is not ready yet. */
+export type OwnerWorkload = {
+  /** The owner as written, or null for sources nobody has claimed. */
+  owner: string | null;
+  obligations: DataObligation[];
+  /** Sources that are not yet Live, i.e. the outstanding work. */
+  outstanding: number;
+};
+
+/** Trailing/leading space and case must not split one team into two rows. */
+const ownerKey = (owner: string): string => owner.trim().toLowerCase();
+
+/**
+ * What each party still has to prepare, grouped by owner.
+ *
+ * The fleet answers "which agent needs what"; this answers the inverse question a
+ * planning conversation actually asks - "what does Marketing owe, and who is
+ * blocked until they deliver it?". Sources with no owner come last, under `null`,
+ * because they are the ones nobody has been asked for yet.
+ *
+ * Owners are sorted by outstanding work first, so whoever is holding the most up
+ * is at the top; ties fall back to name order for a stable list.
+ */
+export function dataObligations(fleet: Fleet): OwnerWorkload[] {
+  const usage = libraryUsage(fleet, 'dataSource');
+  const agentsById = new Map(fleet.agents.map((agent) => [agent.id, agent]));
+  const byOwner = new Map<string, OwnerWorkload>();
+
+  for (const source of fleet.dataSources) {
+    const named = source.owner?.trim();
+    const owner = named === undefined || named === '' ? null : named;
+    const key = owner === null ? '\u0000unowned' : ownerKey(owner);
+
+    const bucket = byOwner.get(key) ?? { owner, obligations: [], outstanding: 0 };
+    bucket.obligations.push({
+      source,
+      waitingAgents: (usage.get(source.id) ?? [])
+        .map((agentId) => agentsById.get(agentId))
+        .filter((agent): agent is Agent => agent !== undefined),
+    });
+    if (source.status !== 'live') bucket.outstanding += 1;
+    byOwner.set(key, bucket);
+  }
+
+  return [...byOwner.values()].sort((a, b) => {
+    // Unowned work is a prompt to assign it, not a team, so it sits at the end.
+    if (a.owner === null) return 1;
+    if (b.owner === null) return -1;
+    if (a.outstanding !== b.outstanding) return b.outstanding - a.outstanding;
+    return a.owner.localeCompare(b.owner);
+  });
+}
+
+/** Owner names already in use, for the editor's suggestion list. */
+export function knownOwners(fleet: Fleet): string[] {
+  const seen = new Map<string, string>();
+  for (const source of fleet.dataSources) {
+    const named = source.owner?.trim();
+    if (named === undefined || named === '') continue;
+    if (!seen.has(ownerKey(named))) seen.set(ownerKey(named), named);
+  }
+  return [...seen.values()].sort((a, b) => a.localeCompare(b));
 }

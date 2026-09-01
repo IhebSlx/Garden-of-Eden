@@ -130,6 +130,19 @@ export const DataSourceSchema = z.object({
    * to consult. Dropping it would lose the only text that explains the source.
    */
   description: z.string().optional(),
+  /**
+   * DEVIATION: beyond SPEC §4. The board is a roadmap (SPEC §1), and a Planned
+   * data source is work somebody still has to do. These two record who owes it
+   * and what "finished" looks like — "Marketing" / "every product image, named
+   * produkt_variante.png". Without them the board can show that an agent needs
+   * 19 sources but not who has to produce them, which is the question the fleet
+   * overview is actually asked.
+   *
+   * `owner` is free text on purpose: the party who prepares data is often a human
+   * team that is not an agent in any fleet.
+   */
+  owner: z.string().optional(),
+  requirement: z.string().optional(),
 });
 export type DataSource = z.infer<typeof DataSourceSchema>;
 

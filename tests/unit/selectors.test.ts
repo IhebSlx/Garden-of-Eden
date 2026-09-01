@@ -1,26 +1,7 @@
 /** SPEC 4 derived rules + the SPEC 5 behaviours that read them. */
 import { describe, expect, it } from 'vitest';
-import {
-  ROOT_PARENT,
-  agentDepths,
-  agentsUsing,
-  buildFleetIndex,
-  childIdsOf,
-  descendantIds,
-  hierarchyEdges,
-  instances,
-  instancesByAgent,
-  isShared,
-  libraryUsage,
-  parentIdsOf,
-  parentsOf,
-  peerEdges,
-  peerIdsOf,
-  rootAgentIds,
-  sharedCount,
-  visibleSet,
-} from '../../src/model/selectors.js';
-import type { Fleet } from '../../src/model/schemas.js';
+import { ROOT_PARENT, agentDepths, agentsUsing, buildFleetIndex, childIdsOf, dataObligations, descendantIds, hierarchyEdges, instances, instancesByAgent, isShared, knownOwners, libraryUsage, parentIdsOf, parentsOf, peerEdges, peerIdsOf, rootAgentIds, sharedCount, visibleSet } from '../../src/model/selectors.js';
+import type { DataSource, Fleet } from '../../src/model/schemas.js';
 import { AGENT, LIB, makeFleet } from '../fixtures/fleets.js';
 
 const keysOf = (fleet: Fleet): string[] => instances(fleet).map((i) => i.key);
@@ -295,5 +276,92 @@ describe('buildFleetIndex', () => {
     expect(instances(fleet, index)).toEqual(instances(fleet));
     expect(visibleSet(fleet, AGENT.sales, index)).toEqual(visibleSet(fleet, AGENT.sales));
     expect(isShared(fleet, AGENT.quotes, index)).toBe(true);
+  });
+});
+
+describe('dataObligations — what each party has to prepare', () => {
+  const withSources = (sources: Partial<DataSource>[]): Fleet => {
+    const fleet = makeFleet();
+    return {
+      ...fleet,
+      dataSources: sources.map((source, index) => ({
+        id: `dsr_${index}`,
+        name: `Source ${index}`,
+        type: 'file' as const,
+        status: 'planned' as const,
+        ...source,
+      })),
+      agents: fleet.agents.map((agent, index) =>
+        index === 1 ? { ...agent, dataSourceIds: sources.map((_, i) => `dsr_${i}`) } : agent,
+      ),
+    };
+  };
+
+  it('groups sources by the party that owes them', () => {
+    const fleet = withSources([
+      { owner: 'Marketing', name: 'Produktbilder' },
+      { owner: 'Marketing', name: 'Logos' },
+      { owner: 'Produktmanagement', name: 'Preisliste' },
+    ]);
+
+    const groups = dataObligations(fleet);
+    expect(groups.map((g) => g.owner)).toEqual(['Marketing', 'Produktmanagement']);
+    expect(groups[0]?.obligations.map((o) => o.source.name)).toEqual(['Produktbilder', 'Logos']);
+  });
+
+  it('counts only what is not Live as outstanding', () => {
+    const fleet = withSources([
+      { owner: 'Marketing', status: 'live' },
+      { owner: 'Marketing', status: 'building' },
+      { owner: 'Marketing', status: 'planned' },
+    ]);
+    expect(dataObligations(fleet)[0]).toMatchObject({ owner: 'Marketing', outstanding: 2 });
+  });
+
+  it('puts whoever is holding up the most at the top', () => {
+    const fleet = withSources([
+      { owner: 'Vertrieb', status: 'planned' },
+      { owner: 'Marketing', status: 'planned' },
+      { owner: 'Marketing', status: 'planned' },
+    ]);
+    expect(dataObligations(fleet).map((g) => g.owner)).toEqual(['Marketing', 'Vertrieb']);
+  });
+
+  it('names the agents that are waiting on each source', () => {
+    const fleet = withSources([{ owner: 'Marketing', name: 'Produktbilder' }]);
+    const waiting = dataObligations(fleet)[0]?.obligations[0]?.waitingAgents ?? [];
+    expect(waiting).toHaveLength(1);
+    expect(waiting[0]?.id).toBe(fleet.agents[1]?.id);
+  });
+
+  it('collects unclaimed sources last, so they read as a prompt to assign them', () => {
+    const fleet = withSources([{ name: 'Nobody asked for this' }, { owner: 'Marketing' }]);
+    const groups = dataObligations(fleet);
+    expect(groups.map((g) => g.owner)).toEqual(['Marketing', null]);
+    expect(groups[1]?.obligations).toHaveLength(1);
+  });
+
+  it('does not split one team in two over casing or stray spaces', () => {
+    const fleet = withSources([{ owner: 'Marketing' }, { owner: '  marketing ' }]);
+    const groups = dataObligations(fleet);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]?.obligations).toHaveLength(2);
+    // The first spelling seen is the one shown.
+    expect(groups[0]?.owner).toBe('Marketing');
+  });
+
+  it('treats a blank owner as no owner at all', () => {
+    const fleet = withSources([{ owner: '   ' }]);
+    expect(dataObligations(fleet)[0]?.owner).toBeNull();
+  });
+
+  it('offers every owner already in use as a suggestion, deduplicated', () => {
+    const fleet = withSources([{ owner: 'Vertrieb' }, { owner: 'marketing' }, { owner: 'Marketing' }]);
+    expect(knownOwners(fleet)).toEqual(['marketing', 'Vertrieb']);
+  });
+
+  it('returns nothing for a fleet with no data sources', () => {
+    expect(dataObligations(withSources([]))).toEqual([]);
+    expect(knownOwners(withSources([]))).toEqual([]);
   });
 });
