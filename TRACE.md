@@ -243,6 +243,26 @@ Status: **✅** covered by a named test · **◻** deliberately out of v1 scope 
 | "Kontext für alle" shared by every agent | ✅ | `visionFleet.test.ts` › "gives every agent the shared Unternehmenskontext" |
 | Loadable from the fleet menu | ✅ | `FleetBar.tsx` `load-vision` |
 
+## Catalog + Copilot Studio import (beyond SPEC v1)
+
+| Item | Status | Test(s) |
+|---|---|---|
+| Create an agent with no fleet involved | ✅ | `catalog.test.ts` › "creates an agent from a name alone"; e2e › "the catalog creates an agent with no fleet involved" |
+| Create skills on their own | ✅ | `catalog.test.ts` › "creates skills, tools and data sources"; e2e › "the catalog builds a skill and a branching workflow tool" |
+| Create workflow tools on their own, with steps | ✅ | e2e › same test (adds two steps through the tool editor) |
+| Upload a Copilot Studio `.yaml` export | ✅ | `copilotImport.test.ts` (17 tests, against a real 2298-line export); e2e › "a Copilot Studio export becomes an agent" |
+| …parsed into agent + skills + flows + knowledge | ✅ | `copilotImport.test.ts` › the Objektvertrieb export (8 tests) |
+| …the file is kept and downloadable, byte-for-byte | ✅ | `catalog.test.ts` › "keeps the uploaded file byte-for-byte"; e2e asserts the download |
+| Re-importing the same agent replaces it | ✅ | `catalog.test.ts` › "replaces the same agent on re-import instead of duplicating it" |
+| A non-Copilot file is refused readably | ✅ | `copilotImport.test.ts` › rejecting the wrong file (3 tests); e2e › "a file that is not a Copilot export" |
+| Never invents workflow steps the export lacks | ✅ | `copilotImport.test.ts` › "does NOT invent workflow steps the export does not contain" |
+| Add a catalog agent to a fleet with its dependencies | ✅ | `catalog.test.ts` › adding a catalog agent to a fleet (8 tests) |
+| The fleet stays self-contained and valid (SPEC §7) | ✅ | `catalog.test.ts` › "leaves the fleet valid and self-contained" |
+| Adding never creates a second orchestrator (SPEC §4) | ✅ | `catalog.test.ts` › "never creates a second orchestrator" |
+| Adding is undoable (SPEC §8.1) | ✅ | `catalog.test.ts` › "is undoable like any other fleet mutation" |
+| The catalog persists across reloads | ✅ | e2e › "the catalog survives a reload" |
+| The catalog stays out of the fleet's undo history and exports | ✅ | separate store + separate IndexedDB object store (DB v2) |
+
 ## Backlog (SPEC §9 — deliberately not built)
 
 | Item | Status |

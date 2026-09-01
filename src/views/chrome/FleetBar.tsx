@@ -43,6 +43,7 @@ export function FleetBar(): React.JSX.Element {
   const importFleet = useFleetStore((s) => s.importFleetObject);
   const resetForFleet = useUiStore((s) => s.resetForFleet);
   const openLibrary = useUiStore((s) => s.openLibrary);
+  const openCatalog = useUiStore((s) => s.openCatalog);
 
   const pastCount = useStore(useFleetStore.temporal, (s) => s.pastStates.length);
   const futureCount = useStore(useFleetStore.temporal, (s) => s.futureStates.length);
@@ -190,6 +191,10 @@ export function FleetBar(): React.JSX.Element {
                 }}
               >
                 Duplicate
+              </button>
+              <button type="button" className="fleetmenu-row" data-testid="open-catalog" onClick={() => { openCatalog(); setMenuOpen(false); }}>
+                Catalog…
+                <small>agents, skills, tools</small>
               </button>
               <button type="button" className="fleetmenu-row" onClick={() => openLibrary()}>
                 Libraries…

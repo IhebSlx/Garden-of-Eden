@@ -104,6 +104,7 @@ export function Inspector(): React.JSX.Element | null {
   const toggleDetail = useUiStore((s) => s.toggleDetail);
   const select = useUiStore((s) => s.select);
   const activate = useUiStore((s) => s.activate);
+  const openCatalog = useUiStore((s) => s.openCatalog);
 
   const updateAgent = useFleetStore((s) => s.updateAgent);
   const renameAgent = useFleetStore((s) => s.renameAgent);
@@ -468,6 +469,14 @@ export function Inspector(): React.JSX.Element | null {
           }}
         >
           + Add sub-agent
+        </button>
+        <button
+          type="button"
+          className="btn ghost"
+          data-testid="add-from-catalog"
+          onClick={() => openCatalog()}
+        >
+          Add from catalog…
         </button>
         <button
           type="button"

@@ -34,6 +34,9 @@ import type {
 import { formatZodError, migrateFleetDocument } from '../model/migrations.js';
 import { agentsUsing, descendantIds, isShared, parentsOf } from '../model/selectors.js';
 import { fleetFromTemplate } from '../model/templates.js';
+import { instantiateIntoFleet } from '../model/catalog.js';
+import type { CatalogAgent } from '../model/catalog.js';
+import { useCatalogStore } from './catalogStore.js';
 import type { FleetTemplate } from '../model/templates.js';
 import { parseFleetJson } from './io.js';
 
@@ -101,6 +104,11 @@ export type FleetStoreState = {
   importFleetFromJson: (text: string) => { ok: true; id: string } | { ok: false; errors: string[] };
   /** Load an in-memory fleet (the shipped Solarlux example, SPEC 5.11). */
   importFleetObject: (fleet: Fleet) => { ok: true; id: string } | { ok: false; errors: string[] };
+  /**
+   * Copy a catalog agent into the active fleet, bringing the skills, tools and
+   * data sources it references (SPEC 7: the fleet stays self-contained).
+   */
+  addCatalogAgent: (agent: CatalogAgent) => ActionResult;
 
   // --- agents (SPEC 5.8) ---
   addAgent: (input: NewAgentInput) => CreateResult;
@@ -279,6 +287,19 @@ export const useFleetStore = create<FleetStoreState>()(
           if (!parsed.ok) return parsed;
           return get().importFleetObject(parsed.fleet);
         },
+
+        addCatalogAgent: (catalogAgent) =>
+          mutateActive((fleet) => {
+            // A fleet needs exactly one orchestrator (SPEC 4) and the catalog does not
+            // model hierarchy, so a copied agent always joins as a plain member.
+            const kind: AgentKind =
+              catalogAgent.kind === 'orchestrator' &&
+              fleet.agents.some((a) => a.kind === 'orchestrator' && a.id !== catalogAgent.id)
+                ? 'department'
+                : catalogAgent.kind;
+
+            return instantiateIntoFleet(fleet, useCatalogStore.getState().catalog, catalogAgent, { kind });
+          }),
 
         importFleetObject: (candidate) => {
           const parsed = migrateFleetDocument(candidate);

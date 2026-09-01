@@ -15,10 +15,12 @@ import { TopBar } from './views/chrome/TopBar.js';
 import { Inspector } from './panel/Inspector.js';
 import { EdgeInspector } from './panel/EdgeInspector.js';
 import { LibraryManager } from './panel/LibraryManager.js';
+import { CatalogManager } from './panel/CatalogManager.js';
 import { LinkKindDialog } from './views/dialogs/LinkKindDialog.js';
 import { hydrateFleetStore, selectActiveFleet, useFleetStore } from './store/fleetStore.js';
 import { solarluxFleet } from './model/seed.js';
 import { attachPersistence, createIndexedDbRepository } from './store/persistence.js';
+import { useCatalogStore } from './store/catalogStore.js';
 
 type Bootstrap = {
   ready: boolean;
@@ -41,9 +43,11 @@ function useBootstrap(): Bootstrap {
 
     const repository = createIndexedDbRepository();
     let handle: { stop: () => void } | undefined;
+    let catalogStop: (() => void) | undefined;
 
     void (async () => {
       const loaded = await repository.loadAll();
+      useCatalogStore.getState().hydrate(await repository.loadCatalog());
 
       // First run opens the Solarlux example so the board is never empty on arrival.
       // SPEC 5.11 keeps it a loadable example: it is seeded once, then editable and
@@ -52,6 +56,16 @@ function useBootstrap(): Bootstrap {
       const activeFleetId = loaded.fleets.length > 0 ? loaded.activeFleetId : (fleets[0]?.id ?? null);
 
       hydrateFleetStore({ fleets, activeFleetId });
+      // The catalog saves on its own schedule: it is not fleet data and must not
+      // ride along in the fleet's undo history or exported document.
+      catalogStop = useCatalogStore.subscribe((state, previous) => {
+        if (state.catalog === previous.catalog) return;
+        void repository.saveCatalog(state.catalog).catch((cause: unknown) => {
+          console.error(cause);
+          setStorageError('The catalog could not be saved. Export anything you cannot lose.');
+        });
+      });
+
       handle = attachPersistence(useFleetStore, repository, {
         onError: (error) => {
           console.error(error.cause);
@@ -62,7 +76,10 @@ function useBootstrap(): Bootstrap {
       setReady(true);
     })();
 
-    return () => handle?.stop();
+    return () => {
+      handle?.stop();
+      catalogStop?.();
+    };
   }, []);
 
   return {
@@ -117,6 +134,7 @@ export function App(): React.JSX.Element {
       <EdgeInspector />
       <LinkKindDialog />
       <LibraryManager />
+      <CatalogManager />
       <Hint />
       <ShortcutsHelp />
       <Shortcuts />

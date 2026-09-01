@@ -13,19 +13,24 @@
 import { openDB } from 'idb';
 import type { DBSchema, IDBPDatabase } from 'idb';
 import { migrateFleetDocument } from '../model/migrations.js';
+import { CatalogSchema, emptyCatalog } from '../model/catalog.js';
+import type { Catalog } from '../model/catalog.js';
 import type { Fleet } from '../model/schemas.js';
 
 export const DB_NAME = 'agent-fleet-studio';
-export const DB_VERSION = 1;
+export const DB_VERSION = 2;
 export const SYNC_CHANNEL = 'agent-fleet-studio:saves';
 
 const FLEET_STORE = 'fleets';
+const CATALOG_STORE = 'catalog';
+const CATALOG_KEY = 'catalog';
 const META_STORE = 'meta';
 const ACTIVE_FLEET_KEY = 'activeFleetId';
 
 interface FleetDb extends DBSchema {
   [FLEET_STORE]: { key: string; value: Fleet };
   [META_STORE]: { key: string; value: unknown };
+  [CATALOG_STORE]: { key: string; value: unknown };
 }
 
 export type LoadedState = {
@@ -37,6 +42,8 @@ export type LoadedState = {
 
 export interface FleetRepository {
   loadAll(): Promise<LoadedState>;
+  loadCatalog(): Promise<Catalog>;
+  saveCatalog(catalog: Catalog): Promise<void>;
   saveFleet(fleet: Fleet): Promise<void>;
   deleteFleet(fleetId: string): Promise<void>;
   setActiveFleetId(fleetId: string | null): Promise<void>;
@@ -51,6 +58,10 @@ function openFleetDb(): Promise<IDBPDatabase<FleetDb>> {
       }
       if (!db.objectStoreNames.contains(META_STORE)) {
         db.createObjectStore(META_STORE);
+      }
+      // v2 added the catalog: agents, skills and tools that outlive any one fleet.
+      if (!db.objectStoreNames.contains(CATALOG_STORE)) {
+        db.createObjectStore(CATALOG_STORE);
       }
     },
   });
@@ -90,6 +101,20 @@ export function createIndexedDbRepository(): FleetRepository {
       return { fleets, activeFleetId, errors };
     },
 
+    async loadCatalog(): Promise<Catalog> {
+      const database = await db();
+      const stored = await database.get(CATALOG_STORE, CATALOG_KEY);
+      // A catalog that no longer validates is replaced rather than crashing the app;
+      // the fleets are the irreplaceable part.
+      const parsed = CatalogSchema.safeParse(stored);
+      return parsed.success ? parsed.data : emptyCatalog();
+    },
+
+    async saveCatalog(catalog: Catalog): Promise<void> {
+      const database = await db();
+      await database.put(CATALOG_STORE, catalog, CATALOG_KEY);
+    },
+
     async saveFleet(fleet: Fleet): Promise<void> {
       const database = await db();
       await database.put(FLEET_STORE, fleet);
@@ -110,6 +135,7 @@ export function createIndexedDbRepository(): FleetRepository {
       const database = await db();
       await database.clear(FLEET_STORE);
       await database.clear(META_STORE);
+      await database.clear(CATALOG_STORE);
     },
   };
 }
@@ -121,8 +147,15 @@ export function createMemoryRepository(
   const fleets = new Map<string, Fleet>(initial.fleets.map((f) => [f.id, f]));
   let activeFleetId = initial.activeFleetId;
 
+  let catalog = emptyCatalog();
+
   return {
     loadAll: () => Promise.resolve({ fleets: [...fleets.values()], activeFleetId, errors: [] }),
+    loadCatalog: () => Promise.resolve(catalog),
+    saveCatalog: (next) => {
+      catalog = next;
+      return Promise.resolve();
+    },
     saveFleet: (fleet) => {
       fleets.set(fleet.id, fleet);
       return Promise.resolve();
@@ -138,6 +171,7 @@ export function createMemoryRepository(
     clear: () => {
       fleets.clear();
       activeFleetId = null;
+      catalog = emptyCatalog();
       return Promise.resolve();
     },
   };

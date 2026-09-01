@@ -349,3 +349,109 @@ test('an edge can be selected and its status and label edited (SPEC 8.5)', async
   await panel.getByTestId('edge-label').press('Enter');
   await expect(panel.getByTestId('edge-label')).toHaveValue('escalates to');
 });
+
+async function openCatalog(page: Page): Promise<void> {
+  await page.getByTestId('fleet-menu-toggle').click();
+  await page.getByTestId('open-catalog').click();
+  await expect(page.getByTestId('catalog')).toBeVisible();
+}
+
+test('the catalog creates an agent with no fleet involved, then adds it to one', async ({ page }) => {
+  await openCatalog(page);
+
+  await page.getByTestId('catalog-new-agent-name').fill('Angebots-Bot');
+  await page.getByTestId('catalog-new-agent-role').fill('Drafts offers');
+  await page.getByRole('button', { name: 'Create agent' }).click();
+
+  await expect(page.getByTestId('catalog-agent-editor')).toBeVisible();
+  await expect(page.getByTestId('catalog-tab-agents')).toContainText('1');
+
+  await page.getByTestId('catalog-add-to-fleet').click();
+  await expect(page.getByTestId('catalog-message')).toContainText('added to');
+
+  await page.getByRole('button', { name: 'Done' }).click();
+  await expect(cards(page, 'Angebots-Bot')).toHaveCount(1);
+});
+
+test('the catalog builds a skill and a branching workflow tool', async ({ page }) => {
+  await openCatalog(page);
+
+  await page.getByTestId('catalog-tab-skill').click();
+  await page.getByTestId('catalog-new-item').fill('Angebotslogik');
+  await page.getByRole('button', { name: 'Add', exact: true }).click();
+  await page.getByTestId('catalog-skill-instructions').fill('Always use the current price list.');
+  await expect(page.getByTestId('catalog-tab-skill')).toContainText('1');
+
+  await page.getByTestId('catalog-tab-tool').click();
+  await page.getByTestId('catalog-new-item').fill('Angebots-Flow');
+  await page.getByRole('button', { name: 'Add', exact: true }).click();
+
+  // A new tool opens straight into its editor, ready for steps (SPEC §8.6).
+  const editor = page.getByTestId('tool-editor');
+  await expect(editor).toBeVisible();
+  await editor.getByTestId('wf-new-step').fill('Trigger on qualified project');
+  await editor.getByRole('button', { name: 'Add step' }).click();
+  await editor.getByTestId('wf-new-step').fill('Build the PDF');
+  await editor.getByRole('button', { name: 'Add step' }).click();
+
+  await expect(page.getByTestId('wf-step')).toHaveCount(2);
+});
+
+test('a Copilot Studio export becomes an agent, and the file stays downloadable', async ({ page }) => {
+  await openCatalog(page);
+
+  await page
+    .getByTestId('catalog-yaml-input')
+    .setInputFiles('tests/fixtures/copilot/objektvertrieb.yaml');
+
+  await expect(page.getByTestId('catalog-message')).toContainText('Imported "Objektvertrieb"');
+  await expect(page.getByTestId('catalog-message')).toContainText('7 skills, 8 tools');
+  await expect(page.getByTestId('catalog-tab-skill')).toContainText('7');
+  await expect(page.getByTestId('catalog-tab-tool')).toContainText('8');
+
+  // The original file is handed back byte-for-byte.
+  const download = page.waitForEvent('download');
+  await page.getByTestId('catalog-download-yaml').click();
+  const file = await download;
+  expect(file.suggestedFilename()).toBe('objektvertrieb.yaml');
+
+  // ...and the agent lands in the fleet with everything it brought.
+  await page.getByTestId('catalog-add-to-fleet').click();
+  await page.getByRole('button', { name: 'Done' }).click();
+
+  // The imported agent is focused and open the moment it lands - and the seeded
+  // demo fleet has its own "Objektvertrieb", so asserting on the open panel is the
+  // only unambiguous way to look at the imported one.
+  const panel = page.getByTestId('inspector');
+  await expect(page.getByTestId('panel-name')).toHaveValue('Objektvertrieb');
+  await expect(panel).toContainText('Produktfamilien');
+  await expect(panel).toContainText('Portal-Suche Objektportal');
+  await expect(panel).toContainText('Shared Documents');
+});
+
+test('a file that is not a Copilot export is refused with a readable reason', async ({ page }) => {
+  await openCatalog(page);
+  await page.getByTestId('catalog-yaml-input').setInputFiles({
+    name: 'not-an-agent.yaml',
+    mimeType: 'application/x-yaml',
+    buffer: Buffer.from('kind: SomethingElse\nname: nope\n'),
+  });
+
+  await expect(page.getByTestId('catalog-message')).toContainText('BotDefinition');
+  await expect(page.getByTestId('catalog-tab-agents')).toContainText('0');
+});
+
+test('the catalog survives a reload', async ({ page }) => {
+  await openCatalog(page);
+  await page.getByTestId('catalog-new-agent-name').fill('Persistent Bot');
+  await page.getByRole('button', { name: 'Create agent' }).click();
+  await expect(page.getByTestId('catalog-tab-agents')).toContainText('1');
+
+  await page.waitForTimeout(600);
+  await page.reload();
+
+  await openCatalog(page);
+  await expect(page.getByTestId('catalog-tab-agents')).toContainText('1');
+  // The name lives in an editable input, so assert its value rather than text.
+  await expect(page.getByTestId('catalog').locator('.lib-name').first()).toHaveValue('Persistent Bot');
+});
