@@ -519,3 +519,34 @@ test('the app is branded as the Solarlux Agent Visualiser', async ({ page }) => 
   await expect(logo).toBeVisible();
   expect(await logo.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
 });
+
+test('an agent can be moved between levels from the panel', async ({ page }) => {
+  await cards(page, 'Lead Qualifier').first().click();
+  const panel = page.getByTestId('inspector');
+
+  const chip = panel.getByTestId('kind-chip');
+  await expect(chip).toContainText('Sub-agent');
+  await chip.click();
+  await panel.getByTestId('kind-chip-open').getByRole('button', { name: 'Department' }).click();
+  await expect(panel.getByTestId('kind-chip')).toContainText('Department');
+
+  // It survives a round-trip through the store, not just the chip's own state.
+  await page.keyboard.press('Escape');
+  await cards(page, 'Lead Qualifier').first().click();
+  await expect(page.getByTestId('inspector').getByTestId('kind-chip')).toContainText('Department');
+});
+
+test('the orchestrator cannot be demoted from the panel (SPEC 4: exactly one)', async ({ page }) => {
+  await cards(page, 'Solarlux Orchestrator').first().click();
+  const chip = page.getByTestId('inspector').getByTestId('kind-chip');
+  await expect(chip).toContainText('Orchestrator');
+  await expect(chip).toBeDisabled();
+});
+
+test('a shared agent shows its level and its shared badge side by side', async ({ page }) => {
+  await cards(page, 'SharePoint Reader').first().click();
+  const panel = page.getByTestId('inspector');
+  await expect(panel.getByTestId('shared-badge')).toContainText('Shared agent');
+  // The level stays editable on a shared agent — that is exactly when it is needed.
+  await expect(panel.getByTestId('kind-chip')).toBeEnabled();
+});

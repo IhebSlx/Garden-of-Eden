@@ -10,8 +10,8 @@ import { STATUS_LABELS } from '../../model/schemas.js';
 import type { Agent, Status } from '../../model/schemas.js';
 import { DATA_TYPE_COLOR, KIND_COLOR, STATUS_COLOR, TOOL_TYPE_COLOR } from '../../ui/palette.js';
 import { useFleetStore } from '../../store/fleetStore.js';
-import { cardSectionKey, useUiStore } from '../../store/uiStore.js';
-import type { CardSection } from '../../store/uiStore.js';
+import { sectionKey, useUiStore } from '../../store/uiStore.js';
+import type { DetailSection } from '../../store/uiStore.js';
 
 
 export type AgentNodeData = {
@@ -47,7 +47,7 @@ export type AgentNodeData = {
  * header with its count and starts collapsed. The counts mean nothing is hidden -
  * you can see at a glance what an agent carries without expanding anything.
  */
-function CardSectionGroup({
+function DetailSectionGroup({
   agentId,
   section,
   label,
@@ -55,13 +55,13 @@ function CardSectionGroup({
   children,
 }: {
   agentId: string;
-  section: CardSection;
+  section: DetailSection;
   label: string;
   count: number;
   children: React.ReactNode;
 }): React.JSX.Element | null {
-  const open = useUiStore((s) => s.openCardSections[cardSectionKey(agentId, section)] === true);
-  const toggle = useUiStore((s) => s.toggleCardSection);
+  const open = useUiStore((s) => s.openSections[sectionKey(agentId, section)] === true);
+  const toggle = useUiStore((s) => s.toggleDetailSection);
   if (count === 0) return null;
 
   return (
@@ -255,24 +255,24 @@ function AgentNodeComponent({ data }: NodeProps<AgentFlowNode>): React.JSX.Eleme
 
       {(skillNames.length > 0 || tools.length > 0 || dataSources.length > 0) && (
         <div className="ext">
-          <CardSectionGroup agentId={agent.id} section="skills" label="Skills" count={skillNames.length}>
+          <DetailSectionGroup agentId={agent.id} section="skills" label="Skills" count={skillNames.length}>
             {skillNames.map((name) => (
               <span className="ec sk" key={`s-${name}`}>
                 {name}
               </span>
             ))}
-          </CardSectionGroup>
+          </DetailSectionGroup>
 
-          <CardSectionGroup agentId={agent.id} section="tools" label="Tools" count={tools.length}>
+          <DetailSectionGroup agentId={agent.id} section="tools" label="Tools" count={tools.length}>
             {tools.map((tool) => (
               <span className="ec" key={`t-${tool.name}`}>
                 <span className="tdot" style={{ background: TOOL_TYPE_COLOR[tool.type] }} />
                 {tool.name}
               </span>
             ))}
-          </CardSectionGroup>
+          </DetailSectionGroup>
 
-          <CardSectionGroup agentId={agent.id} section="data" label="Data" count={dataSources.length}>
+          <DetailSectionGroup agentId={agent.id} section="data" label="Data" count={dataSources.length}>
             {dataSources.map((source) => (
               <span className="ec" key={`d-${source.name}`}>
                 <span className="tdot" style={{ background: DATA_TYPE_COLOR[source.type] }} />
@@ -280,7 +280,7 @@ function AgentNodeComponent({ data }: NodeProps<AgentFlowNode>): React.JSX.Eleme
                 <span className="sdot" style={{ background: STATUS_COLOR[source.status] }} />
               </span>
             ))}
-          </CardSectionGroup>
+          </DetailSectionGroup>
         </div>
       )}
     </div>

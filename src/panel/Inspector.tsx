@@ -18,7 +18,7 @@ import {
   peerIdsOf,
   sharedCount,
 } from '../model/selectors.js';
-import type { Agent, LibraryKind } from '../model/schemas.js';
+import type { Agent, AgentKind, LibraryKind } from '../model/schemas.js';
 import {
   DATA_TYPE_COLOR,
   KIND_COLOR,
@@ -246,7 +246,15 @@ export function Inspector(): React.JSX.Element | null {
         ✕
       </button>
 
-      <span className="kind">{shared ? `${SHARED_KIND_LABEL} ×${sharedCount(fleet, agent.id)}` : KIND_LABEL[agent.kind]}</span>
+      {/* Shared-ness is derived (SPEC §4) so it is a badge; the level is editable. */}
+      <span className="kindrow">
+        <KindChip agentId={agent.id} kind={agent.kind} onFail={(reason) => setNotice(reason)} />
+        {shared && (
+          <span className="kind kind-shared" data-testid="shared-badge">
+            {`${SHARED_KIND_LABEL} ×${sharedCount(fleet, agent.id)}`}
+          </span>
+        )}
+      </span>
 
       <EditableLine
         className="ins-name"
@@ -570,5 +578,70 @@ export function Inspector(): React.JSX.Element | null {
         </p>
       )}
     </aside>
+  );
+}
+
+/**
+ * The agent's level in the hierarchy, editable in place.
+ *
+ * Without this the kind could only be set when an agent was created: an agent
+ * promoted or demoted after the fact — a department that turns out to be a
+ * sub-agent of two others — had no way to say so. The orchestrator is excluded
+ * because SPEC §4 allows exactly one, and the store enforces that anyway.
+ */
+function KindChip({
+  agentId,
+  kind,
+  onFail,
+}: {
+  agentId: string;
+  kind: AgentKind;
+  onFail: (reason: string) => void;
+}): React.JSX.Element {
+  const [open, setOpen] = useState(false);
+  const updateAgent = useFleetStore((s) => s.updateAgent);
+
+  // Promoting to orchestrator would need the current one demoted first (SPEC §4),
+  // so the chip offers only the two levels an agent can move between freely.
+  const options: AgentKind[] = ['department', 'worker'];
+
+  if (kind === 'orchestrator' || !open) {
+    return (
+      <button
+        type="button"
+        className="kind kind-btn"
+        data-testid="kind-chip"
+        disabled={kind === 'orchestrator'}
+        onClick={() => setOpen(true)}
+        aria-label={
+          kind === 'orchestrator'
+            ? 'Orchestrator — a fleet has exactly one, so this cannot be changed here'
+            : `Level: ${KIND_LABEL[kind]}. Change level`
+        }
+      >
+        {KIND_LABEL[kind]}
+        {kind !== 'orchestrator' && <span style={{ opacity: 0.55, marginLeft: 4 }}>▾</span>}
+      </button>
+    );
+  }
+
+  return (
+    <span className="kindrow" data-testid="kind-chip-open">
+      {options.map((option) => (
+        <button
+          key={option}
+          type="button"
+          className={`kind kind-btn ${kind === option ? 'on' : ''}`}
+          style={{ '--kc': KIND_COLOR[option] } as React.CSSProperties}
+          onClick={() => {
+            const result = updateAgent(agentId, { kind: option });
+            if (!result.ok) onFail(result.reason);
+            setOpen(false);
+          }}
+        >
+          {KIND_LABEL[option]}
+        </button>
+      ))}
+    </span>
   );
 }

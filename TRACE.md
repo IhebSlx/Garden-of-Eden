@@ -373,3 +373,41 @@ the party who prepares data is usually a human team, not an agent in any fleet.
 `LibraryManager`, so every render gave them a new component identity and React remounted the
 editor. Committing one field wiped whatever had just been typed into the next. They are now
 top-level components reading the store directly.
+
+**DEVIATION 10 — 3D satellites are bundled and blossom on click.** The prototype gives every
+skill and tool its own satellite and draws no data sources at all. With real content that is
+unreadable — PPT Buddy carries 19 data sources. One satellite per kind now orbits the agent
+carrying its count; clicking it grows its members into concentric rings and clicking again folds
+them back. The bundle takes the colour of its commonest member, so no new colour token is
+invented. Open/closed state is the same `openSections` the 2D card uses, so the two views never
+disagree (SPEC §2.1, §5.1).
+
+| Item | Status | Test(s) |
+|---|---|---|
+| One point per member | ✅ | `blossom.test.ts` › "places one point per member" |
+| Small bundles stay on one ring | ✅ | › "keeps a small bundle on a single ring" |
+| 19 members stay compact across rings | ✅ | › "starts a wider ring once the first is full, so 19 stays compact" |
+| Outer rings drop so they do not overlap | ✅ | › "drops each outer ring so rings do not overlap head-on" |
+| Members never collide | ✅ | › "never puts two members in the same place" |
+| Bundle colour comes from its members | ✅ | › "takes the commonest member colour…"; "invents no colour of its own" |
+| Section state shared by both views | ✅ | `uiStore.test.ts` › "collapsible card sections" (5 tests) |
+
+**DEVIATION 11 — an agent's level is editable from the panel.** SPEC §5.7 lists the panel's
+fields and the kind is not among them; it was render-only, so an agent could only be a department
+or a sub-agent by accident of how it was created. A department that turns out to be a sub-agent of
+two others had no way to say so. The chip is disabled on the orchestrator (SPEC §4 allows exactly
+one) and stays enabled on a shared agent, which is precisely when it is needed.
+
+| Item | Status | Test(s) |
+|---|---|---|
+| Level changes and persists | ✅ | e2e › "an agent can be moved between levels from the panel" |
+| Orchestrator cannot be demoted here | ✅ | e2e › "the orchestrator cannot be demoted from the panel (SPEC 4: exactly one)" |
+| Shared badge and level shown together | ✅ | e2e › "a shared agent shows its level and its shared badge side by side" |
+
+**Vision fleet re-shaped (from the user's own architecture).** PPTX-Creator is a `worker`
+commissioned by Objektvertrieb, Business Development and Holzoffensive Buddy — three parents, so
+three instances of one agent (SPEC §2.2, §2.3). Objektvertrieb gains two sub-agents from the
+Angebotsprozess: Leistungsverzeichnis-Decoder and Kalkulationsagent.
+Covered by `visionFleet.test.ts` › "has the orchestrator, four departments and three sub-agents";
+"hangs the deck builder off every department that commissions decks";
+"puts the Angebotsprozess sub-agents under Objektvertrieb".

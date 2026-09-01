@@ -151,7 +151,9 @@ const agents: Agent[] = [
   },
   {
     id: 'vagt_pptx',
-    kind: 'department',
+    // A sub-agent: it is called by the departments that need a deck, not by the
+    // orchestrator directly. Shared, so it appears under each of its parents.
+    kind: 'worker',
     name: 'PPTX-Creator',
     role: 'Präsentationen aus Bausteinen',
     // IN ARBEIT in agenten_01_heute.
@@ -160,6 +162,32 @@ const agents: Agent[] = [
     skillIds: ['vskl_slides', 'vskl_produktwissen'],
     toolIds: [...SUBSTRATE, 'vtol_pptx'],
     dataSourceIds: ['vdsr_produktbilder', 'vdsr_produktwissen', 'vdsr_unternehmenskontext'],
+  },
+  {
+    id: 'vagt_lvdecoder',
+    // Reads a tender LV and maps its positions onto Solarlux systems.
+    kind: 'worker',
+    name: 'Leistungsverzeichnis-Decoder',
+    role: 'Liest das LV und ordnet Positionen den Systemen zu',
+    status: 'planned',
+    instructions:
+      'Ordne jede LV-Position genau einem System zu. Was nicht eindeutig ist, wird als offen gemeldet statt geraten.',
+    skillIds: ['vskl_produktwissen'],
+    toolIds: [...SUBSTRATE],
+    dataSourceIds: ['vdsr_produktwissen', 'vdsr_unternehmenskontext'],
+  },
+  {
+    id: 'vagt_kalkulation',
+    // Prices what the decoder resolved.
+    kind: 'worker',
+    name: 'Kalkulationsagent',
+    role: 'Kalkuliert die Positionen zum Angebot',
+    status: 'planned',
+    instructions:
+      'Rechne nur mit freigegebenen Preisen. Nenne zu jeder Position die Preisquelle und deren Stand.',
+    skillIds: ['vskl_produktwissen'],
+    toolIds: [...SUBSTRATE, 'vtol_crm'],
+    dataSourceIds: ['vdsr_produktwissen', 'vdsr_sap', 'vdsr_unternehmenskontext'],
   },
   {
     id: 'vagt_holzoffensive',
@@ -198,20 +226,41 @@ const agents: Agent[] = [
 
 const HIERARCHY: [child: string, status: Edge['status']][] = [
   ['vagt_objektvertrieb', 'live'],
-  ['vagt_pptx', 'building'],
   ['vagt_holzoffensive', 'planned'],
   ['vagt_businessdev', 'planned'],
   ['vagt_weitere', 'planned'],
 ];
 
-const edges: Edge[] = HIERARCHY.map(([child, status], index) => ({
-  id: `vedg_${String(index + 1).padStart(2, '0')}`,
-  source: 'vagt_orchestrator',
-  target: child,
-  kind: 'hierarchy',
-  status,
-  label: 'delegiert',
-}));
+/**
+ * SPEC §2.2: the model is a DAG. PPTX-Creator reports to two departments at once,
+ * so it is drawn once under each of them and edits to it apply to both (§2.3).
+ */
+const SUB_AGENTS: [parent: string, child: string, status: Edge['status']][] = [
+  ['vagt_objektvertrieb', 'vagt_pptx', 'building'],
+  ['vagt_businessdev', 'vagt_pptx', 'planned'],
+  ['vagt_holzoffensive', 'vagt_pptx', 'planned'],
+  ['vagt_objektvertrieb', 'vagt_lvdecoder', 'planned'],
+  ['vagt_objektvertrieb', 'vagt_kalkulation', 'planned'],
+];
+
+const edges: Edge[] = [
+  ...HIERARCHY.map(([child, status], index) => ({
+    id: `vedg_${String(index + 1).padStart(2, '0')}`,
+    source: 'vagt_orchestrator',
+    target: child,
+    kind: 'hierarchy' as const,
+    status,
+    label: 'delegiert',
+  })),
+  ...SUB_AGENTS.map(([source, target, status], index) => ({
+    id: `vedg_sub_${String(index + 1).padStart(2, '0')}`,
+    source,
+    target,
+    kind: 'hierarchy' as const,
+    status,
+    label: 'beauftragt',
+  })),
+];
 
 export const VISION_FLEET_ID = 'flt_solarlux_vision';
 

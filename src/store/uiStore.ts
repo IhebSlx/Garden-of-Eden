@@ -13,10 +13,10 @@ import type { Status } from '../model/schemas.js';
 
 export type ViewMode = '2d' | '3d';
 
-/** The chip groups a card can expand. */
-export type CardSection = 'skills' | 'tools' | 'data';
+/** The three groups of library items an agent carries, expandable in both views. */
+export type DetailSection = 'skills' | 'tools' | 'data';
 
-export const cardSectionKey = (agentId: string, section: CardSection): string => `${agentId}|${section}`;
+export const sectionKey = (agentId: string, section: DetailSection): string => `${agentId}|${section}`;
 
 /** SPEC 8.2: an in-flight morph between the two views. */
 export type Morph = { from: ViewMode; to: ViewMode; at: number };
@@ -62,12 +62,13 @@ export type UiState = {
   /** Bumped to replay the click burst on a node (SPEC 5.9). */
   burst: { agentId: string; at: number } | null;
   /**
-   * Which chip sections a card has open, keyed by `agentId|section`. A busy agent
+   * Which detail sections are expanded, keyed by `agentId|section`. A busy agent
    * can carry dozens of chips, so the sections start collapsed and the header
    * carries the count. Keyed by agent rather than by instance so every instance of
-   * a shared agent opens together, matching SPEC §2.3.
+   * a shared agent opens together (SPEC §2.3), and shared by the 2D card and the 3D
+   * satellite bundles so the two views never disagree (SPEC §2.1, §5.1).
    */
-  openCardSections: Record<string, true>;
+  openSections: Record<string, true>;
 
   setView: (view: ViewMode) => void;
   toggleView: () => void;
@@ -86,7 +87,7 @@ export type UiState = {
   setOpenDetail: (key: DetailKey) => void;
   /** Clicking the same item again closes its detail card (SPEC 5.7). */
   toggleDetail: (key: string) => void;
-  toggleCardSection: (agentId: string, section: CardSection) => void;
+  toggleDetailSection: (agentId: string, section: DetailSection) => void;
   fireBurst: (agentId: string) => void;
   /** Called when a fleet is swapped in: nothing selected can survive it. */
   resetForFleet: () => void;
@@ -111,7 +112,7 @@ export const useUiStore = create<UiState>()((set, get) => ({
   dataPrepOpen: false,
   fitRequest: 0,
   burst: null,
-  openCardSections: {},
+  openSections: {},
 
   openLibrary: () => set({ libraryOpen: true }),
   closeLibrary: () => set({ libraryOpen: false }),
@@ -164,14 +165,14 @@ export const useUiStore = create<UiState>()((set, get) => ({
   setOpenDetail: (openDetail) => set({ openDetail }),
   toggleDetail: (key) => set((state) => ({ openDetail: state.openDetail === key ? null : key })),
 
-  toggleCardSection: (agentId, section) =>
+  toggleDetailSection: (agentId, section) =>
     set((state) => {
-      const key = cardSectionKey(agentId, section);
-      if (state.openCardSections[key] === undefined) {
-        return { openCardSections: { ...state.openCardSections, [key]: true as const } };
+      const key = sectionKey(agentId, section);
+      if (state.openSections[key] === undefined) {
+        return { openSections: { ...state.openSections, [key]: true as const } };
       }
-      const { [key]: _closed, ...rest } = state.openCardSections;
-      return { openCardSections: rest };
+      const { [key]: _closed, ...rest } = state.openSections;
+      return { openSections: rest };
     }),
 
   fireBurst: (agentId) => set({ burst: { agentId, at: now() } }),
@@ -185,7 +186,7 @@ export const useUiStore = create<UiState>()((set, get) => ({
       searchQuery: '',
       focusStartedAt: 0,
       burst: null,
-      openCardSections: {},
+      openSections: {},
     }),
 }));
 

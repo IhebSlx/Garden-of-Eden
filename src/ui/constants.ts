@@ -201,6 +201,28 @@ export const LAYOUT_3D = {
 /** Focus camera distance: clamp(subtreeRadius * 2.3 + 70, 120, 340). */
 export const FOCUS_CAMERA_3D = { factor: 2.3, offset: 70, min: 120, max: 340 } as const;
 
+/**
+ * Satellite bundles and the blossom they open into (SPEC §5.8 details toggle).
+ * One node per kind orbits the agent; clicking it grows its members outward in
+ * concentric rings, so an agent carrying 19 data sources stays readable.
+ */
+export const BLOSSOM = {
+  /** Distance of a bundle node from the agent's surface. */
+  bundleRadius: 5.5,
+  /** How far below the agent the bundle ring sits. */
+  bundleDrop: 5.5,
+  bundleSize: 2.2,
+  petalSize: 1.35,
+  /** Label sprite offset under a bundle node. */
+  labelDrop: 2.6,
+  /** Members per ring before a new, wider ring starts. */
+  perRing: 8,
+  innerRadius: 9,
+  ringGap: 7,
+  /** Each outer ring drops slightly, so rings do not overlap head-on. */
+  ringDrop: 4,
+} as const;
+
 /** Distance fades: labels at depth>=2, then the detail satellites. */
 export const FADE_3D = {
   labelStart: 480,

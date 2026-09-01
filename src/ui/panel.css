@@ -816,3 +816,44 @@
   border: 1px solid rgb(246 185 84 / 0.45);
   color: var(--color-status-building);
 }
+
+/* The kind chip is a control, not a label: it changes the agent's level. */
+.inspector .kind-btn {
+  cursor: pointer;
+  background: none;
+  font: inherit;
+  font-size: 10px;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+.inspector .kind-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--kc) 16%, transparent);
+}
+.inspector .kind-btn:disabled {
+  cursor: default;
+  opacity: 0.75;
+}
+.inspector .kind-btn:focus-visible {
+  outline: 2px solid var(--kc);
+  outline-offset: 2px;
+}
+.inspector .kindrow {
+  display: inline-flex;
+  gap: 5px;
+  margin-bottom: 8px;
+}
+/* An unselected option stays quiet until it is chosen. */
+.inspector .kindrow .kind-btn {
+  margin-bottom: 0;
+  opacity: 0.55;
+}
+.inspector .kindrow .kind-btn.on {
+  opacity: 1;
+}
+/* Shared-ness is derived from the hierarchy (SPEC §4), so it reads as a badge. */
+.inspector .kind-shared {
+  border-color: var(--color-shared);
+  color: var(--color-shared);
+  margin-bottom: 0;
+}

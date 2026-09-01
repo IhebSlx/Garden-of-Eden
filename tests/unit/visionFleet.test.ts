@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { FleetDocumentSchema, checkFleetIntegrity } from '../../src/model/integrity.js';
-import { childIdsOf, instances, parentsOf } from '../../src/model/selectors.js';
+import { childIdsOf, instances, isShared, parentsOf } from '../../src/model/selectors.js';
 import { solarluxVisionFleet } from '../../src/model/visionFleet.js';
 import { exportFleetToJson, parseFleetJson } from '../../src/store/io.js';
 
@@ -17,31 +17,53 @@ describe('Solarlux vision fleet', () => {
     expect(checkFleetIntegrity(fleet)).toEqual([]);
   });
 
-  it('has the orchestrator and the five specialist columns from the diagram', () => {
-    expect(fleet.agents).toHaveLength(6);
+  it('has the orchestrator, four departments and three sub-agents', () => {
+    expect(fleet.agents).toHaveLength(8);
     const orchestrators = fleet.agents.filter((a) => a.kind === 'orchestrator');
     expect(orchestrators).toHaveLength(1);
     expect(orchestrators[0]?.name).toBe('Orchestrator');
 
-    expect(childIdsOf(fleet, 'vagt_orchestrator')).toHaveLength(5);
+    expect(childIdsOf(fleet, 'vagt_orchestrator')).toHaveLength(4);
     expect(fleet.agents.filter((a) => a.kind === 'department').map((a) => a.name)).toEqual([
       'Objektvertrieb',
-      'PPTX-Creator',
       'Holzoffensive Buddy',
       'Business Development',
       'Weitere Fachagenten',
     ]);
+    expect(fleet.agents.filter((a) => a.kind === 'worker').map((a) => a.name)).toEqual([
+      'PPTX-Creator',
+      'Leistungsverzeichnis-Decoder',
+      'Kalkulationsagent',
+    ]);
   });
 
-  it('every specialist reports to the orchestrator and the edge says "delegiert"', () => {
-    for (const edge of fleet.edges) {
-      expect(edge.kind).toBe('hierarchy');
-      expect(edge.source).toBe('vagt_orchestrator');
-      expect(edge.label).toBe('delegiert');
-    }
+  it('hangs the deck builder off every department that commissions decks', () => {
+    // A sub-agent, one level below the departments, shared by three of them (SPEC §2.2).
+    expect(parentsOf(fleet, 'vagt_pptx').map((p) => p.name)).toEqual([
+      'Objektvertrieb',
+      'Business Development',
+      'Holzoffensive Buddy',
+    ]);
+    expect(parentsOf(fleet, 'vagt_pptx').some((p) => p.kind === 'orchestrator')).toBe(false);
+    expect(isShared(fleet, 'vagt_pptx')).toBe(true);
+  });
+
+  it('every department reports to the orchestrator and the edge says "delegiert"', () => {
     for (const agent of fleet.agents.filter((a) => a.kind === 'department')) {
       expect(parentsOf(fleet, agent.id).map((p) => p.name)).toEqual(['Orchestrator']);
     }
+    const fromOrchestrator = fleet.edges.filter((e) => e.source === 'vagt_orchestrator');
+    expect(fromOrchestrator).toHaveLength(4);
+    for (const edge of fromOrchestrator) {
+      expect(edge.kind).toBe('hierarchy');
+      expect(edge.label).toBe('delegiert');
+    }
+    // The sub-agent is commissioned by its departments, not delegated to by the top.
+    for (const edge of fleet.edges.filter((e) => e.target === 'vagt_pptx')) {
+      expect(edge.kind).toBe('hierarchy');
+      expect(edge.label).toBe('beauftragt');
+    }
+    expect(fleet.edges.every((e) => e.kind === 'hierarchy')).toBe(true);
   });
 
   it('carries the roadmap statuses from the "heute" diagram', () => {
@@ -60,8 +82,13 @@ describe('Solarlux vision fleet', () => {
   it('mirrors each agent status on the edge that carries it', () => {
     for (const edge of fleet.edges) {
       const child = fleet.agents.find((a) => a.id === edge.target);
+      // The shared sub-agent is Building under the department already using it and
+      // Planned under the one that has not started, so its two edges differ.
+      if (edge.target === 'vagt_pptx') continue;
       expect(edge.status).toBe(child?.status);
     }
+    const pptxEdges = fleet.edges.filter((e) => e.target === 'vagt_pptx');
+    expect(pptxEdges.map((e) => e.status).sort()).toEqual(['building', 'planned', 'planned']);
   });
 
   it('models Sorakel as the orchestrator\'s LLM, not as an agent', () => {
@@ -108,8 +135,22 @@ describe('Solarlux vision fleet', () => {
     expect(condition?.next).toHaveLength(2);
   });
 
-  it('renders one instance per agent - nothing is shared in the vision', () => {
-    expect(instances(fleet)).toHaveLength(fleet.agents.length);
+  it('draws the shared sub-agent once under each parent (SPEC §2.3)', () => {
+    // Eight agents, but the deck builder has three parents, so ten instances.
+    expect(instances(fleet)).toHaveLength(fleet.agents.length + 2);
+    expect(instances(fleet).filter((i) => i.agentId === 'vagt_pptx')).toHaveLength(3);
+  });
+
+  it('puts the Angebotsprozess sub-agents under Objektvertrieb', () => {
+    for (const id of ['vagt_lvdecoder', 'vagt_kalkulation']) {
+      expect(parentsOf(fleet, id).map((p) => p.name)).toEqual(['Objektvertrieb']);
+      expect(isShared(fleet, id)).toBe(false);
+    }
+    expect(childIdsOf(fleet, 'vagt_objektvertrieb')).toEqual([
+      'vagt_pptx',
+      'vagt_lvdecoder',
+      'vagt_kalkulation',
+    ]);
   });
 
   it('survives a JSON export/import round-trip', () => {
