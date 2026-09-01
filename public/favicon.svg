@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!--
+    An orchestrator over two specialists, in the SPEC §6 kind colours. Drawn from
+    the app's own visual language rather than a redrawn Solarlux mark: the real
+    wordmark is a corporate asset and is used as supplied, never traced by hand.
+  -->
+  <rect width="32" height="32" rx="7" fill="#05060f" />
+  <path d="M16 12.5 L9 21 M16 12.5 L23 21" stroke="#38e1ff" stroke-width="1.6" stroke-linecap="round" opacity="0.75" />
+  <circle cx="16" cy="11" r="4" fill="#8b5cf6" />
+  <circle cx="9" cy="22" r="3.1" fill="#38e1ff" />
+  <circle cx="23" cy="22" r="3.1" fill="#3ce8b0" />
+</svg>

@@ -35,7 +35,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   override componentDidCatch(error: Error, info: ErrorInfo): void {
     // No telemetry backend in v1 (SPEC §1), so the console is the record.
-    console.error('Agent Fleet Studio crashed:', error, info.componentStack);
+    console.error('Solarlux Agent Visualiser crashed:', error, info.componentStack);
   }
 
   override render(): ReactNode {

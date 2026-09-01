@@ -869,3 +869,28 @@
 .card:focus-visible .nm {
   color: #fff;
 }
+
+/* ---------- brand lockup (bottom-left, above the hints) ---------- */
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 4px;
+}
+.brand-logo {
+  /* The wordmark is 2271x356; 15px tall keeps it legible without shouting. */
+  height: 15px;
+  width: auto;
+  opacity: 0.72;
+}
+.brand-divider {
+  width: 1px;
+  height: 12px;
+  background: rgb(124 140 255 / 0.35);
+}
+.brand-name {
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  color: #93a4d0;
+}

@@ -507,3 +507,15 @@ test('the fleet menu counts what is still to prepare', async ({ page }) => {
   await page.getByTestId('fleet-menu-toggle').click();
   await expect(page.getByTestId('open-data-prep')).toContainText('still to prepare');
 });
+
+test('the app is branded as the Solarlux Agent Visualiser', async ({ page }) => {
+  await expect(page).toHaveTitle('Solarlux Agent Visualiser');
+
+  const brand = page.getByTestId('brand');
+  await expect(brand).toContainText('Agent Visualiser');
+
+  // The supplied wordmark, actually decoded by the browser rather than a broken img.
+  const logo = brand.getByAltText('Solarlux');
+  await expect(logo).toBeVisible();
+  expect(await logo.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
+});

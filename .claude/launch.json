@@ -2,7 +2,7 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "agent-fleet-studio",
+      "name": "solarlux-agent-visualiser",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["dev", "--port", "5178", "--strictPort"],
       "port": 5178

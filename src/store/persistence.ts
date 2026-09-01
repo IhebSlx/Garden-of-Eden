@@ -17,6 +17,11 @@ import { CatalogSchema, emptyCatalog } from '../model/catalog.js';
 import type { Catalog } from '../model/catalog.js';
 import type { Fleet } from '../model/schemas.js';
 
+/**
+ * NOT branding - this is the on-disk key. Renaming it would orphan every fleet,
+ * import and catalog already saved in a user's browser, so it stays as it is even
+ * though the app is now called Solarlux Agent Visualiser.
+ */
 export const DB_NAME = 'agent-fleet-studio';
 export const DB_VERSION = 2;
 export const SYNC_CHANNEL = 'agent-fleet-studio:saves';
