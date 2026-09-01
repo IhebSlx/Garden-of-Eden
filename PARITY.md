@@ -76,7 +76,7 @@ what the prototype deferred (SPEC §8) · **⚠** known gap.
 | Planned = wireframe blueprint | **=** | Plus 0.55 opacity. |
 | In-progress halo pulse | **=** | `0.78 + 0.22·sin(t·0.003 + phase)`; the app derives `phase` from the instance key instead of `Math.random()` so the scene is reproducible. |
 | Soft additive halo | **=** | Sprite at 6× node size, opacity .7. |
-| Label glass pills | **=** | Same canvas pill: 512×150, radius 26, `rgba(8,12,26,.66)` fill, `rgba(124,140,255,.32)` stroke. |
+| Label glass pills | **≈** | Same pill design and colours; drawn on a 256×75 canvas instead of 512×150 (the sprite is only ~150 CSS px wide, so the prototype size was 2× oversampled and a 119-agent fleet uploaded tens of MB in one frame). Indistinguishable on screen. |
 | Label distance fade | **=** | Depth ≥ 2 fades over `(480 − radius)/110`. |
 | Satellite constellation | **=** | Skills octahedra, tools spheres in type colour, tethers, tiny labels, fading over `(400 − radius)/90`. |
 | Selection ring | **=** | Additive ring sprite, pulsing scale, opacity .85. |
@@ -91,13 +91,30 @@ what the prototype deferred (SPEC §8) · **⚠** known gap.
 | Focus camera | **=** | `clamp(subtreeRadius × 2.3 + 70, 120, 340)` on the subtree centre. |
 | Orchestrator shell | **≈** | **DEVIATION:** the prototype spins the icosahedron continuously. SPEC §2.5 bans ambient motion that carries no meaning, so the app renders it static. Same geometry, colour and 0.22 opacity. |
 | 2D ↔ 3D switch | **=** | Crossfade; focus, selection, filter and search carry across (SPEC §5.1), verified by an e2e round-trip. |
+| Animated morph (SPEC §8.2) | **+** | The prototype only crossfades. The app keeps the 3D scene mounted for 900 ms while its nodes glide onto the 2D layout and the camera rises to top-down (and the reverse), then hands over to the board. Wires fade for the flight rather than rebuilding tube geometry every frame, and the whole morph is skipped under reduced motion. |
+| Bloom + depth of field (SPEC §8.9) | **+** | Not in the prototype. Tuned to the §6 bar: bloom threshold 0.62 so only emissive cores and halos bloom, DoF bokeh 2.1. Skipped under reduced motion and on low-core devices. |
 
-## Known gaps
+## Performance
 
-| Item | Status |
+SPEC §9 Phase 3 targets 100+ agents at 60 fps. Measured in the browser with a generated
+119-agent fleet (131 rendered instances) in the 3D view with bloom and depth of field on:
+
+| Metric | Result |
 |---|---|
-| Animated 2D↔3D morph (SPEC §8.2) | Phase 3 — the v1 switch is the specified crossfade. |
-| Bloom + depth of field (SPEC §8.9) | Phase 3. |
+| Steady-state frame rate | **60.0 fps** |
+| Median frame | 16.7 ms |
+| p95 frame | 18.2 ms |
+| Worst frame (steady state) | 18.8 ms |
+| Worst frame on scene remount | 206 ms (one-off scene build) |
+
+What made the difference: sphere geometry is shared per node size, glow/ring/floor textures
+are cached per colour, and label textures are cached by content and drawn at half the
+prototype's canvas size (the sprite is only ~150 CSS px wide on screen, so 512x150 was 2x
+oversampled and a large fleet was uploading tens of MB in a single frame).
+
+True instanced meshes were **not** needed to hit the target and were not introduced: each node
+carries its own opacity, scale and wireframe flag, so instancing would require custom shaders
+and would put the SPEC §6 quality bar at risk for no measured gain.
 
 ## Deviations recorded elsewhere
 

@@ -13,11 +13,16 @@ import type { Status } from '../model/schemas.js';
 
 export type ViewMode = '2d' | '3d';
 
+/** SPEC 8.2: an in-flight morph between the two views. */
+export type Morph = { from: ViewMode; to: ViewMode; at: number };
+
 /** Which panel item is expanded into a detail card (SPEC 5.7). */
 export type DetailKey = string | null;
 
 export type UiState = {
   view: ViewMode;
+  /** Non-null while the 2D-3D morph is playing (SPEC 8.2). */
+  morph: Morph | null;
   focusId: string | null;
   selectedId: string | null;
   /** SPEC 8.5: a wire can be selected instead of an agent. */
@@ -34,6 +39,10 @@ export type UiState = {
   libraryOpen: boolean;
   openLibrary: () => void;
   closeLibrary: () => void;
+  /** The "?" keyboard-shortcut sheet. */
+  shortcutsOpen: boolean;
+  openShortcuts: () => void;
+  closeShortcuts: () => void;
   /** Bumped by Auto-arrange and the fit control so the board refits. */
   fitRequest: number;
   requestFit: () => void;
@@ -42,6 +51,8 @@ export type UiState = {
 
   setView: (view: ViewMode) => void;
   toggleView: () => void;
+  /** Called by the view switch when the morph animation is done. */
+  endMorph: () => void;
   focus: (agentId: string | null) => void;
   select: (agentId: string | null) => void;
   selectEdge: (edgeId: string | null) => void;
@@ -64,6 +75,7 @@ const now = (): number => (typeof performance === 'undefined' ? Date.now() : per
 
 export const useUiStore = create<UiState>()((set, get) => ({
   view: '2d',
+  morph: null,
   focusId: null,
   selectedId: null,
   selectedEdgeId: null,
@@ -73,15 +85,23 @@ export const useUiStore = create<UiState>()((set, get) => ({
   openDetail: null,
   focusStartedAt: 0,
   libraryOpen: false,
+  shortcutsOpen: false,
   fitRequest: 0,
   burst: null,
 
   openLibrary: () => set({ libraryOpen: true }),
   closeLibrary: () => set({ libraryOpen: false }),
+  openShortcuts: () => set({ shortcutsOpen: true }),
+  closeShortcuts: () => set({ shortcutsOpen: false }),
   requestFit: () => set((state) => ({ fitRequest: state.fitRequest + 1 })),
 
-  setView: (view) => set({ view }),
-  toggleView: () => set((state) => ({ view: state.view === '2d' ? '3d' : '2d' })),
+  setView: (view) => {
+    const current = get().view;
+    if (view === current) return;
+    set({ view, morph: { from: current, to: view, at: now() } });
+  },
+  toggleView: () => get().setView(get().view === '2d' ? '3d' : '2d'),
+  endMorph: () => set({ morph: null }),
 
   focus: (agentId) => set({ focusId: agentId, focusStartedAt: now() }),
   select: (agentId) => set({ selectedId: agentId, selectedEdgeId: null, openDetail: null }),

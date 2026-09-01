@@ -186,3 +186,14 @@ export const HOVER_SCALE_3D = 1.28;
 export const SELECTED_SCALE_3D = 1.2;
 /** Planned nodes render at this opacity (and as wireframe). */
 export const PLANNED_OPACITY_3D = 0.55;
+
+// ---------- 2D <-> 3D morph (SPEC 8.2) ----------
+
+/** Length of the flatten / unflatten transition. */
+export const MORPH_MS = 900;
+/** Height of the plane the fleet flattens onto. */
+export const MORPH_PLANE_Y = -40;
+/** World units the flattened board spans, so it reads at a comfortable size. */
+export const MORPH_SPAN = 520;
+/** Camera distance once the fleet is flat and the view is top-down. */
+export const MORPH_RADIUS = 330;

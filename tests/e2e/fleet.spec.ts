@@ -292,3 +292,60 @@ test('the 3D scene renders and its canvas is interactive', async ({ page }) => {
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('breadcrumb-here')).toHaveCount(0);
 });
+
+test('keyboard shortcuts drive view, filter, details, search and help', async ({ page }) => {
+  // View switch
+  await page.keyboard.press('3');
+  await expect(page.getByTestId('view-3d')).toHaveClass(/on/);
+  await page.keyboard.press('2');
+  await expect(page.getByTestId('view-2d')).toHaveClass(/on/);
+
+  // Status filter
+  await page.keyboard.press('l');
+  await expect(page.getByTestId('filter-live')).toHaveClass(/on/);
+  await page.keyboard.press('p');
+  await expect(page.getByTestId('filter-planned')).toHaveClass(/on/);
+  await page.keyboard.press('a');
+  await expect(page.getByTestId('filter-all')).toHaveClass(/on/);
+
+  // Details toggle
+  await page.keyboard.press('d');
+  await expect(page.getByTestId('details-toggle')).toHaveClass(/on/);
+  await page.keyboard.press('d');
+  await expect(page.getByTestId('details-toggle')).not.toHaveClass(/on/);
+
+  // Search focus, then Escape releases it without leaving focus behind
+  await page.keyboard.press('/');
+  await expect(page.getByTestId('search').getByRole('textbox')).toBeFocused();
+  await page.keyboard.press('Escape');
+
+  // Help sheet
+  await page.keyboard.press('?');
+  await expect(page.getByTestId('shortcuts-help')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('shortcuts-help')).toHaveCount(0);
+});
+
+test('a shortcut key typed into a field stays in the field', async ({ page }) => {
+  await cards(page, 'HR').first().click();
+  const name = page.getByTestId('panel-name');
+  await name.fill('Data & People');
+  await name.press('Enter');
+
+  // "d" and "a" are shortcuts, but they were typed - nothing should have toggled.
+  await expect(cards(page, 'Data & People')).toHaveCount(1);
+  await expect(page.getByTestId('details-toggle')).not.toHaveClass(/on/);
+  await expect(page.getByTestId('filter-all')).toHaveClass(/on/);
+});
+
+test('an edge can be selected and its status and label edited (SPEC 8.5)', async ({ page }) => {
+  await cards(page, 'Marketing').first().click();
+  // Click the wire running from Marketing down to Content Writer.
+  await page.locator('.react-flow__edge').first().click({ force: true });
+
+  const panel = page.getByTestId('edge-inspector');
+  await expect(panel).toBeVisible();
+  await panel.getByTestId('edge-label').fill('escalates to');
+  await panel.getByTestId('edge-label').press('Enter');
+  await expect(panel.getByTestId('edge-label')).toHaveValue('escalates to');
+});

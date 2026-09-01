@@ -30,6 +30,7 @@ import { fitViewport, frameViewport } from '../../layout/viewport.js';
 import { useFleetStore } from '../../store/fleetStore.js';
 import { useUiStore } from '../../store/uiStore.js';
 import { useLinkDraft } from '../../store/linkDraft.js';
+import { usePrefersReducedMotion } from '../../ui/usePrefersReducedMotion.js';
 import {
   BOARD_ANIM_MS,
   DRAG_THRESHOLD_PX,
@@ -57,6 +58,9 @@ function BoardCanvas(): React.JSX.Element {
   const setAgentPosition = useFleetStore((s) => s.setAgentPosition);
   const openLinkDraft = useLinkDraft((s) => s.open);
   const linking = useLinkDraft((s) => s.pending !== null);
+  // SPEC 10: with reduced motion the viewport jumps instead of gliding.
+  const reducedMotion = usePrefersReducedMotion();
+  const animMs = reducedMotion ? 0 : BOARD_ANIM_MS;
 
   // React Flow needs to own node objects during a drag, so the derived list is
   // mirrored into local state and re-synced whenever the projection changes.
@@ -94,9 +98,9 @@ function BoardCanvas(): React.JSX.Element {
         { width: model.layout.width, height: model.layout.height },
         size,
       );
-      void setViewport(viewport, animate ? { duration: BOARD_ANIM_MS } : undefined);
+      void setViewport(viewport, animate && animMs > 0 ? { duration: animMs } : undefined);
     },
-    [model.layout.height, model.layout.width, size, setViewport],
+    [animMs, model.layout.height, model.layout.width, size, setViewport],
   );
 
   /** SPEC 5.2: animated pan + zoom-to-fit of the focused subtree's bounding box. */
@@ -108,8 +112,8 @@ function BoardCanvas(): React.JSX.Element {
       FRAME_PADDING.card,
     );
     if (!bounds || size.width === 0) return;
-    void setViewport(frameViewport(bounds, size), { duration: BOARD_ANIM_MS });
-  }, [model.layout.positions, model.sizeOf, model.visibility.litInstanceKeys, size, setViewport]);
+    void setViewport(frameViewport(bounds, size), animMs > 0 ? { duration: animMs } : undefined);
+  }, [animMs, model.layout.positions, model.sizeOf, model.visibility.litInstanceKeys, size, setViewport]);
 
   // Fit once React Flow has a viewport, and again whenever a different fleet loads.
   // The fit has to wait for `onInit`: before that the pane has no size and

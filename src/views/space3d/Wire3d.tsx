@@ -21,9 +21,11 @@ type Props = {
   lit: boolean;
   /** Inside the focused branch: brighten by SPEC 6's ×1.7. */
   focused: boolean;
+  /** Wires fade out while the fleet morphs, then redraw at the destination. */
+  morphRef: { current: number };
 };
 
-function Wire3dComponent({ wire, from, to, lit, focused }: Props): React.JSX.Element {
+function Wire3dComponent({ wire, from, to, lit, focused, morphRef }: Props): React.JSX.Element {
   const isPeer = wire.kind === 'peer';
   const mesh = useRef<Mesh>(null);
   const fade = useRef(1);
@@ -51,8 +53,12 @@ function Wire3dComponent({ wire, from, to, lit, focused }: Props): React.JSX.Ele
     boost.current += ((focused && lit ? FOCUSED_WIRE_BRIGHTNESS : 1) - boost.current) * EASE_3D.fade;
 
     const material = node.material as MeshBasicMaterial;
-    material.opacity = baseOpacity * EDGE_STATUS_MULTIPLIER[wire.status] * fade.current * boost.current;
-    node.visible = fade.current > 0.02;
+    // SPEC 8.2: the tubes are built from fixed endpoints, so rather than rebuilding
+    // geometry every frame they fade out for the flight and redraw on arrival.
+    const morphFade = 1 - morphRef.current;
+    material.opacity =
+      baseOpacity * EDGE_STATUS_MULTIPLIER[wire.status] * fade.current * boost.current * morphFade;
+    node.visible = fade.current > 0.02 && morphFade > 0.02;
   });
 
   return (

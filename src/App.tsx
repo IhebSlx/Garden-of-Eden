@@ -10,6 +10,7 @@ import { FleetBar } from './views/chrome/FleetBar.js';
 import { Hint } from './views/chrome/Hint.js';
 import { SearchBox } from './views/chrome/SearchBox.js';
 import { Shortcuts } from './views/chrome/Shortcuts.js';
+import { ShortcutsHelp } from './views/chrome/ShortcutsHelp.js';
 import { TopBar } from './views/chrome/TopBar.js';
 import { Inspector } from './panel/Inspector.js';
 import { EdgeInspector } from './panel/EdgeInspector.js';
@@ -95,6 +96,7 @@ export function App(): React.JSX.Element {
       <LinkKindDialog />
       <LibraryManager />
       <Hint />
+      <ShortcutsHelp />
       <Shortcuts />
     </main>
   );

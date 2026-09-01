@@ -13,6 +13,8 @@ import {
   AUTO_ROTATE_IDLE_MS,
   AUTO_ROTATE_SPEED,
   CAMERA_3D,
+  MORPH_PLANE_Y,
+  MORPH_RADIUS,
   ORBIT_INERTIA_DECAY,
 } from '../../ui/constants.js';
 
@@ -28,9 +30,17 @@ type Props = {
   reducedMotion: boolean;
   /** Written every frame so distance-based fades can read the live camera radius. */
   radiusRef: { current: number };
+  /** SPEC 8.2 morph progress: 0 = full 3D, 1 = flattened and top-down. */
+  morphRef: { current: number };
 };
 
-export function CameraRig({ goalRef, onPointerActivity, reducedMotion, radiusRef }: Props): null {
+export function CameraRig({
+  goalRef,
+  onPointerActivity,
+  reducedMotion,
+  radiusRef,
+  morphRef,
+}: Props): null {
   const { camera, gl } = useThree();
 
   const state = useRef<{
@@ -173,15 +183,28 @@ export function CameraRig({ goalRef, onPointerActivity, reducedMotion, radiusRef
     radiusRef.current = rig.radius;
     rig.target.lerp(goalRef.current.target, CAMERA_3D.ease);
 
+    // SPEC 8.2: as the fleet flattens, the camera rises to top-down. The rig's own
+    // orbit state is left untouched, so coming back to 3D restores the user's view.
+    const morph = morphRef.current;
+    const phi = lerp(rig.phi, CAMERA_3D.phiMin, morph);
+    const radius = lerp(rig.radius, MORPH_RADIUS, morph);
+    const lookX = lerp(rig.target.x, 0, morph);
+    const lookY = lerp(rig.target.y, MORPH_PLANE_Y, morph);
+    const lookZ = lerp(rig.target.z, 0, morph);
+
     camera.position.set(
-      rig.target.x + rig.radius * Math.sin(rig.phi) * Math.sin(rig.theta),
-      rig.target.y + rig.radius * Math.cos(rig.phi),
-      rig.target.z + rig.radius * Math.sin(rig.phi) * Math.cos(rig.theta),
+      lookX + radius * Math.sin(phi) * Math.sin(rig.theta),
+      lookY + radius * Math.cos(phi),
+      lookZ + radius * Math.sin(phi) * Math.cos(rig.theta),
     );
-    camera.lookAt(rig.target);
+    camera.lookAt(lookX, lookY, lookZ);
   });
 
   return null;
+}
+
+function lerp(from: number, to: number, t: number): number {
+  return from + (to - from) * t;
 }
 
 function clampPhi(phi: number): number {

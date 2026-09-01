@@ -130,6 +130,7 @@ pnpm install     # pinned versions, frozen lockfile in CI
 pnpm dev         # Vite dev server
 pnpm verify      # typecheck + lint + test — run before every commit
 pnpm test        # Vitest unit suite
+pnpm test:e2e    # Playwright flows (SPEC §10)
 pnpm build       # production build
 ```
 
@@ -138,12 +139,15 @@ pnpm build       # production build
 ```
 /reference/prototype.html   the validated prototype (ground truth, read-only)
 /src
-  /model    schemas.ts, integrity.ts, selectors.ts, migrations.ts, templates.ts, ids.ts
+  /model    schemas.ts, integrity.ts, selectors.ts, wires.ts, visibility.ts,
+            migrations.ts, templates.ts, seed.ts, ids.ts
   /store    fleetStore.ts (zustand + zundo), persistence.ts, io.ts
   /views    /board2d, /space3d
   /panel    Inspector.tsx, ItemDetail.tsx, StatusChip.tsx
   /search   index.ts, synonyms.ts
-  /layout   elk.ts
+  /layout   treeLayout.ts (2D), layout3d.ts, viewport.ts
   /ui       tokens.css, primitives/
 /tests      unit/, e2e/
+TRACE.md    every SPEC item -> its test
+PARITY.md   visual checklist against the prototype
 ```

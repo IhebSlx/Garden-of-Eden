@@ -22,6 +22,7 @@ import {
   SELECTED_SCALE_3D,
 } from '../../ui/constants.js';
 import { glowTexture, labelTexture, ringTexture } from './textures.js';
+import { sphereGeometryFor } from './geometries.js';
 import type { Point3 } from '../../layout/layout3d.js';
 
 export type AgentSphereProps = {
@@ -34,6 +35,10 @@ export type AgentSphereProps = {
   selected: boolean;
   /** Live camera distance ref, for the SPEC 5.5 label fade. */
   cameraRadiusRef: { current: number };
+  /** Where this node sits once the fleet has flattened (SPEC 8.2). */
+  flatPosition: Point3;
+  /** 0 = full 3D, 1 = flattened onto the 2D layout. */
+  morphRef: { current: number };
   /** Random phase so In-progress halos do not pulse in lockstep. */
   phase: number;
   onActivate: (agentId: string) => void;
@@ -48,6 +53,8 @@ function AgentSphereComponent({
   lit,
   selected,
   cameraRadiusRef,
+  flatPosition,
+  morphRef,
   phase,
   onActivate,
   reducedMotion,
@@ -82,6 +89,14 @@ function AgentSphereComponent({
   useFrame((_state, _delta) => {
     const node = mesh.current;
     if (!node) return;
+
+    // SPEC 8.2: glide between the radial 3D position and the flattened 2D one.
+    const morph = morphRef.current;
+    node.position.set(
+      position.x + (flatPosition.x - position.x) * morph,
+      position.y + (flatPosition.y - position.y) * morph,
+      position.z + (flatPosition.z - position.z) * morph,
+    );
 
     // SPEC 5.2: ghost to 5%, never hide.
     const target = lit ? 1 : GHOST_OPACITY;
@@ -146,7 +161,7 @@ function AgentSphereComponent({
         document.body.style.cursor = '';
       }}
     >
-      <sphereGeometry args={[size, 32, 32]} />
+      <primitive object={sphereGeometryFor(size)} attach="geometry" />
       <meshStandardMaterial
         color={baseColor}
         emissive={colorHex}

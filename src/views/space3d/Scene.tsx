@@ -4,7 +4,7 @@
  * because they live in the shared ui store, not in either view.
  */
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useFrame } from '@react-three/fiber';
 import { FogExp2, Vector3 } from 'three';
 import { AgentSphere } from './AgentSphere.js';
 import { Wire3d } from './Wire3d.js';
@@ -12,14 +12,17 @@ import { Ground } from './Ground.js';
 import { Satellites } from './Satellites.js';
 import { Burst3d } from './Burst3d.js';
 import { CameraRig } from './CameraRig.js';
+import { PostEffects, shouldUsePostEffects } from './effects/PostEffects.js';
 import type { CameraGoal } from './CameraRig.js';
 import { boundingSphere, layoutInstances3d } from '../../layout/layout3d.js';
+import type { Point3 } from '../../layout/layout3d.js';
+import { layoutInstances } from '../../layout/treeLayout.js';
 import { buildFleetIndex, instances as deriveInstances, parentIdsOf } from '../../model/selectors.js';
 import { deriveWires } from '../../model/wires.js';
 import { computeVisibility } from '../../model/visibility.js';
 import { selectActiveFleet, useFleetStore } from '../../store/fleetStore.js';
 import { useUiStore } from '../../store/uiStore.js';
-import { CAMERA_3D, FOCUS_CAMERA_3D } from '../../ui/constants.js';
+import { CAMERA_3D, FOCUS_CAMERA_3D, MORPH_MS, MORPH_PLANE_Y, MORPH_SPAN } from '../../ui/constants.js';
 import { usePrefersReducedMotion } from '../../ui/usePrefersReducedMotion.js';
 
 function Fleet3d(): React.JSX.Element | null {
@@ -37,6 +40,7 @@ function Fleet3d(): React.JSX.Element | null {
     target: new Vector3(...CAMERA_3D.target),
     radius: CAMERA_3D.radius,
   });
+  const morphRef = useRef(useUiStore.getState().view === '2d' ? 1 : 0);
   const lastInput = useRef(0);
   const onPointerActivity = useCallback(() => {
     lastInput.current = performance.now();
@@ -48,9 +52,21 @@ function Fleet3d(): React.JSX.Element | null {
     const instanceList = deriveInstances(fleet, index);
     const wireList = deriveWires(fleet, instanceList);
     const layout = layoutInstances3d(instanceList);
+
+    // SPEC 8.2: where each node lands once the fleet has flattened onto the board.
+    const board = layoutInstances(instanceList);
+    const scale = MORPH_SPAN / Math.max(board.width, 1);
+    const flat = new Map<string, Point3>();
+    for (const [key, point] of board.positions) {
+      flat.set(key, {
+        x: (point.x - board.width / 2) * scale,
+        y: MORPH_PLANE_Y,
+        z: (point.y - board.height / 2) * scale,
+      });
+    }
     const visibility = computeVisibility(fleet, instanceList, wireList, focusId, statusFilter);
     const agentsById = new Map(fleet.agents.map((a) => [a.id, a]));
-    return { index, instanceList, wireList, layout, visibility, agentsById };
+    return { index, instanceList, wireList, layout, flat, visibility, agentsById };
   }, [fleet, focusId, statusFilter]);
 
   // SPEC 5.2: focusing frames the subtree; leaving focus returns to the full fleet.
@@ -82,7 +98,11 @@ function Fleet3d(): React.JSX.Element | null {
         onPointerActivity={onPointerActivity}
         reducedMotion={reducedMotion}
         radiusRef={cameraRadiusRef}
+        morphRef={morphRef}
       />
+      <MorphDriver morphRef={morphRef} />
+      {/* SPEC 8.9 */}
+      <PostEffects enabled={shouldUsePostEffects(reducedMotion)} />
 
       <ambientLight color={0x1c2440} intensity={0.9} />
       <hemisphereLight color={0x4a5a9a} groundColor={0x0a0d1c} intensity={0.85} />
@@ -128,6 +148,8 @@ function Fleet3d(): React.JSX.Element | null {
               lit={model.visibility.litInstanceKeys.has(instance.key)}
               selected={selectedId === instance.agentId}
               cameraRadiusRef={cameraRadiusRef}
+              flatPosition={model.flat.get(instance.key) ?? position}
+              morphRef={morphRef}
               phase={hashPhase(instance.key)}
               onActivate={activate}
               reducedMotion={reducedMotion}
@@ -160,11 +182,34 @@ function Fleet3d(): React.JSX.Element | null {
             to={to}
             lit={model.visibility.litWireIds.has(wire.id)}
             focused={model.visibility.focusedWireIds.has(wire.id)}
+            morphRef={morphRef}
           />
         );
       })}
     </>
   );
+}
+
+/**
+ * Drives SPEC 8.2 morph progress: 0 is the full radial 3D scene, 1 is the fleet
+ * flattened onto the 2D layout with the camera overhead.
+ */
+function MorphDriver({ morphRef }: { morphRef: { current: number } }): null {
+  const morph = useUiStore((s) => s.morph);
+  const view = useUiStore((s) => s.view);
+
+  useFrame(() => {
+    if (morph === null) {
+      morphRef.current = view === '2d' ? 1 : 0;
+      return;
+    }
+    const t = Math.min(1, Math.max(0, (performance.now() - morph.at) / MORPH_MS));
+    // Ease in and out so the flight starts and lands gently.
+    const eased = t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
+    morphRef.current = morph.to === '2d' ? eased : 1 - eased;
+  });
+
+  return null;
 }
 
 /** Stable per-instance phase so In-progress halos do not pulse in lockstep. */
