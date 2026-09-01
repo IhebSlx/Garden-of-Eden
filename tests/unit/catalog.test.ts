@@ -13,7 +13,7 @@ import {
   useFleetStore,
 } from '../../src/store/fleetStore.js';
 import { checkFleetIntegrity } from '../../src/model/integrity.js';
-import { instances } from '../../src/model/selectors.js';
+import { childIdsOf, instances, parentsOf } from '../../src/model/selectors.js';
 
 const yaml = readFileSync('tests/fixtures/copilot/objektvertrieb.yaml', 'utf8');
 const catalog = () => useCatalogStore.getState();
@@ -312,5 +312,124 @@ describe('instantiateIntoFleet', () => {
 
     const next = instantiateIntoFleet(fleet, withItems, withItems.agents[0]!);
     expect(next.skills.map((s) => s.id)).toEqual(['skl_used']);
+  });
+});
+
+describe('replacing an agent in the tree with a catalog one', () => {
+  const setupTree = () => {
+    // Orchestrator -> Placeholder -> Child, so replacement has edges on both sides.
+    fleetStore().createFleet('blank', 'Target');
+    const root = selectActiveFleet(fleetStore())?.agents[0];
+    if (!root) throw new Error('no orchestrator');
+
+    const placeholder = fleetStore().addAgent({ name: 'PPTX-Creator', role: 'placeholder', parentId: root.id });
+    if (!placeholder.ok) throw new Error('setup failed');
+    const child = fleetStore().addAgent({ name: 'Child', role: '', parentId: placeholder.id });
+    if (!child.ok) throw new Error('setup failed');
+
+    return { rootId: root.id, placeholderId: placeholder.id, childId: child.id };
+  };
+
+  it('puts the replacement in the old agent\'s place and removes the old one', () => {
+    const { placeholderId } = setupTree();
+    catalog().importCopilotYaml(yaml, 'o.yaml');
+    const replacement = catalog().catalog.agents[0];
+    if (!replacement) throw new Error('import failed');
+
+    expect(fleetStore().replaceWithCatalogAgent(placeholderId, replacement).ok).toBe(true);
+
+    const fleet = selectActiveFleet(fleetStore());
+    expect(fleet?.agents.some((a) => a.id === placeholderId)).toBe(false);
+    expect(fleet?.agents.some((a) => a.id === replacement.id)).toBe(true);
+    expect(fleet?.agents.some((a) => a.name === 'Objektvertrieb')).toBe(true);
+  });
+
+  it('rewires the edges on both sides', () => {
+    const { rootId, placeholderId, childId } = setupTree();
+    catalog().importCopilotYaml(yaml, 'o.yaml');
+    const replacement = catalog().catalog.agents[0];
+    if (!replacement) throw new Error('import failed');
+
+    fleetStore().replaceWithCatalogAgent(placeholderId, replacement);
+    const fleet = selectActiveFleet(fleetStore());
+    if (!fleet) throw new Error('no fleet');
+
+    // It still reports to the orchestrator...
+    expect(parentsOf(fleet, replacement.id).map((a) => a.id)).toEqual([rootId]);
+    // ...and still owns the child.
+    expect(childIdsOf(fleet, replacement.id)).toEqual([childId]);
+    // No edge mentions the removed agent.
+    expect(fleet.edges.some((e) => e.source === placeholderId || e.target === placeholderId)).toBe(false);
+  });
+
+  it('brings the replacement\'s skills, tools and data with it', () => {
+    const { placeholderId } = setupTree();
+    catalog().importCopilotYaml(yaml, 'o.yaml');
+    const replacement = catalog().catalog.agents[0];
+    if (!replacement) throw new Error('import failed');
+
+    fleetStore().replaceWithCatalogAgent(placeholderId, replacement);
+    const fleet = selectActiveFleet(fleetStore());
+    expect(fleet?.skills).toHaveLength(7);
+    expect(fleet?.tools).toHaveLength(8);
+    expect(checkFleetIntegrity(fleet!)).toEqual([]);
+  });
+
+  it('keeps the old agent\'s board position', () => {
+    const { placeholderId } = setupTree();
+    fleetStore().setAgentPosition(placeholderId, { x: 321, y: 654 });
+
+    catalog().importCopilotYaml(yaml, 'o.yaml');
+    const replacement = catalog().catalog.agents[0];
+    if (!replacement) throw new Error('import failed');
+
+    fleetStore().replaceWithCatalogAgent(placeholderId, replacement);
+    const moved = selectActiveFleet(fleetStore())?.agents.find((a) => a.id === replacement.id);
+    expect(moved?.position).toEqual({ x: 321, y: 654 });
+  });
+
+  it('inherits the old agent\'s kind, so an orchestrator stays the orchestrator', () => {
+    fleetStore().createFleet('blank', 'Target');
+    const root = selectActiveFleet(fleetStore())?.agents[0];
+    if (!root) throw new Error('no orchestrator');
+
+    const created = catalog().addAgent({ name: 'New brain' });
+    if (!created.ok) throw new Error('setup failed');
+
+    fleetStore().replaceWithCatalogAgent(root.id, catalog().catalog.agents[0]!);
+    const fleet = selectActiveFleet(fleetStore());
+    expect(fleet?.agents.filter((a) => a.kind === 'orchestrator')).toHaveLength(1);
+    expect(fleet?.agents[0]?.name).toBe('New brain');
+    expect(checkFleetIntegrity(fleet!)).toEqual([]);
+  });
+
+  it('refuses to replace an agent that is not there', () => {
+    setupTree();
+    const created = catalog().addAgent({ name: 'X' });
+    if (!created.ok) throw new Error('setup failed');
+    expect(fleetStore().replaceWithCatalogAgent('agt_missing', catalog().catalog.agents[0]!)).toMatchObject({
+      ok: false,
+    });
+  });
+
+  it('refuses to replace an agent with itself', () => {
+    setupTree();
+    const created = catalog().addAgent({ name: 'Self' });
+    if (!created.ok) throw new Error('setup failed');
+    const agent = catalog().catalog.agents[0]!;
+    fleetStore().addCatalogAgent(agent);
+    expect(fleetStore().replaceWithCatalogAgent(agent.id, agent)).toMatchObject({ ok: false });
+  });
+
+  it('is undoable', () => {
+    const { placeholderId } = setupTree();
+    const created = catalog().addAgent({ name: 'Replacement' });
+    if (!created.ok) throw new Error('setup failed');
+
+    fleetStore().replaceWithCatalogAgent(placeholderId, catalog().catalog.agents[0]!);
+    expect(selectActiveFleet(fleetStore())?.agents.some((a) => a.name === 'Replacement')).toBe(true);
+
+    useFleetStore.temporal.getState().undo();
+    expect(selectActiveFleet(fleetStore())?.agents.some((a) => a.name === 'PPTX-Creator')).toBe(true);
   });
 });

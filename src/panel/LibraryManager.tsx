@@ -22,7 +22,7 @@ const TABS: { kind: LibraryKind; label: string }[] = [
   { kind: 'dataSource', label: 'Data sources' },
 ];
 
-const DATA_TYPES: DataSourceType[] = ['md', 'dataverse', 'sharepoint'];
+const DATA_TYPES: DataSourceType[] = ['md', 'dataverse', 'sharepoint', 'file'];
 const STATUSES: Status[] = ['live', 'building', 'planned'];
 
 export function LibraryManager(): React.JSX.Element | null {

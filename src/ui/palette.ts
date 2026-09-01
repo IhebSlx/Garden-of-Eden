@@ -38,6 +38,8 @@ export const DATA_TYPE_COLOR: Record<DataSourceType, string> = {
   md: '#c9b6ff',
   dataverse: '#3ce8b0',
   sharepoint: '#38e1ff',
+  // Muted slate: an uploaded file is not one of the three semantic sources.
+  file: '#8ea2d6',
 };
 
 /** Panel kind chip text (`KIND_LABEL`). */

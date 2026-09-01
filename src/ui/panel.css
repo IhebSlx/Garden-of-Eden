@@ -743,3 +743,76 @@
   font-size: 9.5px;
   color: #4d5a8c;
 }
+
+/* ---------- imported script source ---------- */
+
+.script-body {
+  margin-top: 8px;
+  border: 1px solid rgb(124 140 255 / 0.22);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.script-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 5px 8px;
+  font-size: 9.5px;
+  color: #9db0e8;
+  background: rgb(90 110 200 / 0.12);
+}
+.script-head small {
+  margin-left: auto;
+  color: #4d5a8c;
+}
+.script-body pre {
+  margin: 0;
+  max-height: 260px;
+  overflow: auto;
+  padding: 8px;
+  background: rgb(6 9 20 / 0.8);
+}
+.script-body code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 9.5px;
+  line-height: 1.5;
+  color: #cfe3ff;
+  white-space: pre;
+}
+
+/* ---------- flow signature + saved parameters ---------- */
+
+.signature {
+  margin-top: 9px;
+}
+.signature h4 {
+  margin: 8px 0 3px;
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6f7fb4;
+  font-weight: 600;
+}
+.sig-row {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  padding: 2px 0;
+  font-size: 9.5px;
+  color: #93a4d0;
+  line-height: 1.45;
+}
+.sig-row b {
+  color: #cfe3ff;
+  font-weight: 600;
+  flex: none;
+}
+.sig-req {
+  flex: none;
+  font-size: 8.5px;
+  padding: 0 5px;
+  border-radius: 99px;
+  border: 1px solid rgb(246 185 84 / 0.45);
+  color: var(--color-status-building);
+}

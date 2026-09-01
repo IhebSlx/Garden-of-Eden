@@ -19,7 +19,14 @@ import { describeCatalogAgent } from '../model/catalog.js';
 import type { CatalogAgent } from '../model/catalog.js';
 import type { DataSourceType, LibraryKind, Status } from '../model/schemas.js';
 import { DATA_SOURCE_STATUS_LABELS } from '../model/schemas.js';
-import { DATA_TYPE_COLOR, KIND_COLOR, SKILL_COLOR, STATUS_COLOR, TOOL_TYPE_COLOR } from '../ui/palette.js';
+import {
+  DATA_TYPE_COLOR,
+  KIND_COLOR,
+  KIND_LABEL,
+  SKILL_COLOR,
+  STATUS_COLOR,
+  TOOL_TYPE_COLOR,
+} from '../ui/palette.js';
 import { ToolEditor } from './ToolEditor.js';
 import { Picker } from './Picker.js';
 
@@ -32,8 +39,13 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'dataSource', label: 'Data sources' },
 ];
 
-const DATA_TYPES: DataSourceType[] = ['md', 'dataverse', 'sharepoint'];
+const DATA_TYPES: DataSourceType[] = ['md', 'dataverse', 'sharepoint', 'file'];
 const STATUSES: Status[] = ['live', 'building', 'planned'];
+
+/** "1 skill" / "7 skills" — these counts are the first thing read after an import. */
+function plural(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? '' : 's'}`;
+}
 
 function downloadText(text: string, fileName: string, mime: string): void {
   const blob = new Blob([text], { type: mime });
@@ -55,10 +67,13 @@ export function CatalogManager(): React.JSX.Element | null {
 
   const fleet = useFleetStore(selectActiveFleet);
   const addToFleet = useFleetStore((s) => s.addCatalogAgent);
+  const replaceInFleet = useFleetStore((s) => s.replaceWithCatalogAgent);
 
   const [tab, setTab] = useState<Tab>('agents');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [picker, setPicker] = useState<{ agentId: string; kind: LibraryKind } | null>(null);
+  /** Which catalog agent is choosing a fleet agent to replace. */
+  const [replacing, setReplacing] = useState<CatalogAgent | null>(null);
   const [newName, setNewName] = useState('');
   const [newRole, setNewRole] = useState('');
   const [message, setMessage] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
@@ -78,7 +93,7 @@ export function CatalogManager(): React.JSX.Element | null {
     setEditingId(result.agentId);
     say(
       'ok',
-      `Imported "${result.agentName}": ${result.counts.skills} skills, ${result.counts.tools} tools, ${result.counts.dataSources} data sources.` +
+      `Imported "${result.agentName}": ${plural(result.counts.skills, 'skill')}, ${plural(result.counts.tools, 'tool')}, ${plural(result.counts.dataSources, 'data source')}.` +
         (result.warnings.length > 0 ? ` ${result.warnings.join(' ')}` : ''),
     );
   };
@@ -171,6 +186,34 @@ export function CatalogManager(): React.JSX.Element | null {
         </div>
 
         {tab === 'agents' ? <AgentsTab /> : <LibraryTab />}
+
+        {replacing && fleet && (
+          <Picker
+            title={`Replace which agent with "${replacing.name}"?`}
+            emptyText="This fleet has no agents to replace."
+            options={fleet.agents.map((candidate) => ({
+              id: candidate.id,
+              label: candidate.name,
+              hint: candidate.role === '' ? KIND_LABEL[candidate.kind] : candidate.role,
+              dotColor: KIND_COLOR[candidate.kind],
+            }))}
+            onPick={(targetId) => {
+              const target = fleet.agents.find((a) => a.id === targetId);
+              const result = replaceInFleet(targetId, replacing);
+              if (result.ok) {
+                say(
+                  'ok',
+                  `"${target?.name ?? 'That agent'}" replaced with "${replacing.name}" — it keeps the same place in the tree.`,
+                );
+                activate(replacing.id);
+              } else {
+                say('error', result.reason);
+              }
+              setReplacing(null);
+            }}
+            onCancel={() => setReplacing(null)}
+          />
+        )}
 
         {message && (
           <p
@@ -277,6 +320,20 @@ export function CatalogManager(): React.JSX.Element | null {
                     onClick={() => sendToFleet(agent)}
                   >
                     Add to fleet
+                  </button>
+                  <button
+                    type="button"
+                    className="ubn"
+                    data-testid="catalog-replace-in-fleet"
+                    onClick={() => {
+                      if (!fleet) {
+                        say('error', 'Open a fleet first.');
+                        return;
+                      }
+                      setReplacing(agent);
+                    }}
+                  >
+                    Replace…
                   </button>
                   <button
                     type="button"

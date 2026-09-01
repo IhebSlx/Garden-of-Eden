@@ -109,6 +109,12 @@ export type FleetStoreState = {
    * data sources it references (SPEC 7: the fleet stays self-contained).
    */
   addCatalogAgent: (agent: CatalogAgent) => ActionResult;
+  /**
+   * Swap an agent in the tree for a catalog one: the replacement inherits the
+   * old agent's place in the hierarchy and its board position, and brings its
+   * own name, role, status, skills, tools and data with it.
+   */
+  replaceWithCatalogAgent: (targetAgentId: string, agent: CatalogAgent) => ActionResult;
 
   // --- agents (SPEC 5.8) ---
   addAgent: (input: NewAgentInput) => CreateResult;
@@ -287,6 +293,51 @@ export const useFleetStore = create<FleetStoreState>()(
           if (!parsed.ok) return parsed;
           return get().importFleetObject(parsed.fleet);
         },
+
+        replaceWithCatalogAgent: (targetAgentId, catalogAgent) =>
+          mutateActive((fleet) => {
+            const target = fleet.agents.find((a) => a.id === targetAgentId);
+            if (!target) return fail(`Unknown agent "${targetAgentId}".`);
+            if (target.id === catalogAgent.id) return fail('That agent is already the one in the tree.');
+
+            // The replacement takes the old agent's place in the hierarchy: its
+            // kind and board position, but its own name, role, status and library.
+            const withPlace = instantiateIntoFleet(
+              fleet,
+              useCatalogStore.getState().catalog,
+              catalogAgent,
+              { kind: target.kind },
+            );
+
+            const placed = withPlace.agents.map((agent) =>
+              agent.id === catalogAgent.id && target.position
+                ? { ...agent, position: target.position }
+                : agent,
+            );
+
+            // Rewire every edge that touched the old agent, then drop duplicates
+            // that rewiring may have created (both ends now the same agent).
+            const seen = new Set<string>();
+            const edges = withPlace.edges
+              .map((edge) => ({
+                ...edge,
+                source: edge.source === targetAgentId ? catalogAgent.id : edge.source,
+                target: edge.target === targetAgentId ? catalogAgent.id : edge.target,
+              }))
+              .filter((edge) => {
+                if (edge.source === edge.target) return false;
+                const key = `${edge.kind}:${edge.source}->${edge.target}`;
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+              });
+
+            return {
+              ...withPlace,
+              agents: placed.filter((agent) => agent.id !== targetAgentId),
+              edges,
+            };
+          }),
 
         addCatalogAgent: (catalogAgent) =>
           mutateActive((fleet) => {

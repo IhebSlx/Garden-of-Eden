@@ -72,8 +72,68 @@ function stripFrontMatter(content: string): string {
     .trim();
 }
 
-function readSkills(components: unknown[], warnings: string[]): Skill[] {
+/** A file shipped inside a skill folder: script, reference doc, template, image. */
+export type SkillResource = {
+  path: string;
+  /** File name without the folder, for display. */
+  fileName: string;
+  extension: string;
+  /** Decoded text, for the types where text is meaningful. */
+  text: string | undefined;
+  /** Bytes, so a binary asset still reports its size. */
+  bytes: number;
+};
+
+const TEXT_EXTENSIONS = new Set(['md', 'txt', 'json', 'yaml', 'yml', 'csv', 'xml', 'html']);
+const SCRIPT_EXTENSIONS = new Set(['py', 'ps1', 'js', 'ts', 'sh', 'rb']);
+
+function decodeBase64(value: string): { text: string | undefined; bytes: number } {
+  try {
+    const binary = atob(value);
+    const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+    return { text: new TextDecoder('utf-8', { fatal: false }).decode(bytes), bytes: bytes.length };
+  } catch {
+    return { text: undefined, bytes: 0 };
+  }
+}
+
+/** `dialog.resources[]` - the files uploaded with a skill folder. */
+function readResources(dialog: Dict): SkillResource[] {
+  return list(dialog['resources']).flatMap((raw) => {
+    if (!isDict(raw)) return [];
+    const path = str(raw['path']);
+    if (path === undefined) return [];
+
+    const fileName = path.split('/').pop() ?? path;
+    const extension = (fileName.split('.').pop() ?? '').toLowerCase();
+    const encoded = str(raw['contentBase64']);
+    const wantsText = TEXT_EXTENSIONS.has(extension) || SCRIPT_EXTENSIONS.has(extension);
+    const decoded = encoded === undefined ? { text: undefined, bytes: 0 } : decodeBase64(encoded);
+
+    return [
+      {
+        path,
+        fileName,
+        extension,
+        // Only decode what is meaningful as text; a .pptx or .png stays a size.
+        text: wantsText ? decoded.text : undefined,
+        bytes: decoded.bytes,
+      },
+    ];
+  });
+}
+
+/** Copilot Studio sometimes stores only a bundle marker where content should be. */
+function isBundleMarker(content: string): boolean {
+  return /^<!--[^>]*-->$/.test(content.trim());
+}
+
+function readSkills(
+  components: unknown[],
+  warnings: string[],
+): { skills: Skill[]; resources: SkillResource[] } {
   const skills: Skill[] = [];
+  const resources: SkillResource[] = [];
 
   for (const component of components) {
     if (!isDict(component)) continue;
@@ -87,16 +147,108 @@ function readSkills(components: unknown[], warnings: string[]): Skill[] {
       continue;
     }
 
-    const content = str(dialog['content']);
+    const own = readResources(dialog);
+    resources.push(...own);
+
+    // A skill folder puts its real instructions in skill.md; `dialog.content` is
+    // then only a bundle marker. Prefer the file, fall back to inline content.
+    const inline = str(dialog['content']);
+    const fromFile =
+      own.find((resource) => resource.fileName.toLowerCase() === 'skill.md')?.text ??
+      own.find((resource) => resource.fileName.toLowerCase() === 'agent_instructions.md')?.text;
+    const chosen = fromFile ?? (inline !== undefined && !isBundleMarker(inline) ? inline : undefined);
+
     skills.push({
       id: newId(ID_PREFIX.skill),
       name: humanise(name),
       ...(str(component['description']) === undefined ? {} : { description: str(component['description']) }),
-      ...(content === undefined ? {} : { instructions: stripFrontMatter(content) }),
+      ...(chosen === undefined ? {} : { instructions: stripFrontMatter(chosen) }),
     });
   }
 
-  return skills;
+  return { skills, resources };
+}
+
+/**
+ * Scripts shipped with a skill become tools in their own right - they are code the
+ * agent runs, which is exactly what a tool is. The source travels with them so the
+ * script is readable in the app, not just named.
+ */
+function toolsFromScripts(resources: SkillResource[]): Tool[] {
+  return resources
+    .filter((resource) => SCRIPT_EXTENSIONS.has(resource.extension))
+    .map((resource) => ({
+      id: newId(ID_PREFIX.tool),
+      name: resource.fileName,
+      description: firstDocLine(resource.text) ?? `Script shipped with the agent (${resource.path}).`,
+      type: resource.extension === 'py' ? ('python' as const) : ('python' as const),
+      config: {
+        source: 'copilot-studio',
+        path: resource.path,
+        language: resource.extension,
+        bytes: resource.bytes,
+        ...(resource.text === undefined ? {} : { code: resource.text }),
+      },
+    }));
+}
+
+/** The first meaningful line of a script, used as its description. */
+function firstDocLine(text: string | undefined): string | undefined {
+  if (text === undefined) return undefined;
+  for (const raw of text.split('\n').slice(0, 12)) {
+    const line = raw.replace(/^[#\s"']+/, '').replace(/["']+$/, '').trim();
+    if (line === '' || line.startsWith('!')) continue;
+    if (line.length < 4) continue;
+    return line.length > 160 ? `${line.slice(0, 157)}…` : line;
+  }
+  return undefined;
+}
+
+/** Everything that is not a script becomes a data source the agent reads. */
+function dataFromResources(resources: SkillResource[]): DataSource[] {
+  return resources
+    .filter((resource) => !SCRIPT_EXTENSIONS.has(resource.extension))
+    .map((resource) => ({
+      id: newId(ID_PREFIX.dataSource),
+      name: resource.fileName,
+      type: resource.extension === 'md' ? ('md' as const) : ('file' as const),
+      // It ships inside the agent, so it is genuinely present and connected.
+      status: 'live' as const,
+      linked: true,
+      ref: resource.path,
+    }));
+}
+
+/**
+ * `GlobalVariableComponent` entries are the saved parameter values of a tool -
+ * `VCSucheDataverse.organization` belongs to the VC-Suche tool. They are folded
+ * into that tool's config rather than dropped.
+ */
+function readGlobalVariables(components: unknown[]): Map<string, Record<string, unknown>> {
+  const byPrefix = new Map<string, Record<string, unknown>>();
+
+  for (const component of components) {
+    if (!isDict(component) || component['kind'] !== 'GlobalVariableComponent') continue;
+    const variable = component['variable'];
+    if (!isDict(variable)) continue;
+
+    const name = str(variable['name']) ?? str(component['displayName']);
+    if (name === undefined) continue;
+
+    const [prefix, ...rest] = name.split('.');
+    if (prefix === undefined || rest.length === 0) continue;
+
+    const bucket = byPrefix.get(prefix) ?? {};
+    bucket[rest.join('.')] = variable['defaultValue'] ?? null;
+    byPrefix.set(prefix, bucket);
+  }
+
+  return byPrefix;
+}
+
+/** Match `VCSucheDataverse` to the tool named `VC-Suche Dataverse`. */
+function normaliseKey(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
 /** The input/output signature of a flow, flattened into something readable. */
@@ -224,16 +376,41 @@ export function parseCopilotAgent(text: string, fallbackName: string): CopilotIm
   const entity = isDict(root['entity']) ? root['entity'] : {};
 
   const name = str(entity['displayName']) ?? humanise(fallbackName.replace(/\.ya?ml$/i, ''));
-  const skills = readSkills(components, warnings);
-  const tools = readTools(list(root['flows']), warnings);
-  const dataSources = readKnowledge(components);
+  const { skills, resources } = readSkills(components, warnings);
+
+  const flowTools = readTools(list(root['flows']), warnings);
+  const scriptTools = toolsFromScripts(resources);
+  const tools = [...flowTools, ...scriptTools];
+
+  // Saved tool parameters travel with the tool they belong to.
+  const variables = readGlobalVariables(components);
+  for (const tool of flowTools) {
+    for (const [prefix, values] of variables) {
+      if (normaliseKey(prefix) !== normaliseKey(tool.name)) continue;
+      tool.config = { ...tool.config, parameters: values };
+    }
+  }
+
+  const dataSources = [...readKnowledge(components), ...dataFromResources(resources)];
 
   if (skills.length === 0) warnings.push('No agent skills were found in this export.');
-  if (tools.length === 0) warnings.push('No Power Automate flows were found in this export.');
-  if (tools.length > 0) {
+  if (flowTools.length > 0) {
     warnings.push(
-      `${tools.length} flow${tools.length === 1 ? '' : 's'} imported with their inputs and outputs. Copilot Studio exports do not include a flow's internal steps, so add those in the tool editor if you want the diagram.`,
+      `${flowTools.length} Power Automate flow${flowTools.length === 1 ? '' : 's'} imported with their inputs and outputs. Copilot Studio exports carry a flow's signature but not its internal steps, so add those in the tool editor if you want the diagram.`,
     );
+  }
+  if (scriptTools.length > 0) {
+    warnings.push(
+      `${scriptTools.length} script${scriptTools.length === 1 ? '' : 's'} imported with ${scriptTools.length === 1 ? 'its' : 'their'} source.`,
+    );
+  }
+  if (resources.length > 0) {
+    warnings.push(
+      `${resources.length} skill resource${resources.length === 1 ? '' : 's'} found (scripts, references, templates and images).`,
+    );
+  }
+  if (flowTools.length === 0 && scriptTools.length === 0) {
+    warnings.push('No flows or scripts were found in this export.');
   }
 
   const agent: Agent = {

@@ -82,12 +82,103 @@ export function SkillDetail({ skill, usedBy }: { skill: Skill; usedBy: UsedBy })
   );
 }
 
+/** Saved tool parameters are untyped JSON, so render them defensively. */
+function formatParameter(value: unknown): string {
+  if (value === null || value === undefined) return '—';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  try {
+    return JSON.stringify(value) ?? '—';
+  } catch {
+    return '—';
+  }
+}
+
+type ToolConfig = {
+  code?: string;
+  path?: string;
+  language?: string;
+  bytes?: number;
+  inputs?: { name: string; description?: string; required?: boolean }[];
+  outputs?: { name: string; description?: string }[];
+  parameters?: Record<string, unknown>;
+};
+
+/** An imported script, shown as source rather than just a name. */
+function ScriptBody({ config }: { config: ToolConfig }): React.JSX.Element | null {
+  if (config.code === undefined) return null;
+  return (
+    <div className="script-body" data-testid="tool-script">
+      <div className="script-head">
+        <span>{config.path ?? 'script'}</span>
+        {config.bytes !== undefined && <small>{config.bytes.toLocaleString()} bytes</small>}
+      </div>
+      <pre>
+        <code>{config.code}</code>
+      </pre>
+    </div>
+  );
+}
+
+/** A flow's inputs and outputs - what the agent has to supply and gets back. */
+function Signature({ config }: { config: ToolConfig }): React.JSX.Element | null {
+  const inputs = config.inputs ?? [];
+  const outputs = config.outputs ?? [];
+  if (inputs.length === 0 && outputs.length === 0) return null;
+
+  return (
+    <div className="signature" data-testid="tool-signature">
+      {inputs.length > 0 && (
+        <>
+          <h4>Inputs</h4>
+          {inputs.map((input) => (
+            <div key={input.name} className="sig-row">
+              <b>{input.name}</b>
+              {input.required === true && <span className="sig-req">required</span>}
+              {input.description !== undefined && <span>{input.description}</span>}
+            </div>
+          ))}
+        </>
+      )}
+      {outputs.length > 0 && (
+        <>
+          <h4>Outputs</h4>
+          {outputs.map((output) => (
+            <div key={output.name} className="sig-row">
+              <b>{output.name}</b>
+              {output.description !== undefined && <span>{output.description}</span>}
+            </div>
+          ))}
+        </>
+      )}
+    </div>
+  );
+}
+
 export function ToolDetail({ tool, usedBy }: { tool: Tool; usedBy: UsedBy }): React.JSX.Element {
+  const config = (tool.config ?? {}) as ToolConfig;
+  const parameters = Object.entries(config.parameters ?? {});
+
   return (
     <>
       <DetailHead name={tool.name} tag={TOOL_TYPE_LABEL[tool.type]} color={TOOL_TYPE_COLOR[tool.type]} />
       <div className="tdesc">{tool.description}</div>
       <WorkflowDiagram tool={tool} />
+      <ScriptBody config={config} />
+      <Signature config={config} />
+
+      {parameters.length > 0 && (
+        <div className="signature" data-testid="tool-parameters">
+          <h4>Saved parameters</h4>
+          {parameters.map(([key, value]) => (
+            <div key={key} className="sig-row">
+              <b>{key}</b>
+              <span>{formatParameter(value)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       <LinkedTo {...usedBy} />
     </>
   );

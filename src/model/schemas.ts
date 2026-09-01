@@ -102,7 +102,15 @@ export const ToolSchema = z
 export type Tool = z.infer<typeof ToolSchema>;
 
 /** SPEC §4: "extensible enum". */
-export const DataSourceTypeSchema = z.enum(['md', 'dataverse', 'sharepoint']);
+/**
+ * SPEC 4 calls this an "extensible enum".
+ *
+ * DEVIATION: 'file' is added beyond the spec's three. A Copilot Studio skill ships
+ * a folder of resources - templates, images, reference docs, JSON schemas - and
+ * they are genuinely data the agent reads, but none of them is md, Dataverse or
+ * SharePoint. Forcing them into one of those would misreport where the data lives.
+ */
+export const DataSourceTypeSchema = z.enum(['md', 'dataverse', 'sharepoint', 'file']);
 export type DataSourceType = z.infer<typeof DataSourceTypeSchema>;
 
 export const DataSourceSchema = z.object({

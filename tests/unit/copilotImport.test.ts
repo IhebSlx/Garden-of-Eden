@@ -113,7 +113,7 @@ describe('the Objektvertrieb export', () => {
     const { tools, warnings } = importFixture();
     // A Copilot Studio export has a flow's signature, never its internal steps.
     expect(tools.every((t) => t.workflow === undefined)).toBe(true);
-    expect(warnings.join(' ')).toContain('do not include');
+    expect(warnings.join(' ')).toContain('not its internal steps');
   });
 
   it('reads the SharePoint knowledge source', () => {
@@ -175,5 +175,89 @@ entity:
     const result = parseCopilotAgent('kind: BotDefinition\ncomponents: []', 'my-agent.yaml');
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.value.agent.name).toBe('My agent');
+  });
+});
+
+describe('the PPT Buddy export (a skill folder with resources)', () => {
+  const pptYaml = readFileSync('tests/fixtures/copilot/ppt-buddy.yaml', 'utf8');
+
+  const importPpt = () => {
+    const result = parseCopilotAgent(pptYaml, 'PPT Buddy.yaml');
+    if (!result.ok) throw new Error(result.errors.join('; '));
+    return result.value;
+  };
+
+  it('reads the agent and its single skill', () => {
+    const { agent, skills } = importPpt();
+    expect(agent.name).toBe('PPT Buddy');
+    expect(skills).toHaveLength(1);
+    expect(skills[0]?.name).toBe('Solarlux praesentation erstellen');
+  });
+
+  it('takes the instructions from skill.md, not the bundle marker', () => {
+    const { skills } = importPpt();
+    const instructions = skills[0]?.instructions ?? '';
+    // `dialog.content` here is only "<!-- bic:bundle=... -->"; the real text is in the file.
+    expect(instructions).not.toContain('bic:bundle');
+    expect(instructions.length).toBeGreaterThan(1000);
+  });
+
+  it('imports the Python script as a tool, with its source', () => {
+    const { tools } = importPpt();
+    const script = tools.find((t) => t.name === 'build_deck.py');
+    expect(script).toBeDefined();
+    expect(script?.type).toBe('python');
+
+    const config = script?.config as { code?: string; path?: string; language?: string; bytes?: number };
+    expect(config.language).toBe('py');
+    expect(config.path).toBe('script/build_deck.py');
+    expect(config.bytes).toBeGreaterThan(8000);
+    expect(config.code).toContain('#!/usr/bin/env python3');
+    expect(config.code).toContain('build_deck.py');
+  });
+
+  it('describes the script from its own docstring rather than a placeholder', () => {
+    const { tools } = importPpt();
+    expect(tools.find((t) => t.name === 'build_deck.py')?.description).toContain('Solarlux deck renderer');
+  });
+
+  it('imports every other skill resource as a data source', () => {
+    const { dataSources } = importPpt();
+    // 18 non-script resources + the SharePoint knowledge source.
+    expect(dataSources).toHaveLength(19);
+    expect(dataSources.map((d) => d.name)).toContain('Solarlux_Masterdatei_2023.pptx');
+    expect(dataSources.map((d) => d.name)).toContain('logo_solarlux.png');
+    expect(dataSources.map((d) => d.name)).toContain('deck_spec_schema.json');
+  });
+
+  it('types markdown as md and everything else as file', () => {
+    const { dataSources } = importPpt();
+    expect(dataSources.find((d) => d.name === 'client_pitch.md')?.type).toBe('md');
+    expect(dataSources.find((d) => d.name === 'logo_solarlux.png')?.type).toBe('file');
+    expect(dataSources.find((d) => d.name === 'example_spec.json')?.type).toBe('file');
+  });
+
+  it('keeps each resource\'s path as its reference', () => {
+    const { dataSources } = importPpt();
+    expect(dataSources.find((d) => d.name === 'client_pitch.md')?.ref).toBe('references/client_pitch.md');
+  });
+
+  it('has no Power Automate flows, and says so', () => {
+    const { warnings } = importPpt();
+    expect(warnings.join(' ')).toContain('19 skill resources');
+    expect(warnings.join(' ')).toContain('1 script imported with its source');
+  });
+});
+
+describe('saved tool parameters', () => {
+  it('folds GlobalVariableComponent values onto the tool they belong to', () => {
+    const result = parseCopilotAgent(yaml, 'o.yaml');
+    if (!result.ok) throw new Error('import failed');
+
+    const portal = result.value.tools.find((t) => t.name === 'Portal-Suche Objektportal');
+    const parameters = (portal?.config as { parameters?: Record<string, unknown> }).parameters;
+    expect(parameters).toBeDefined();
+    // `PortalSucheObjektportal.table1` becomes `table1` on the Portal-Suche tool.
+    expect(parameters?.['table1']).toBe('Bauprojektübersicht');
   });
 });
