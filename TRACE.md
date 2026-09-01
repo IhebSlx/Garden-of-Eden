@@ -444,3 +444,28 @@ so every worker is one level below its department rather than two.
 Covered by `visionFleet.test.ts` › "leaves the Objektvertrieb department empty and gives its
 content to Projektsuche"; "keeps every second-level node a department";
 "has the orchestrator, three departments and five sub-agents".
+
+**DEVIATION 12 — the 3D scene is compact, and "fit" actually fits.** Two separate faults made the
+scene sprawl. The layout spaced siblings by a constant *angle*, so the same fan covered far more
+ground the further out it sat — a four-child fan at depth 2 spanned 234 world units. A fan is now
+measured in world units between siblings and converted to an angle by the ring's radius, so a wide
+fan far from the centre stays as tight as the same fan near it; ring growth also drops from 85 to
+55 per level. Separately, framing was `clamp(radius * 2.3 + 70, 120, 340)` — a rule of thumb with
+a ceiling below what this fleet needs — and the full-fleet view never measured the fleet at all,
+moving instead to a fixed pose. Distance is now solved from the camera's field of view, and the
+full fleet is framed from its own bounding sphere like any focused subtree.
+
+Measured on the vision fleet: overall radius 247.3 → 191.9, Objektvertrieb's four-child fan
+234.5 → 135.3, Business Development's two-child fan 125.4 → 52.3. The department ring is
+deliberately unchanged at 224.8 — that level never sprawled.
+
+| Item | Status | Test(s) |
+|---|---|---|
+| A fan stays as wide far out as near | ✅ | `layout3d.test.ts` › "keeps the same fan roughly as wide when it sits further out" |
+| Siblings sit about `siblingArc` apart | ✅ | › "spaces siblings by about siblingArc on a wide ring" |
+| One fan never exceeds the cap | ✅ | › "never lets one fan exceed the hard cap" |
+| A lone child sits straight out | ✅ | › "puts a lone child straight out from its parent" |
+| The department ring is untouched | ✅ | › "holds the department ring where it was — that level never sprawled" |
+| Fit distance solved from the lens | ✅ | › "puts the sphere edge exactly on the view edge at margin 1" |
+| Fit scales with the fleet | ✅ | › "scales linearly with the sphere, so a bigger fleet is never cropped" |
+| The whole vision fleet is framed | ✅ | › "frames the whole vision fleet inside the orbit limit" |

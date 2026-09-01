@@ -14,7 +14,7 @@ import { Burst3d } from './Burst3d.js';
 import { CameraRig } from './CameraRig.js';
 import { PostEffects, shouldUsePostEffects } from './effects/PostEffects.js';
 import type { CameraGoal } from './CameraRig.js';
-import { boundingSphere, layoutInstances3d } from '../../layout/layout3d.js';
+import { boundingSphere, fitDistance, layoutInstances3d } from '../../layout/layout3d.js';
 import type { Point3 } from '../../layout/layout3d.js';
 import { layoutInstances } from '../../layout/treeLayout.js';
 import { buildFleetIndex, instances as deriveInstances, parentIdsOf } from '../../model/selectors.js';
@@ -22,7 +22,7 @@ import { deriveWires } from '../../model/wires.js';
 import { computeVisibility } from '../../model/visibility.js';
 import { selectActiveFleet, useFleetStore } from '../../store/fleetStore.js';
 import { useUiStore } from '../../store/uiStore.js';
-import { CAMERA_3D, FOCUS_CAMERA_3D, MORPH_MS, MORPH_PLANE_Y, MORPH_SPAN } from '../../ui/constants.js';
+import { CAMERA_3D, CAMERA_FOV_3D, FOCUS_CAMERA_3D, MORPH_MS, MORPH_PLANE_Y, MORPH_SPAN } from '../../ui/constants.js';
 import { usePrefersReducedMotion } from '../../ui/usePrefersReducedMotion.js';
 import { useContextLoss } from './useContextLoss.js';
 
@@ -71,19 +71,24 @@ function Fleet3d(): React.JSX.Element | null {
   }, [fleet, focusId, statusFilter]);
 
   // SPEC 5.2: focusing frames the subtree; leaving focus returns to the full fleet.
+  // Both are the same operation - frame a bounding sphere - so both are solved from
+  // the lens. The full-fleet case used to jump to a fixed pose that never measured
+  // the fleet, which cropped it as soon as the fleet outgrew the demo data.
   useEffect(() => {
     if (!model) return;
-    if (focusId === null) {
+
+    const keys = focusId === null ? model.layout.positions.keys() : model.visibility.litInstanceKeys;
+    const sphere = boundingSphere(keys, model.layout.positions);
+    if (!sphere) {
       goalRef.current.target.set(...CAMERA_3D.target);
       goalRef.current.radius = CAMERA_3D.radius;
       return;
     }
-    const sphere = boundingSphere(model.visibility.litInstanceKeys, model.layout.positions);
-    if (!sphere) return;
+
     goalRef.current.target.set(sphere.centre.x, sphere.centre.y, sphere.centre.z);
     goalRef.current.radius = Math.min(
       FOCUS_CAMERA_3D.max,
-      Math.max(FOCUS_CAMERA_3D.min, sphere.radius * FOCUS_CAMERA_3D.factor + FOCUS_CAMERA_3D.offset),
+      Math.max(FOCUS_CAMERA_3D.min, fitDistance(sphere.radius, CAMERA_FOV_3D, FOCUS_CAMERA_3D.margin)),
     );
   }, [focusId, model]);
 
@@ -234,7 +239,7 @@ export function Scene(): React.JSX.Element {
   return (
     <div className="scene3d" data-testid="scene3d">
       <Canvas
-        camera={{ fov: 55, near: 0.1, far: 4000, position: [0, 120, 300] }}
+        camera={{ fov: CAMERA_FOV_3D, near: 0.1, far: 4000, position: [0, 120, 300] }}
         gl={{ antialias: true, alpha: true }}
         dpr={[1, 2]}
         onCreated={({ scene, gl }) => {

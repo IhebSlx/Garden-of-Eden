@@ -5,7 +5,11 @@
  *
  * Departments fan out around the orchestrator; deeper levels spread within their
  * parent's arc and drop a level each time, with odd siblings pushed further out so
- * dense branches do not overlap. Constants are SPEC 6 normative.
+ * dense branches do not overlap.
+ *
+ * A fan's width is measured in world units between siblings, not in radians, so a
+ * wide fan far from the centre stays as tight as the same fan near it. See the
+ * DEVIATION note on LAYOUT_3D.
  */
 import { LAYOUT_3D } from '../ui/constants.js';
 import type { Instance } from '../model/selectors.js';
@@ -68,12 +72,17 @@ export function layoutInstances3d(instances: Instance[]): Layout3dResult {
         angle = Math.PI / 4 + (index * Math.PI * 2) / count;
         radius = LAYOUT_3D.baseRadius;
       } else {
-        const spread = Math.min(count * LAYOUT_3D.spreadPerChild, LAYOUT_3D.spreadMax);
+        // The ring this fan sits on, before the odd-sibling stagger nudges
+        // individual children in or out.
+        const ringRadius = LAYOUT_3D.baseRadius + LAYOUT_3D.radiusPerDepth * parent.depth;
+
+        // A fixed gap in world units needs a smaller angle the further out it is
+        // applied. Spacing by angle instead made deep fans sweep across the scene.
+        const step = Math.min(LAYOUT_3D.siblingArc / ringRadius, LAYOUT_3D.maxSiblingStep);
+        const spread = Math.min((count - 1) * step, LAYOUT_3D.spreadMax);
+
         angle = parentAngle + (count === 1 ? 0 : (index / (count - 1) - 0.5) * spread);
-        radius =
-          LAYOUT_3D.baseRadius +
-          LAYOUT_3D.radiusPerDepth * parent.depth +
-          (index % 2) * LAYOUT_3D.radiusStagger;
+        radius = ringRadius + (index % 2) * LAYOUT_3D.radiusStagger;
       }
 
       angles.set(child.key, angle);
@@ -116,4 +125,19 @@ export function boundingSphere(
   }
 
   return { centre, radius };
+}
+
+/**
+ * How far a camera must sit to fit a sphere of `radius` in view.
+ *
+ * Solved from the lens rather than guessed: half the vertical field of view gives
+ * the angle available above the centre line, so the distance that puts the sphere's
+ * edge on that line is `radius / tan(fov / 2)`. `margin` leaves breathing room.
+ *
+ * Horizontal framing is not checked because the pane is wider than it is tall in
+ * every layout this app ships; vertical is the binding constraint.
+ */
+export function fitDistance(radius: number, fovDegrees: number, margin: number): number {
+  const halfFov = (fovDegrees * Math.PI) / 360;
+  return (radius / Math.tan(halfFov)) * margin;
 }

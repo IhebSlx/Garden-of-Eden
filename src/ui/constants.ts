@@ -188,18 +188,50 @@ export const AUTO_ROTATE_SPEED = 0.0009;
 /** Selection-ring pulse (SPEC 6). */
 export const SELECTION_PULSE_MS = 2400;
 
+/**
+ * DEVIATION from the prototype's tuned values, at the user's request: the scene
+ * fanned out too fast to read as one shape. Two things caused it — the ring radius
+ * grew 85 per level, and the angular spread of a fan was a constant per child, so
+ * the same angle covered far more ground the further out it was applied.
+ *
+ * Rings now grow more slowly, and a fan is measured in WORLD UNITS between
+ * siblings (`siblingArc`) rather than in radians: the further out a ring is, the
+ * smaller the angle that gap needs. A wide fan at depth 2 therefore stays as
+ * compact as the same fan at depth 1 instead of sweeping across the scene.
+ */
 export const LAYOUT_3D = {
   rootY: 95,
   baseRadius: 95,
-  radiusPerDepth: 85,
-  radiusStagger: 42,
-  yPerDepth: 70,
-  spreadPerChild: 0.3,
-  spreadMax: 1.25,
+  radiusPerDepth: 55,
+  radiusStagger: 26,
+  yPerDepth: 62,
+  /** Target gap between adjacent siblings, in world units. */
+  siblingArc: 42,
+  /** Cap on the angle between two siblings, so a pair does not splay on a tight ring. */
+  maxSiblingStep: 0.42,
+  /** Hard cap on the total arc one fan may occupy. */
+  spreadMax: 1.15,
 } as const;
 
 /** Focus camera distance: clamp(subtreeRadius * 2.3 + 70, 120, 340). */
-export const FOCUS_CAMERA_3D = { factor: 2.3, offset: 70, min: 120, max: 340 } as const;
+/** Vertical field of view of the 3D camera, in degrees. */
+export const CAMERA_FOV_3D = 55;
+
+/**
+ * DEVIATION: framing was `clamp(radius * 2.3 + 70, 120, 340)` — a rule of thumb
+ * with no knowledge of the lens, and a ceiling of 340 that silently cropped any
+ * fleet needing more room. The full-fleet view did not measure the fleet at all;
+ * it moved to a fixed pose. Distance is now solved from the field of view, so a
+ * subtree is framed because it fits, not because a constant happened to suit the
+ * demo fleet.
+ */
+export const FOCUS_CAMERA_3D = {
+  /** Breathing room around the bounding sphere. */
+  margin: 1.18,
+  min: 120,
+  /** Only the orbit limit caps it now. */
+  max: 850,
+} as const;
 
 /**
  * Satellite bundles and the blossom they open into (SPEC §5.8 details toggle).
