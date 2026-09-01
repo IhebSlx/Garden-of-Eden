@@ -415,3 +415,22 @@ Covered by `visionFleet.test.ts` › "has the orchestrator, three departments an
 "hangs the deck builder off both departments that commission decks";
 "puts the Angebotsprozess sub-agents under Objektvertrieb";
 "puts the Holzoffensive answers beside the deck builder, not above it".
+
+**Nearest-instance peer wiring (bug fix).** A peer edge names two *agents*, but a shared agent is
+drawn once under every parent (SPEC §2.3), so the wire has to choose a copy. It took
+`firstInstanceOfAgent` — whichever copy the pre-order walk reached first — which drew a link
+right across the board to a copy three columns away instead of the one standing beside it. A peer
+wire now reaches the copy sharing the deepest common ancestor with its source, and repeats once
+per copy of the source so every drawn copy has its own nearest peer. Ties fall back to depth then
+key order, so the choice is deterministic. Hierarchy wires were already exact — they are derived
+per parent-instance — and are unchanged.
+
+| Item | Status | Test(s) |
+|---|---|---|
+| Links to the copy under the same parent | ✅ | `wires.test.ts` › "links to the copy under the same parent, not the first one walked" |
+| One wire per copy of the source | ✅ | › "still draws exactly one wire per copy of the source" |
+| A shared source gets one nearest peer per copy | ✅ | › "gives every copy of a shared source its own nearest peer" |
+| Deterministic on ties | ✅ | › "is deterministic when two copies are equally close" |
+| Never links an instance to itself | ✅ | › "never links an instance to itself" |
+| Wire ids stay unique | ✅ | › "keeps peer wire ids unique so React never sees a duplicate key" |
+| Hierarchy wires still repeat per parent | ✅ | › "draws the shared agent's incoming wire once per copy" |

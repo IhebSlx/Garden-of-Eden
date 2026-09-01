@@ -30,15 +30,60 @@ export type Wire = {
   toKind: Fleet['agents'][number]['kind'];
 };
 
+/**
+ * How many leading agents two instance paths have in common — the depth of their
+ * nearest common ancestor.
+ */
+function sharedAncestry(a: Instance, b: Instance): number {
+  const limit = Math.min(a.path.length, b.path.length);
+  let shared = 0;
+  while (shared < limit && a.path[shared] === b.path[shared]) shared += 1;
+  return shared;
+}
+
+/**
+ * The copy of `agentId` nearest to `from`.
+ *
+ * A shared agent is drawn once under every parent (SPEC §2.3), so an edge naming
+ * it is ambiguous at render time: which copy should the wire reach? The nearest
+ * one — the copy sharing the deepest common ancestor with the source. A peer of
+ * something under Business Development links to the copy under Business
+ * Development, not to a copy three columns away that happens to come first in the
+ * instance walk.
+ *
+ * Ties (two copies equally close) fall back to the smaller depth and then to key
+ * order, so the choice is deterministic and never flickers between renders.
+ */
+function nearestInstance(from: Instance, candidates: Instance[]): Instance | undefined {
+  let best: Instance | undefined;
+  let bestScore = -1;
+  for (const candidate of candidates) {
+    if (candidate.key === from.key) continue;
+    const score = sharedAncestry(from, candidate);
+    if (
+      score > bestScore ||
+      (score === bestScore &&
+        best !== undefined &&
+        (candidate.depth < best.depth || (candidate.depth === best.depth && candidate.key < best.key)))
+    ) {
+      best = candidate;
+      bestScore = score;
+    }
+  }
+  return best;
+}
+
 export function deriveWires(fleet: Fleet, instanceList: Instance[]): Wire[] {
   const agentsById = new Map(fleet.agents.map((a) => [a.id, a]));
   const instancesByKey = new Map(instanceList.map((i) => [i.key, i]));
 
   /** `${source}->${target}` -> hierarchy edge. */
   const hierarchyByPair = new Map<string, Edge>();
-  const firstInstanceOfAgent = new Map<string, Instance>();
+  const instancesOfAgent = new Map<string, Instance[]>();
   for (const instance of instanceList) {
-    if (!firstInstanceOfAgent.has(instance.agentId)) firstInstanceOfAgent.set(instance.agentId, instance);
+    const list = instancesOfAgent.get(instance.agentId);
+    if (list) list.push(instance);
+    else instancesOfAgent.set(instance.agentId, [instance]);
   }
   for (const edge of fleet.edges) {
     if (edge.kind === 'hierarchy') hierarchyByPair.set(`${edge.source}->${edge.target}`, edge);
@@ -69,28 +114,39 @@ export function deriveWires(fleet: Fleet, instanceList: Instance[]): Wire[] {
     });
   }
 
-  // Peer links are not structure (SPEC 5.2), so they attach to the first copy of
-  // each endpoint rather than repeating across the hierarchy.
+  // Peer links are not structure (SPEC 5.2), so they do not repeat down a shared
+  // subtree the way hierarchy wires do. They do follow each copy of their source:
+  // every drawn copy really does hand off to a peer, and each reaches the NEAREST
+  // copy of the other agent rather than whichever happened to be walked first.
+  const drawn = new Set<string>();
   for (const edge of fleet.edges) {
     if (edge.kind !== 'peer') continue;
-    const from = firstInstanceOfAgent.get(edge.source);
-    const to = firstInstanceOfAgent.get(edge.target);
     const target = agentsById.get(edge.target);
-    if (!from || !to || !target) continue;
+    const candidates = instancesOfAgent.get(edge.target) ?? [];
+    if (!target || candidates.length === 0) continue;
 
-    out.push({
-      id: edge.id,
-      edgeId: edge.id,
-      kind: 'peer',
-      status: edge.status,
-      label: edge.label,
-      fromKey: from.key,
-      toKey: to.key,
-      fromAgentId: from.agentId,
-      toAgentId: to.agentId,
-      fromDepth: from.depth,
-      toKind: target.kind,
-    });
+    for (const from of instancesOfAgent.get(edge.source) ?? []) {
+      const to = nearestInstance(from, candidates);
+      if (!to) continue;
+
+      const pair = `${edge.id}::${from.key}`;
+      if (drawn.has(pair)) continue;
+      drawn.add(pair);
+
+      out.push({
+        id: pair,
+        edgeId: edge.id,
+        kind: 'peer',
+        status: edge.status,
+        label: edge.label,
+        fromKey: from.key,
+        toKey: to.key,
+        fromAgentId: from.agentId,
+        toAgentId: to.agentId,
+        fromDepth: from.depth,
+        toKind: target.kind,
+      });
+    }
   }
 
   return out;
