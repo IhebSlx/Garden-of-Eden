@@ -11,3 +11,5 @@ minimumReleaseAgeExclude:
   - '@typescript-eslint/visitor-keys@8.69.0'
   - globals@17.12.0
   - typescript-eslint@8.69.0
+  - '@xyflow/react@12.11.6'
+  - '@xyflow/system@0.0.82'

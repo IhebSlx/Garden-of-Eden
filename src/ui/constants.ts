@@ -1,0 +1,188 @@
+/**
+ * SPEC 6 "Normative constants" - every number here was read out of
+ * `reference/prototype.html`, which is the tuned ground truth. Changing any of
+ * them is a DEVIATION, so they live in exactly one place and are imported,
+ * never re-typed.
+ *
+ * The CSS-facing half of the same set lives in `tokens.css`.
+ */
+
+// ---------- focus & ghosting (SPEC 5.2) ----------
+
+/** `.card.ghost{opacity:.05}` - never hidden, always still there. */
+export const GHOST_OPACITY = 0.05;
+/** `.w2.ghost{opacity:.03}` - wires ghost a touch harder than cards. */
+export const GHOST_WIRE_OPACITY = 0.03;
+/** `popAt = now + (depth - focusDepth) * 110` */
+export const FOCUS_CASCADE_STAGGER_MS = 110;
+/** `.card.pop` / `cardpop` keyframes. */
+export const CARD_POP_MS = 380;
+/** `w.opT = 1.7` on the focused branch. */
+export const FOCUSED_WIRE_BRIGHTNESS = 1.7;
+
+// ---------- 2D wires (prototype `.w2` rules) ----------
+
+export const WIRE_OPACITY = {
+  base: 0.55,
+  building: 0.6,
+  planned: 0.25,
+  /** `.w2.lit` - a wire inside the focused branch. */
+  lit: 0.9,
+  ghost: GHOST_WIRE_OPACITY,
+} as const;
+
+/** `stroke-width`: peer 1.8, from the orchestrator 3, otherwise 2.2. */
+export const WIRE_WIDTH = { peer: 1.8, fromOrchestrator: 3, hierarchy: 2.2 } as const;
+export const WIRE_DASH = { peer: '5 7', planned: '4 7' } as const;
+export const PEER_WIRE_COLOR = '#9bb8ff';
+/** Peer wires arc this far above the two cards. */
+export const PEER_WIRE_LIFT = 70;
+/** Hierarchy bezier handle length: clamp(halfGap, 40, 110). */
+export const WIRE_BEZIER = { min: 40, max: 110 } as const;
+
+/** 3D tube opacity multipliers by status (SPEC 6). */
+export const EDGE_STATUS_MULTIPLIER = { live: 1, building: 0.7, planned: 0.35 } as const;
+
+// ---------- semantic zoom (SPEC 5.5) ----------
+
+/** Below this, sub-agent role lines disappear (`#view2d.far`). */
+export const ZOOM_HIDE_ROLES = 0.55;
+/** Below this, sub-agent cards collapse to a status dot (`#view2d.vfar`). */
+export const ZOOM_COLLAPSE_TO_DOTS = 0.36;
+
+// ---------- 2D layout (prototype `layout2d`) ----------
+
+export const LAYOUT = {
+  /** Horizontal slot per leaf. */
+  slotWidth: 170,
+  /** Vertical distance between depth levels. */
+  rowHeight: 185,
+  /** y of the root row. */
+  top: 120,
+  /** Extra slots inserted between the children of the root. */
+  clusterGapRoot: 0.7,
+  /** Extra slots inserted between the children of any deeper node. */
+  clusterGap: 0.2,
+  /** Odd sub-agents drop by this much so dense rows stay readable. */
+  stagger: 36,
+  staggerFromDepth: 2,
+  boardPaddingX: 120,
+  boardMinWidth: 1200,
+  boardPaddingY: 190,
+} as const;
+
+/**
+ * Card width by depth (`.card.d0` … `.card.d3`) and the height the layout assumes
+ * before React Flow has measured the real DOM node.
+ */
+export const CARD_SIZE = [
+  { width: 216, height: 74 },
+  { width: 182, height: 64 },
+  { width: 126, height: 50 },
+  { width: 126, height: 50 },
+] as const;
+
+export const COLLAPSED_CARD_WIDTH = 40;
+
+export function cardSize(depth: number): { width: number; height: number } {
+  return CARD_SIZE[Math.min(Math.max(depth, 0), CARD_SIZE.length - 1)] ?? CARD_SIZE[3];
+}
+
+// ---------- 2D viewport (prototype `zoom2dAt`, `fit2d`, `frame2d`) ----------
+
+export const ZOOM = {
+  min: 0.2,
+  max: 2.5,
+  wheelIn: 1.12,
+  wheelOut: 0.89,
+  buttonIn: 1.25,
+  buttonOut: 0.8,
+  /** `fit2d` never zooms in past this. */
+  fitMax: 1.1,
+  /** `frame2d` (focus) may go a little closer. */
+  frameMax: 1.25,
+} as const;
+
+/** `fit2d` insets. */
+export const FIT_PADDING = { x: 40, y: 160, offsetY: 14 } as const;
+/** `frame2d` insets, plus the per-card padding added to the subtree bbox. */
+export const FRAME_PADDING = { x: 80, y: 200, offsetY: 10, card: 30 } as const;
+
+/** Board transform animation (`#board2d.anim`). */
+export const BOARD_ANIM_MS = 500;
+
+/**
+ * SPEC 10 known bug class: pointer thresholds are measured in SCREEN pixels and
+ * are never divided by the zoom scale. A zoom-scaled threshold broke
+ * click-to-focus at overview zoom in the prototype.
+ */
+export const DRAG_THRESHOLD_PX = 5;
+export const PAN_THRESHOLD_PX = 6;
+
+// ---------- minimap ----------
+
+export const MINIMAP = { width: 168, height: 112, innerWidth: 166, innerHeight: 110, inset: 16 } as const;
+
+// ---------- 3D (SPEC 5.4, Phase 2) ----------
+
+export const NODE_SIZE_3D = { orchestrator: 13, department: 8.5, worker: 5 } as const;
+export const LABEL_SCALE_3D = { orchestrator: 1.5, department: 1.15, worker: 0.85 } as const;
+
+export const CAMERA_3D = {
+  theta: 0.55,
+  phi: 1.1,
+  radius: 300,
+  target: [0, 5, 0],
+  phiMin: 0.08,
+  phiMax: 3.06,
+  radiusMin: 35,
+  radiusMax: 850,
+  /** Wheel step: radius *= 1 ± 0.08. */
+  wheelStep: 0.08,
+  /** Pan sensitivity: radius * 0.0016. */
+  panFactor: 0.0016,
+  orbitX: 0.005,
+  orbitY: 0.004,
+  /** Camera easing per frame. */
+  ease: 0.06,
+} as const;
+
+/** Orbit inertia decay per frame (SPEC 6). */
+export const ORBIT_INERTIA_DECAY = 0.92;
+/** Auto-rotate only after this much idle time (SPEC 5.4). */
+export const AUTO_ROTATE_IDLE_MS = 6000;
+export const AUTO_ROTATE_SPEED = 0.0009;
+/** Selection-ring pulse (SPEC 6). */
+export const SELECTION_PULSE_MS = 2400;
+
+export const LAYOUT_3D = {
+  rootY: 95,
+  baseRadius: 95,
+  radiusPerDepth: 85,
+  radiusStagger: 42,
+  yPerDepth: 70,
+  spreadPerChild: 0.3,
+  spreadMax: 1.25,
+} as const;
+
+/** Focus camera distance: clamp(subtreeRadius * 2.3 + 70, 120, 340). */
+export const FOCUS_CAMERA_3D = { factor: 2.3, offset: 70, min: 120, max: 340 } as const;
+
+/** Distance fades: labels at depth>=2, then the detail satellites. */
+export const FADE_3D = {
+  labelStart: 480,
+  labelRange: 110,
+  satelliteStart: 400,
+  satelliteRange: 90,
+} as const;
+
+export const BURST_MS = 500;
+export const BURST_SCALE = { from: 2.4, growth: 3.4 } as const;
+
+/** Per-frame easing used across the 3D scene. */
+export const EASE_3D = { fade: 0.08, scale: 0.12, meshScale: 0.14, ring: 0.15, detail: 0.12 } as const;
+
+export const HOVER_SCALE_3D = 1.28;
+export const SELECTED_SCALE_3D = 1.2;
+/** Planned nodes render at this opacity (and as wireframe). */
+export const PLANNED_OPACITY_3D = 0.55;

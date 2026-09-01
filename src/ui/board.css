@@ -1,0 +1,490 @@
+/*
+ * 2D board styling, translated from `reference/prototype.html` (SPEC 6: the
+ * prototype's tuned values are normative). Class names deliberately mirror the
+ * prototype's so the two can be diffed side by side during visual verification.
+ */
+
+/* ---------- surface ---------- */
+
+.board-surface {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: radial-gradient(1100px 650px at 50% 25%, #0b1226, #05060f 70%);
+  touch-action: none;
+}
+
+/* Edge vignette (`#view2d::after`). */
+.board-surface::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+  box-shadow: inset 0 0 190px 40px rgb(2 4 12 / 0.55);
+}
+
+/* ---------- cards ---------- */
+
+.card {
+  width: 150px;
+  border-radius: 14px;
+  background: var(--glass-fill);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgb(124 140 255 / 0.3);
+  border-left: 3px solid var(--ac);
+  box-shadow: 0 14px 34px rgb(2 4 16 / 0.6);
+  padding: 10px 12px;
+  cursor: grab;
+  user-select: none;
+  box-sizing: border-box;
+  transition:
+    opacity 0.3s,
+    box-shadow 0.2s,
+    border-color 0.2s,
+    transform 0.18s;
+}
+
+/* Corner tint in the kind colour. */
+.card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(
+    130% 90% at 18% 0%,
+    color-mix(in srgb, var(--ac) 13%, transparent),
+    transparent 62%
+  );
+}
+
+.card:hover {
+  transform: scale(1.04);
+  border-color: var(--ac);
+  box-shadow:
+    0 18px 44px rgb(2 4 16 / 0.78),
+    0 0 20px -6px var(--ac);
+}
+
+/* SPEC 5.2: ghosted, never hidden. */
+.card.ghost {
+  opacity: var(--ghost-opacity);
+  pointer-events: none;
+}
+
+/* Shared agents are placed under every parent automatically, so they do not drag. */
+.card.pinned {
+  cursor: default;
+}
+
+/* SPEC 5.6 status language. */
+.card.st-planned {
+  border-style: dashed;
+}
+.card.st-planned::before {
+  opacity: 0.5;
+}
+.card.st-building .nm i {
+  animation: stpulse 1.5s ease-in-out infinite;
+}
+@keyframes stpulse {
+  0%,
+  100% {
+    box-shadow: 0 0 3px var(--st);
+  }
+  50% {
+    box-shadow: 0 0 11px var(--st);
+  }
+}
+
+/* SPEC 5.9: selection ring pulses on every copy of a shared agent. */
+.card.sel {
+  box-shadow:
+    0 0 0 1.5px var(--ac),
+    0 16px 38px rgb(2 4 16 / 0.75);
+  animation: selpulse var(--selection-pulse-duration) ease-in-out infinite;
+}
+@keyframes selpulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1.5px var(--ac),
+      0 16px 38px rgb(2 4 16 / 0.75);
+  }
+  50% {
+    box-shadow:
+      0 0 0 3px var(--ac),
+      0 0 24px -4px var(--ac),
+      0 16px 38px rgb(2 4 16 / 0.75);
+  }
+}
+
+/* Focus cascade pop (SPEC 5.2) - delay is set inline per depth level. */
+.card.pop {
+  animation: cardpop 0.36s ease both;
+}
+@keyframes cardpop {
+  0% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.09);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.card .nm {
+  font-size: 12.5px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  position: relative;
+}
+.card .nm i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--st);
+  box-shadow: 0 0 8px var(--st);
+  flex: none;
+}
+.card .nmtext {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.card .nmtext[contenteditable='true'] {
+  outline: 1px solid var(--ac);
+  border-radius: 4px;
+  padding: 0 3px;
+  cursor: text;
+  overflow: visible;
+  text-overflow: clip;
+}
+/* ×N badge on a shared agent (SPEC 5.3). */
+.card .shx {
+  margin-left: auto;
+  font-size: 9px;
+  color: var(--color-shared);
+  border: 1px solid rgb(246 185 84 / 0.45);
+  border-radius: 6px;
+  padding: 0 4px;
+  flex: none;
+}
+.card .rl {
+  margin-top: 3px;
+  font-size: 10.5px;
+  color: #93a4d0;
+  line-height: 1.35;
+}
+
+/* SPEC 5.5: node size by depth. */
+.card.d0 {
+  width: 216px;
+  padding: 14px 16px;
+  border-radius: 18px;
+}
+.card.d0 .nm {
+  font-size: 16.5px;
+}
+.card.d0 .rl {
+  font-size: 12px;
+}
+.card.d1 {
+  width: 182px;
+  padding: 12px 14px;
+}
+.card.d1 .nm {
+  font-size: 14px;
+}
+.card.d1 .rl {
+  font-size: 11px;
+}
+.card.d2,
+.card.d3 {
+  width: 126px;
+  padding: 8px 10px;
+}
+.card.d2 .nm,
+.card.d3 .nm {
+  font-size: 11px;
+}
+.card.d2 .rl,
+.card.d3 .rl {
+  font-size: 9.5px;
+}
+
+/* Details toggle: skills/tools as chips inside the card (SPEC 5.8). */
+.card .ext {
+  display: none;
+  margin-top: 7px;
+  padding-top: 7px;
+  border-top: 1px solid rgb(124 140 255 / 0.18);
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.board-surface.showdet .card .ext {
+  display: flex;
+}
+.card .ec {
+  font-size: 8.5px;
+  padding: 1px 6px;
+  border-radius: 99px;
+  color: #b9c8ef;
+  background: rgb(90 110 200 / 0.14);
+  border: 1px solid rgb(124 140 255 / 0.22);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.card .ec.sk {
+  color: #9db0e8;
+  border-style: dashed;
+}
+.card .ec .tdot {
+  width: 5px;
+  height: 5px;
+  margin-right: 0;
+}
+
+/*
+ * SPEC 5.5 semantic zoom.
+ * .far  = zoom < 0.55 -> sub-agent role lines and chips go
+ * .vfar = zoom < 0.36 -> sub-agent cards collapse to a status dot
+ */
+.board-surface.far .card.d2 .rl,
+.board-surface.far .card.d3 .rl {
+  display: none;
+}
+.board-surface.far .card.d2 .ext,
+.board-surface.far .card.d3 .ext {
+  display: none !important;
+}
+.board-surface.vfar .card .ext {
+  display: none !important;
+}
+.board-surface.vfar .card.d2 .nmtext,
+.board-surface.vfar .card.d3 .nmtext,
+.board-surface.vfar .card.d2 .shx,
+.board-surface.vfar .card.d3 .shx,
+.board-surface.vfar .card.d2 .rl,
+.board-surface.vfar .card.d3 .rl {
+  display: none;
+}
+.board-surface.vfar .card.d2,
+.board-surface.vfar .card.d3 {
+  width: 40px;
+  padding: 9px 0;
+}
+.board-surface.vfar .card.d2 .nm,
+.board-surface.vfar .card.d3 .nm {
+  justify-content: center;
+}
+
+/* ---------- wires ---------- */
+
+.w2 {
+  fill: none;
+  opacity: 0.55;
+  transition:
+    opacity 0.3s,
+    stroke-width 0.2s;
+}
+.w2.st-building {
+  opacity: 0.6;
+}
+.w2.st-planned {
+  opacity: 0.25;
+  stroke-dasharray: 4 7;
+}
+.w2.ghost {
+  opacity: 0.03;
+}
+.w2.lit {
+  opacity: 0.9;
+}
+.w2.peer {
+  stroke-dasharray: 5 7;
+}
+
+/* ---------- chrome ---------- */
+
+.glass-bar {
+  background: rgb(16 21 42 / 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgb(124 140 255 / 0.25);
+  border-radius: 99px;
+  padding: 3px;
+}
+
+.chrome-btn {
+  all: unset;
+  cursor: pointer;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 5px 14px;
+  border-radius: 99px;
+  color: #9db0e8;
+}
+.chrome-btn:hover {
+  color: #fff;
+}
+.chrome-btn.on {
+  background: rgb(124 92 246 / 0.35);
+  color: #fff;
+}
+.chrome-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+.chrome-div {
+  width: 1px;
+  background: rgb(124 140 255 / 0.25);
+  margin: 2px 4px;
+}
+
+.tdot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 5px;
+  flex: none;
+}
+
+/* ---------- minimap + zoom controls ---------- */
+
+.minimap {
+  position: relative;
+  width: 168px;
+  height: 112px;
+  background: rgb(10 14 30 / 0.72);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgb(124 140 255 / 0.25);
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  touch-action: none;
+}
+.minimap .mmdot {
+  position: absolute;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.minimap .mmview {
+  position: absolute;
+  border: 1.5px solid rgb(139 92 246 / 0.9);
+  background: rgb(139 92 246 / 0.12);
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+.zoomctl button {
+  all: unset;
+  cursor: pointer;
+  width: 26px;
+  height: 24px;
+  text-align: center;
+  font-size: 14px;
+  color: #9db0e8;
+  border-radius: 99px;
+}
+.zoomctl button:hover {
+  background: rgb(124 92 246 / 0.3);
+  color: #fff;
+}
+
+/* ---------- React Flow overrides ---------- */
+
+.react-flow__node {
+  cursor: inherit;
+}
+.react-flow__node.react-flow__node-agent {
+  /* The card owns its own visuals; React Flow must not add any. */
+  background: none;
+  border: none;
+  padding: 0;
+  border-radius: 0;
+  width: auto;
+  font-family: inherit;
+  color: inherit;
+}
+.react-flow__handle {
+  opacity: 0;
+  pointer-events: none;
+  width: 8px;
+  height: 8px;
+  min-width: 0;
+  min-height: 0;
+  border: none;
+}
+/* Wire-drag linking (SPEC 8.4) needs reachable handles once connecting is on. */
+.board-surface.linkable .react-flow__handle {
+  opacity: 0.35;
+  pointer-events: all;
+  background: var(--color-orchestrator);
+}
+.board-surface.linkable .react-flow__handle:hover {
+  opacity: 1;
+}
+.react-flow__edge {
+  pointer-events: stroke;
+}
+.react-flow__edge-path {
+  cursor: pointer;
+}
+.react-flow__attribution {
+  display: none;
+}
+.react-flow__pane {
+  cursor: grab;
+}
+.react-flow__pane.dragging {
+  cursor: grabbing;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card.sel,
+  .card.pop,
+  .card.st-building .nm i {
+    animation: none;
+  }
+  .card:hover {
+    transform: none;
+  }
+}
+
+/* ---------- filter bar (SPEC 5.6) ---------- */
+
+.fbtn {
+  all: unset;
+  cursor: pointer;
+  font-size: 10.5px;
+  padding: 4px 11px;
+  border-radius: 99px;
+  color: #9db0e8;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.fbtn:hover {
+  color: #fff;
+}
+.fbtn.on {
+  background: rgb(124 92 246 / 0.32);
+  color: #fff;
+}
+.fbtn .sd {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: none;
+}

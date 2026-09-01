@@ -18,7 +18,10 @@
     "verify": "pnpm typecheck && pnpm lint && pnpm test"
   },
   "dependencies": {
+    "@xyflow/react": "12.11.6",
+    "fuse.js": "7.5.0",
     "idb": "8.0.3",
+    "motion": "13.1.1",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "zod": "4.5.4",
@@ -27,7 +30,11 @@
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@playwright/test": "1.62.1",
     "@tailwindcss/vite": "4.3.3",
+    "@testing-library/jest-dom": "7.0.1",
+    "@testing-library/react": "16.3.3",
+    "@testing-library/user-event": "14.6.6",
     "@types/node": "26.4.0",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.5",
@@ -36,6 +43,7 @@
     "eslint-plugin-react-hooks": "7.1.1",
     "fake-indexeddb": "6.2.5",
     "globals": "17.12.0",
+    "jsdom": "30.0.1",
     "tailwindcss": "4.3.3",
     "typescript": "5.9.3",
     "typescript-eslint": "8.69.0",
