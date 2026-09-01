@@ -138,8 +138,21 @@ const agents: Agent[] = [
   },
   {
     id: 'vagt_objektvertrieb',
+    // Level 2 is organisational: a department names an area of the business and
+    // owns the agents that do the work. It carries no skills or flows of its own.
     kind: 'department',
     name: 'Objektvertrieb',
+    role: 'Objektgeschäft — Projekte, Angebote, Kalkulation',
+    status: 'live',
+    skillIds: [],
+    toolIds: [...SUBSTRATE],
+    dataSourceIds: ['vdsr_unternehmenskontext'],
+  },
+  {
+    id: 'vagt_projektsuche',
+    // Everything the Objektvertrieb node used to be: the agent running today.
+    kind: 'worker',
+    name: 'Projektsuche',
     role: 'Projekte, Status, Belege',
     // PRODUKTIV in agenten_01_heute.
     status: 'live',
@@ -236,6 +249,7 @@ const HIERARCHY: [child: string, status: Edge['status']][] = [
  * so it is drawn once under each of them and edits to it apply to both (§2.3).
  */
 const SUB_AGENTS: [parent: string, child: string, status: Edge['status']][] = [
+  ['vagt_objektvertrieb', 'vagt_projektsuche', 'live'],
   ['vagt_objektvertrieb', 'vagt_pptx', 'building'],
   ['vagt_businessdev', 'vagt_pptx', 'planned'],
   ['vagt_businessdev', 'vagt_holzoffensive', 'planned'],

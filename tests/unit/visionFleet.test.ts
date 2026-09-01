@@ -17,8 +17,8 @@ describe('Solarlux vision fleet', () => {
     expect(checkFleetIntegrity(fleet)).toEqual([]);
   });
 
-  it('has the orchestrator, three departments and four sub-agents', () => {
-    expect(fleet.agents).toHaveLength(8);
+  it('has the orchestrator, three departments and five sub-agents', () => {
+    expect(fleet.agents).toHaveLength(9);
     const orchestrators = fleet.agents.filter((a) => a.kind === 'orchestrator');
     expect(orchestrators).toHaveLength(1);
     expect(orchestrators[0]?.name).toBe('Orchestrator');
@@ -30,11 +30,17 @@ describe('Solarlux vision fleet', () => {
       'Weitere Fachagenten',
     ]);
     expect(fleet.agents.filter((a) => a.kind === 'worker').map((a) => a.name)).toEqual([
+      'Projektsuche',
       'PPTX-Creator',
       'Leistungsverzeichnis-Decoder',
       'Kalkulationsagent',
       'Holzoffensive Buddy',
     ]);
+
+    // SPEC-adjacent house rule: level 2 names areas of the business, nothing else.
+    for (const id of childIdsOf(fleet, 'vagt_orchestrator')) {
+      expect(fleet.agents.find((a) => a.id === id)?.kind).toBe('department');
+    }
   });
 
   it('hangs the deck builder off both departments that commission decks', () => {
@@ -157,6 +163,7 @@ describe('Solarlux vision fleet', () => {
       expect(isShared(fleet, id)).toBe(false);
     }
     expect(childIdsOf(fleet, 'vagt_objektvertrieb')).toEqual([
+      'vagt_projektsuche',
       'vagt_pptx',
       'vagt_lvdecoder',
       'vagt_kalkulation',
@@ -173,5 +180,31 @@ describe('Solarlux vision fleet', () => {
     const first = solarluxVisionFleet();
     first.agents[0]!.name = 'Changed';
     expect(solarluxVisionFleet().agents[0]?.name).toBe('Orchestrator');
+  });
+});
+
+describe('departments carry no work of their own', () => {
+  const fleet = solarluxVisionFleet();
+
+  it('leaves the Objektvertrieb department empty and gives its content to Projektsuche', () => {
+    const department = fleet.agents.find((a) => a.id === 'vagt_objektvertrieb');
+    expect(department).toMatchObject({ kind: 'department', name: 'Objektvertrieb' });
+    expect(department?.skillIds).toEqual([]);
+    expect(department?.instructions).toBeUndefined();
+
+    // The agent that actually runs today kept everything it had.
+    const worker = fleet.agents.find((a) => a.id === 'vagt_projektsuche');
+    expect(worker).toMatchObject({ kind: 'worker', name: 'Projektsuche', status: 'live' });
+    expect(worker?.skillIds).toEqual(['vskl_projektstatus', 'vskl_belege']);
+    expect(worker?.dataSourceIds).toContain('vdsr_crm');
+    expect(worker?.instructions).toContain('Qualifiziere jedes Bauprojekt');
+  });
+
+  it('keeps every second-level node a department', () => {
+    // The rule is about what sits at level 2, not about departments being empty:
+    // Business Development still carries its own skills and has not been split yet.
+    for (const id of childIdsOf(fleet, 'vagt_orchestrator')) {
+      expect(fleet.agents.find((a) => a.id === id)?.kind).toBe('department');
+    }
   });
 });

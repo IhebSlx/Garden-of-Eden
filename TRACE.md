@@ -434,3 +434,13 @@ per parent-instance — and are unchanged.
 | Never links an instance to itself | ✅ | › "never links an instance to itself" |
 | Wire ids stay unique | ✅ | › "keeps peer wire ids unique so React never sees a duplicate key" |
 | Hierarchy wires still repeat per parent | ✅ | › "draws the shared agent's incoming wire once per copy" |
+
+**Level 2 is organisational (from the user's architecture).** A department names an area of the
+business; the agents that do the work sit below it. `Objektvertrieb` was both at once — a
+second-level node carrying the whole Copilot Studio import — so it is split: the department keeps
+the name, the orchestrator edge and no skills, and everything it used to *do* becomes a sub-agent
+called `Projektsuche`. The three sub-agents already under it move up to sit beside Projektsuche,
+so every worker is one level below its department rather than two.
+Covered by `visionFleet.test.ts` › "leaves the Objektvertrieb department empty and gives its
+content to Projektsuche"; "keeps every second-level node a department";
+"has the orchestrator, three departments and five sub-agents".
