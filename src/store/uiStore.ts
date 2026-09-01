@@ -88,15 +88,19 @@ export const useUiStore = create<UiState>()((set, get) => ({
   // Selecting a wire closes the agent panel - only one inspector at a time.
   selectEdge: (edgeId) => set({ selectedEdgeId: edgeId, selectedId: edgeId === null ? get().selectedId : null }),
 
-  activate: (agentId) =>
+  activate: (agentId) => {
+    // Re-clicking the agent that is already focused must not replay the cascade:
+    // the pop would restart under the pointer and swallow a double-click to rename.
+    const alreadyFocused = get().focusId === agentId;
     set({
       focusId: agentId,
       selectedId: agentId,
       selectedEdgeId: null,
-      focusStartedAt: now(),
+      focusStartedAt: alreadyFocused ? get().focusStartedAt : now(),
       openDetail: null,
       burst: { agentId, at: now() },
-    }),
+    });
+  },
 
   clearFocus: () =>
     set({ focusId: null, selectedId: null, selectedEdgeId: null, openDetail: null, focusStartedAt: now() }),

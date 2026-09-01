@@ -3,7 +3,7 @@
  * straight from the prototype's `.card` rules so semantic zoom (SPEC 5.5) and the
  * status language (SPEC 5.6) are driven by CSS exactly as they were there.
  */
-import { memo, useCallback, useEffect, useRef } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import type { NodeProps, Node } from '@xyflow/react';
 import type { Agent } from '../../model/schemas.js';
@@ -35,7 +35,6 @@ function AgentNodeComponent({ data }: NodeProps<AgentFlowNode>): React.JSX.Eleme
   const renameAgent = useFleetStore((s) => s.renameAgent);
   // SPEC 5.9: an expanding ring in the kind colour, fired by a click or a search pick.
   const burstAt = useUiStore((s) => (s.burst?.agentId === agent.id ? s.burst.at : null));
-  const nameRef = useRef<HTMLSpanElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 
   // Replay the pop animation whenever a new focus cascade reaches this card.
@@ -53,43 +52,31 @@ function AgentNodeComponent({ data }: NodeProps<AgentFlowNode>): React.JSX.Eleme
     };
   }, [popDelayMs, popToken]);
 
-  /** SPEC 5.8: double-click the name to rename; Enter commits, Esc cancels. */
+  /**
+   * SPEC 5.8: double-click the name to rename; Enter commits, Esc cancels.
+   *
+   * The edit runs through React state rather than `contentEditable`. The preceding
+   * click selects the agent, which re-renders this node - and a re-render would
+   * reset a contentEditable span's text back to the stored name mid-typing.
+   */
+  const [draft, setDraft] = useState<string | null>(null);
+  const editing = draft !== null;
+
   const startRename = useCallback(
     (event: React.MouseEvent) => {
       event.stopPropagation();
-      const span = nameRef.current;
-      if (!span) return;
-
-      span.contentEditable = 'true';
-      span.focus();
-      document.getSelection()?.selectAllChildren(span);
-
-      const finish = (commit: boolean): void => {
-        span.contentEditable = 'false';
-        span.onblur = null;
-        span.onkeydown = null;
-        const next = span.textContent?.trim() ?? '';
-        if (commit && next !== '' && next !== agent.name) {
-          renameAgent(agent.id, next);
-        } else {
-          span.textContent = agent.name;
-        }
-      };
-
-      span.onblur = () => finish(true);
-      span.onkeydown = (keyEvent: KeyboardEvent) => {
-        if (keyEvent.key === 'Enter') {
-          keyEvent.preventDefault();
-          finish(true);
-          span.blur();
-        } else if (keyEvent.key === 'Escape') {
-          keyEvent.preventDefault();
-          finish(false);
-          span.blur();
-        }
-      };
+      setDraft(agent.name);
     },
-    [agent.id, agent.name, renameAgent],
+    [agent.name],
+  );
+
+  const commitRename = useCallback(
+    (commit: boolean) => {
+      const next = draft?.trim() ?? '';
+      if (commit && next !== '' && next !== agent.name) renameAgent(agent.id, next);
+      setDraft(null);
+    },
+    [agent.id, agent.name, draft, renameAgent],
   );
 
   const className = [
@@ -124,14 +111,35 @@ function AgentNodeComponent({ data }: NodeProps<AgentFlowNode>): React.JSX.Eleme
 
       <div className="nm">
         <i />
-        <span
-          className="nmtext"
-          ref={nameRef}
-          onDoubleClick={startRename}
-          suppressContentEditableWarning
-        >
-          {agent.name}
-        </span>
+        {editing ? (
+          <input
+            /* `nodrag` keeps React Flow from turning a text drag into a node drag. */
+            className="nmtext nmedit nodrag"
+            value={draft}
+            autoFocus
+            aria-label={`Rename ${agent.name}`}
+            data-testid="card-rename"
+            onChange={(event) => setDraft(event.target.value)}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => event.stopPropagation()}
+            onDoubleClick={(event) => event.stopPropagation()}
+            onBlur={() => commitRename(true)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                commitRename(true);
+              } else if (event.key === 'Escape') {
+                event.preventDefault();
+                event.stopPropagation();
+                setDraft(null);
+              }
+            }}
+          />
+        ) : (
+          <span className="nmtext" onDoubleClick={startRename}>
+            {agent.name}
+          </span>
+        )}
         {sharedCount > 1 && <span className="shx">×{sharedCount}</span>}
       </div>
       <div className="rl">{agent.role}</div>

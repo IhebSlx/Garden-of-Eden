@@ -158,13 +158,16 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.card .nmtext[contenteditable='true'] {
+.card .nmedit {
+  all: unset;
+  min-width: 0;
+  flex: 1;
   outline: 1px solid var(--ac);
   border-radius: 4px;
   padding: 0 3px;
   cursor: text;
-  overflow: visible;
-  text-overflow: clip;
+  font: inherit;
+  color: inherit;
 }
 /* ×N badge on a shared agent (SPEC 5.3). */
 .card .shx {
