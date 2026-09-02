@@ -894,3 +894,40 @@
   letter-spacing: 0.06em;
   color: #93a4d0;
 }
+
+/* ---------- 3D unavailable: no WebGL context could be created ---------- */
+
+.webgl-missing {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 0 28px;
+  color: #b9c8ef;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+.webgl-missing h2 {
+  margin: 0;
+  font-size: 15px;
+  color: #e6ecff;
+}
+.webgl-missing p {
+  margin: 0;
+}
+.webgl-missing ul {
+  /* The global reset strips markers; a numbered list of causes needs them. */
+  list-style: disc outside;
+  margin: 2px 0 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.webgl-missing b {
+  color: #cddaff;
+}

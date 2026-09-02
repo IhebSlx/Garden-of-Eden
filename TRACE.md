@@ -513,3 +513,20 @@ exported and undoable — and are never sent anywhere.
 | Written on an agent and autosaved | ✅ | e2e › "a note can be written on an agent and survives a reload" |
 | Marked in the library and shown in the detail card | ✅ | e2e › "a note on a library item is marked in the list and shown in its detail card" |
 | Undoable | ✅ | e2e › "notes are undoable like any other edit" |
+
+**3D degrades gracefully when WebGL is unavailable.** SPEC §5.4 assumes the 3D scene can be
+drawn. When a WebGL context cannot be *created* — hardware acceleration off, a remote desktop
+session, a GPU driver that just crashed — three.js throws from inside canvas creation, and that
+surfaces as an unhandled promise rejection: React's error boundary never sees it and the Suspense
+fallback never resolves. The view sat on "Loading 3D space…" for ever with no explanation.
+Availability is now checked before the canvas is mounted, and the view explains what happened and
+what to try, noting that the 2D board carries the same fleet. Distinct from `useContextLoss`,
+which handles a context that existed and went away.
+
+| Item | Status | Test(s) |
+|---|---|---|
+| Reports ok on a usable context, and frees the probe | ✅ | `webgl.test.ts` › "reports ok when a context comes back" |
+| Reports unavailable when every request returns null | ✅ | › "reports unavailable when every context request returns null" |
+| Reports unavailable when getContext throws | ✅ | › "reports unavailable when getContext throws instead of returning null" |
+| Falls back webgl2 → webgl → experimental-webgl | ✅ | › "falls back through webgl2, webgl and experimental-webgl" |
+| Survives a context with no lose-context extension | ✅ | › "survives a context with no WEBGL_lose_context extension" |

@@ -25,6 +25,7 @@ import { useUiStore } from '../../store/uiStore.js';
 import { CAMERA_3D, CAMERA_FOV_3D, FOCUS_CAMERA_3D, MORPH_MS, MORPH_PLANE_Y, MORPH_SPAN } from '../../ui/constants.js';
 import { usePrefersReducedMotion } from '../../ui/usePrefersReducedMotion.js';
 import { useContextLoss } from './useContextLoss.js';
+import { detectWebgl } from './webgl.js';
 
 function Fleet3d(): React.JSX.Element | null {
   const aspect = useThree((state) => state.size.width / Math.max(state.size.height, 1));
@@ -239,6 +240,33 @@ function hashPhase(key: string): number {
 export function Scene(): React.JSX.Element {
   const fog = useMemo(() => new FogExp2(0x05060f, 0.0011), []);
   const [contextLost, setContextLost] = useState(false);
+  // Asked once, before the canvas exists: a context that cannot be created throws
+  // asynchronously and would otherwise hang the Suspense fallback for ever.
+  const [webgl] = useState(detectWebgl);
+
+  if (webgl === 'unavailable') {
+    return (
+      <div className="scene3d" data-testid="scene3d">
+        <div className="webgl-missing" role="status" data-testid="webgl-unavailable">
+          <h2>The 3D view needs hardware acceleration</h2>
+          <p>
+            This browser could not create a WebGL context, so the 3D space cannot be drawn. The
+            2D board has the same fleet and every feature — nothing is missing from it.
+          </p>
+          <p>The usual causes, in the order worth checking:</p>
+          <ul>
+            <li>
+              Hardware acceleration is switched off. In Chrome or Edge open
+              <b> Settings → System</b> and turn on <b>&ldquo;Use graphics acceleration when
+              available&rdquo;</b>, then restart the browser.
+            </li>
+            <li>A remote desktop or virtual session, which often has no GPU to offer.</li>
+            <li>A graphics driver that has just crashed — a restart usually clears it.</li>
+          </ul>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="scene3d" data-testid="scene3d">
