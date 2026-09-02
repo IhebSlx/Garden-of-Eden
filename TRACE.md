@@ -469,3 +469,29 @@ deliberately unchanged at 224.8 — that level never sprawled.
 | Fit distance solved from the lens | ✅ | › "puts the sphere edge exactly on the view edge at margin 1" |
 | Fit scales with the fleet | ✅ | › "scales linearly with the sphere, so a bigger fleet is never cropped" |
 | The whole vision fleet is framed | ✅ | › "frames the whole vision fleet inside the orbit limit" |
+
+**DEVIATION 13 — one line per level, in both views.** The prototype offset every odd sibling: 36px
+down in 2D (from depth 2), 26 units further out in 3D. Both read as an up-and-down jumble, which
+is the opposite of what a level is. Both are gone, and the constants with them — the row spacing,
+slot width and `siblingArc` already keep same-level nodes apart. In 2D a depth now has exactly one
+`y`; in 3D one ring at one height.
+
+**Two-axis camera fit.** `fitDistance` originally solved from the vertical field of view only.
+A perspective camera states its FOV vertically, so in a viewport taller than it is wide the
+*horizontal* view is the narrower one and the fleet spilled out of the sides. Both axes are now
+checked and the narrower governs.
+
+**Shorter links.** Link length is `hypot(radiusPerDepth, yPerDepth)`, so the wires were shortened
+by shortening the level steps rather than touching the wires: `baseRadius` 95 → 78,
+`radiusPerDepth` 55 → 40, `yPerDepth` 62 → 48. Measured on the vision fleet: links 64.8–91.6
+(mean 77.2) against 83–113 before, and the overall radius 191.9 → 131.0.
+
+| Item | Status | Test(s) |
+|---|---|---|
+| Every 2D card of a level shares one row | ✅ | `layout.test.ts` › "puts every card of a level on exactly one line" |
+| Levels stay far apart, so one row per depth is unambiguous | ✅ | › "separates the levels themselves, so one line per depth is unambiguous" |
+| Every 3D node of a level shares one ring and height | ✅ | `layout3d.test.ts` › "puts every node of a level on one ring, at one height" |
+| A tall viewport backs the camera off further | ✅ | › "backs off further when the viewport is taller than it is wide" |
+| A wide viewport is governed by the vertical FOV | ✅ | › "is governed by the vertical field of view once the viewport is wider than tall" |
+| The sphere fits on whichever axis is narrower | ✅ | › "fits the sphere on the narrow axis, whichever that is" |
+| A zero-height viewport does not divide by nothing | ✅ | › "survives a zero-height viewport rather than dividing by nothing" |

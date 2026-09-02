@@ -66,19 +66,29 @@ describe('layoutInstances', () => {
     expect(result.positions.get(sales?.key ?? '')?.x).toBeCloseTo(mean, 6);
   });
 
-  it('staggers odd sub-agents from depth 2 down', () => {
+  it('puts every card of a level on exactly one line', () => {
+    // DEVIATION: the prototype dropped odd siblings by 36px. A level reads as a
+    // level only when its members share a row, so the stagger is gone.
     const { list, result } = layoutFor(solarluxFleet());
-    const deep = list.filter((i) => i.depth >= LAYOUT.staggerFromDepth);
-    const offsets = new Set(
-      deep.map((i) => (result.positions.get(i.key)?.y ?? 0) - (LAYOUT.top + rowOffset(i.depth))),
-    );
-    expect([...offsets].sort((a, b) => a - b)).toEqual([0, LAYOUT.stagger]);
+    const rowsByDepth = new Map<number, Set<number>>();
+    for (const instance of list) {
+      const y = result.positions.get(instance.key)?.y ?? 0;
+      const rows = rowsByDepth.get(instance.depth) ?? new Set<number>();
+      rows.add(y);
+      rowsByDepth.set(instance.depth, rows);
+    }
+
+    expect(rowsByDepth.size).toBeGreaterThan(2);
+    for (const [depth, rows] of rowsByDepth) {
+      expect(rows).toEqual(new Set([LAYOUT.top + rowOffset(depth)]));
+    }
   });
 
-  it('does not stagger the root or department rows', () => {
+  it('separates the levels themselves, so one line per depth is unambiguous', () => {
     const { list, result } = layoutFor(solarluxFleet());
-    for (const instance of list.filter((i) => i.depth < LAYOUT.staggerFromDepth)) {
-      expect(result.positions.get(instance.key)?.y).toBe(LAYOUT.top + rowOffset(instance.depth));
+    const ys = [...new Set(list.map((i) => result.positions.get(i.key)?.y ?? 0))].sort((a, b) => a - b);
+    for (let i = 1; i < ys.length; i += 1) {
+      expect((ys[i] ?? 0) - (ys[i - 1] ?? 0)).toBeGreaterThan(100);
     }
   });
 
@@ -289,7 +299,7 @@ describe('rows leave room for the cards they hold', () => {
     for (let depth = 0; depth + 1 < CARD_SIZE.length; depth += 1) {
       const gap = rowOffset(depth + 1) - rowOffset(depth);
       const half = cardSize(depth).height / 2 + cardSize(depth + 1).height / 2;
-      expect(gap).toBeGreaterThan(half + LAYOUT.stagger);
+      expect(gap).toBeGreaterThan(half);
     }
   });
 

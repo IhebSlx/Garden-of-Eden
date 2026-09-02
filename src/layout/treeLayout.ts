@@ -70,9 +70,9 @@ export function layoutInstances(
 
   /**
    * Post-order placement: leaves consume slots left to right, a parent centres
-   * itself over its children. `childIndex` drives the odd/even row stagger.
+   * itself over its children.
    */
-  const place = (instance: Instance, childIndex: number): void => {
+  const place = (instance: Instance): void => {
     const children = childrenByParentKey.get(instance.key) ?? [];
 
     let x: number;
@@ -86,24 +86,25 @@ export function layoutInstances(
         if (index > 0) {
           slot += instance.depth === 0 ? LAYOUT.clusterGapRoot : LAYOUT.clusterGap;
         }
-        place(child, index);
+        place(child);
       });
       const sum = children.reduce((total, child) => total + (positions.get(child.key)?.x ?? 0), 0);
       x = sum / children.length;
     }
 
-    const stagger =
-      instance.depth >= LAYOUT.staggerFromDepth ? (childIndex % 2) * LAYOUT.stagger : 0;
-
+    // DEVIATION: the prototype dropped every odd sibling by 36px so dense rows
+    // stayed readable. Same-depth cards now share one row exactly - the row
+    // spacing and slot width already keep them apart, and a level reads as a level
+    // only when its members line up.
     positions.set(instance.key, {
       x,
-      y: LAYOUT.top + rowOffset(instance.depth) + stagger,
+      y: LAYOUT.top + rowOffset(instance.depth),
     });
   };
 
   roots.forEach((root, index) => {
     if (index > 0) slot += LAYOUT.clusterGapRoot;
-    place(root, index);
+    place(root);
   });
 
   // A manual position moves the agent's single instance. Agents with several

@@ -42,16 +42,20 @@ describe('layoutInstances3d', () => {
     }
   });
 
-  it('spreads deeper children within their parent arc and staggers odd siblings outwards', () => {
+  it('puts every node of a level on one ring, at one height', () => {
+    // DEVIATION: odd siblings used to be pushed 26 units further out, which reads
+    // as an up-and-down jumble in perspective even at identical height.
     const list = instances(solarluxFleet());
     const { positions } = layoutInstances3d(list);
     const deep = list.filter((i) => i.depth === 2);
-    const radii = deep.map((i) => {
+    const radii = new Set(deep.map((i) => {
       const point = positions.get(i.key);
       return Math.round(Math.hypot(point?.x ?? 0, point?.z ?? 0));
-    });
-    const inner = LAYOUT_3D.baseRadius + LAYOUT_3D.radiusPerDepth;
-    expect(new Set(radii)).toEqual(new Set([inner, inner + LAYOUT_3D.radiusStagger]));
+    }));
+    expect(radii).toEqual(new Set([LAYOUT_3D.baseRadius + LAYOUT_3D.radiusPerDepth]));
+
+    const heights = new Set(deep.map((i) => positions.get(i.key)?.y));
+    expect(heights.size).toBe(1);
   });
 
   it('gives each copy of a shared agent its own point in space', () => {
@@ -191,21 +195,21 @@ describe('fitDistance', () => {
   it('puts the sphere edge exactly on the view edge at margin 1', () => {
     // A sphere of radius R at distance R/tan(fov/2) subtends exactly the fov.
     const radius = 100;
-    const distance = fitDistance(radius, 55, 1);
+    const distance = fitDistance(radius, 55, 1, 1.6);
     const halfHeightAtDistance = distance * Math.tan((55 * Math.PI) / 360);
     expect(halfHeightAtDistance).toBeCloseTo(radius, 6);
   });
 
   it('scales linearly with the sphere, so a bigger fleet is never cropped', () => {
-    expect(fitDistance(200, 55, 1.2)).toBeCloseTo(fitDistance(100, 55, 1.2) * 2, 6);
+    expect(fitDistance(200, 55, 1.2, 1.6)).toBeCloseTo(fitDistance(100, 55, 1.2, 1.6) * 2, 6);
   });
 
   it('needs less distance the wider the lens', () => {
-    expect(fitDistance(100, 80, 1)).toBeLessThan(fitDistance(100, 40, 1));
+    expect(fitDistance(100, 80, 1, 1.6)).toBeLessThan(fitDistance(100, 40, 1, 1.6));
   });
 
   it('applies the margin as breathing room', () => {
-    expect(fitDistance(100, 55, 1.18)).toBeCloseTo(fitDistance(100, 55, 1) * 1.18, 6);
+    expect(fitDistance(100, 55, 1.18, 1.6)).toBeCloseTo(fitDistance(100, 55, 1, 1.6) * 1.18, 6);
   });
 
   it('frames the whole vision fleet inside the orbit limit', () => {
@@ -214,10 +218,40 @@ describe('fitDistance', () => {
     const sphere = boundingSphere(positions.keys(), positions);
     if (!sphere) throw new Error('no sphere');
 
-    const distance = fitDistance(sphere.radius, CAMERA_FOV_3D, FOCUS_CAMERA_3D.margin);
+    const distance = fitDistance(sphere.radius, CAMERA_FOV_3D, FOCUS_CAMERA_3D.margin, 1.6);
     expect(distance).toBeGreaterThan(sphere.radius);
     expect(distance).toBeLessThanOrEqual(FOCUS_CAMERA_3D.max);
     // Everything really is inside the frustum at that distance.
     expect(distance * Math.tan((CAMERA_FOV_3D * Math.PI) / 360)).toBeGreaterThan(sphere.radius);
+  });
+});
+
+describe('fitDistance in a portrait viewport', () => {
+  it('backs off further when the viewport is taller than it is wide', () => {
+    // The horizontal field of view is the narrower one below aspect 1, which is
+    // what let the fleet spill out of the sides of a tall pane.
+    const landscape = fitDistance(100, 55, 1, 1.6);
+    const portrait = fitDistance(100, 55, 1, 0.75);
+    expect(portrait).toBeGreaterThan(landscape);
+  });
+
+  it('is governed by the vertical field of view once the viewport is wider than tall', () => {
+    const square = fitDistance(100, 55, 1, 1);
+    const wide = fitDistance(100, 55, 1, 2.5);
+    expect(wide).toBeCloseTo(square, 6);
+  });
+
+  it('fits the sphere on the narrow axis, whichever that is', () => {
+    for (const aspect of [0.5, 0.8, 1, 1.4, 2]) {
+      const distance = fitDistance(120, 55, 1, aspect);
+      const halfVertical = (55 * Math.PI) / 360;
+      const halfHeight = distance * Math.tan(halfVertical);
+      const halfWidth = halfHeight * aspect;
+      expect(Math.min(halfHeight, halfWidth)).toBeCloseTo(120, 6);
+    }
+  });
+
+  it('survives a zero-height viewport rather than dividing by nothing', () => {
+    expect(Number.isFinite(fitDistance(100, 55, 1, 0))).toBe(true);
   });
 });

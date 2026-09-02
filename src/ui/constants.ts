@@ -63,9 +63,6 @@ export const LAYOUT = {
   clusterGapRoot: 0.7,
   /** Extra slots inserted between the children of any deeper node. */
   clusterGap: 0.2,
-  /** Odd sub-agents drop by this much so dense rows stay readable. */
-  stagger: 36,
-  staggerFromDepth: 2,
   boardPaddingX: 120,
   boardMinWidth: 1200,
   boardPaddingY: 190,
@@ -201,10 +198,15 @@ export const SELECTION_PULSE_MS = 2400;
  */
 export const LAYOUT_3D = {
   rootY: 95,
-  baseRadius: 95,
-  radiusPerDepth: 55,
-  radiusStagger: 26,
-  yPerDepth: 62,
+  /**
+   * Distance from the orchestrator out to the department ring, and the step out
+   * and down per level below it. These three set the LENGTH of every link: a
+   * parent-to-child wire is hypot(radiusPerDepth, yPerDepth) long, so shortening
+   * the links means shortening these rather than touching the wires themselves.
+   */
+  baseRadius: 78,
+  radiusPerDepth: 40,
+  yPerDepth: 48,
   /** Target gap between adjacent siblings, in world units. */
   siblingArc: 42,
   /** Cap on the angle between two siblings, so a pair does not splay on a tight ring. */
@@ -226,8 +228,12 @@ export const CAMERA_FOV_3D = 55;
  * demo fleet.
  */
 export const FOCUS_CAMERA_3D = {
-  /** Breathing room around the bounding sphere. */
-  margin: 1.18,
+  /**
+   * Breathing room around the bounding sphere. Generous on purpose: the chrome
+   * (top bar, search, hint lines, brand) overlays the canvas, so a fleet framed
+   * edge-to-edge is technically visible but reads as crowded.
+   */
+  margin: 1.27,
   min: 120,
   /** Only the orbit limit caps it now. */
   max: 850,

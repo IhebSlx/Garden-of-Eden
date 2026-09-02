@@ -4,7 +4,7 @@
  * because they live in the shared ui store, not in either view.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { FogExp2, Vector3 } from 'three';
 import { AgentSphere } from './AgentSphere.js';
 import { Wire3d } from './Wire3d.js';
@@ -27,6 +27,7 @@ import { usePrefersReducedMotion } from '../../ui/usePrefersReducedMotion.js';
 import { useContextLoss } from './useContextLoss.js';
 
 function Fleet3d(): React.JSX.Element | null {
+  const aspect = useThree((state) => state.size.width / Math.max(state.size.height, 1));
   const fleet = useFleetStore(selectActiveFleet);
   const focusId = useUiStore((s) => s.focusId);
   const selectedId = useUiStore((s) => s.selectedId);
@@ -88,9 +89,12 @@ function Fleet3d(): React.JSX.Element | null {
     goalRef.current.target.set(sphere.centre.x, sphere.centre.y, sphere.centre.z);
     goalRef.current.radius = Math.min(
       FOCUS_CAMERA_3D.max,
-      Math.max(FOCUS_CAMERA_3D.min, fitDistance(sphere.radius, CAMERA_FOV_3D, FOCUS_CAMERA_3D.margin)),
+      Math.max(
+        FOCUS_CAMERA_3D.min,
+        fitDistance(sphere.radius, CAMERA_FOV_3D, FOCUS_CAMERA_3D.margin, aspect),
+      ),
     );
-  }, [focusId, model]);
+  }, [focusId, model, aspect]);
 
   if (!fleet || !model) return null;
 

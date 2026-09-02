@@ -82,7 +82,7 @@ export function layoutInstances3d(instances: Instance[]): Layout3dResult {
         const spread = Math.min((count - 1) * step, LAYOUT_3D.spreadMax);
 
         angle = parentAngle + (count === 1 ? 0 : (index / (count - 1) - 0.5) * spread);
-        radius = ringRadius + (index % 2) * LAYOUT_3D.radiusStagger;
+        radius = ringRadius;
       }
 
       angles.set(child.key, angle);
@@ -130,14 +130,23 @@ export function boundingSphere(
 /**
  * How far a camera must sit to fit a sphere of `radius` in view.
  *
- * Solved from the lens rather than guessed: half the vertical field of view gives
- * the angle available above the centre line, so the distance that puts the sphere's
- * edge on that line is `radius / tan(fov / 2)`. `margin` leaves breathing room.
+ * Solved from the lens rather than guessed: half a field of view gives the angle
+ * available from the centre line, so the distance putting the sphere's edge on
+ * that line is `radius / tan(half)`. `margin` leaves breathing room.
  *
- * Horizontal framing is not checked because the pane is wider than it is tall in
- * every layout this app ships; vertical is the binding constraint.
+ * BOTH axes are checked. A perspective camera states its field of view
+ * vertically; the horizontal one is derived from the aspect ratio, and in a
+ * viewport taller than it is wide (a narrow browser, a phone, this app's own side
+ * pane) the horizontal view is the narrower of the two. Fitting on the vertical
+ * alone let the fleet spill out of the sides.
  */
-export function fitDistance(radius: number, fovDegrees: number, margin: number): number {
-  const halfFov = (fovDegrees * Math.PI) / 360;
-  return (radius / Math.tan(halfFov)) * margin;
+export function fitDistance(
+  radius: number,
+  fovDegrees: number,
+  margin: number,
+  aspect: number,
+): number {
+  const halfVertical = (fovDegrees * Math.PI) / 360;
+  const halfHorizontal = Math.atan(Math.tan(halfVertical) * Math.max(aspect, 0.0001));
+  return (radius / Math.tan(Math.min(halfVertical, halfHorizontal))) * margin;
 }
