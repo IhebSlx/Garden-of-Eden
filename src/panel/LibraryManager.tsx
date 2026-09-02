@@ -15,6 +15,7 @@ import { DATA_SOURCE_STATUS_LABELS } from '../model/schemas.js';
 import type { DataSourceType, LibraryKind, Status } from '../model/schemas.js';
 import { DATA_TYPE_COLOR, SKILL_COLOR, STATUS_COLOR, TOOL_TYPE_COLOR } from '../ui/palette.js';
 import { ToolEditor } from './ToolEditor.js';
+import { NotesField } from './NotesField.js';
 
 const TABS: { kind: LibraryKind; label: string }[] = [
   { kind: 'skill', label: 'Skills' },
@@ -97,12 +98,25 @@ export function LibraryManager(): React.JSX.Element | null {
     return result.ok;
   };
 
+  // `noted` drives the marker on the row: a note nobody can find again is worth
+  // little, so the list says which items carry one without opening them.
+  const hasNote = (notes: string | undefined): boolean => (notes ?? '').trim() !== '';
   const items =
     tab === 'skill'
-      ? fleet.skills.map((s) => ({ id: s.id, name: s.name, dot: SKILL_COLOR }))
+      ? fleet.skills.map((s) => ({ id: s.id, name: s.name, dot: SKILL_COLOR, noted: hasNote(s.notes) }))
       : tab === 'tool'
-        ? fleet.tools.map((t) => ({ id: t.id, name: t.name, dot: TOOL_TYPE_COLOR[t.type] }))
-        : fleet.dataSources.map((d) => ({ id: d.id, name: d.name, dot: DATA_TYPE_COLOR[d.type] }));
+        ? fleet.tools.map((t) => ({
+            id: t.id,
+            name: t.name,
+            dot: TOOL_TYPE_COLOR[t.type],
+            noted: hasNote(t.notes),
+          }))
+        : fleet.dataSources.map((d) => ({
+            id: d.id,
+            name: d.name,
+            dot: DATA_TYPE_COLOR[d.type],
+            noted: hasNote(d.notes),
+          }));
 
   return (
     <div className="dialog-scrim" role="dialog" aria-modal="true" data-testid="library-manager">
@@ -156,6 +170,14 @@ export function LibraryManager(): React.JSX.Element | null {
                       if (event.key === 'Enter') event.currentTarget.blur();
                     }}
                   />
+
+                  {item.noted && (
+                    <span
+                      className="lib-note-dot"
+                      data-testid="lib-note-dot"
+                      title={`${item.name} has a note`}
+                    />
+                  )}
 
                   <div className="lib-users">
                     {users.length === 0 ? (
@@ -271,6 +293,12 @@ function SkillFields({ id }: { id: string }): React.JSX.Element | null {
           onBlur={(event) => updateSkill(id, { instructions: event.target.value })}
         />
       </label>
+      <NotesField
+        value={skill.notes}
+        label={skill.name}
+        testId="skill-notes"
+        onCommit={(next) => updateSkill(id, { notes: next })}
+      />
     </div>
   );
 }
@@ -394,6 +422,13 @@ function DataFields({ id }: { id: string }): React.JSX.Element | null {
           onBlur={(event) => updateDataSource(id, { ref: event.target.value })}
         />
       </label>
+
+      <NotesField
+        value={source.notes}
+        label={source.name}
+        testId="data-notes"
+        onCommit={(next) => updateDataSource(id, { notes: next })}
+      />
     </div>
   );
 }

@@ -71,12 +71,24 @@ function WorkflowDiagram({ tool }: { tool: Tool }): React.JSX.Element | null {
   );
 }
 
+/** Free text about a component, shown wherever that component is inspected. */
+function Notes({ notes }: { notes: string | undefined }): React.JSX.Element | null {
+  if (notes === undefined || notes.trim() === '') return null;
+  return (
+    <div className="tnotes" data-testid="detail-notes">
+      <h4>Notes</h4>
+      <p>{notes}</p>
+    </div>
+  );
+}
+
 export function SkillDetail({ skill, usedBy }: { skill: Skill; usedBy: UsedBy }): React.JSX.Element {
   return (
     <>
       <DetailHead name={skill.name} tag="skill" color={SKILL_COLOR} />
       {skill.description && <div className="tdesc">{skill.description}</div>}
       {skill.instructions && <div className="tdesc">{skill.instructions}</div>}
+      <Notes notes={skill.notes} />
       <LinkedTo {...usedBy} />
     </>
   );
@@ -166,6 +178,7 @@ export function ToolDetail({ tool, usedBy }: { tool: Tool; usedBy: UsedBy }): Re
       <WorkflowDiagram tool={tool} />
       <ScriptBody config={config} />
       <Signature config={config} />
+      <Notes notes={tool.notes} />
 
       {parameters.length > 0 && (
         <div className="signature" data-testid="tool-parameters">
@@ -210,6 +223,7 @@ export function DataSourceDetail({
         )}
       </div>
       {source.ref && <div className="tdesc">{source.ref}</div>}
+      <Notes notes={source.notes} />
       <LinkedTo {...usedBy} />
     </>
   );

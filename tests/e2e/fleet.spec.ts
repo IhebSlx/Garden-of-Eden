@@ -550,3 +550,55 @@ test('a shared agent shows its level and its shared badge side by side', async (
   // The level stays editable on a shared agent — that is exactly when it is needed.
   await expect(panel.getByTestId('kind-chip')).toBeEnabled();
 });
+
+test('a note can be written on an agent and survives a reload', async ({ page }) => {
+  await cards(page, 'Lead Qualifier').first().click();
+  const notes = page.getByTestId('inspector').getByTestId('panel-notes');
+  await notes.fill('Ask Marketing whether the 2023 template is still current.');
+  await notes.blur();
+
+  // Give the debounced IndexedDB write time to land, then reload.
+  await page.waitForTimeout(600);
+  await page.reload();
+  await expect(page.getByTestId('board')).toBeVisible();
+  await cards(page, 'Lead Qualifier').first().click();
+  await expect(page.getByTestId('inspector').getByTestId('panel-notes')).toHaveValue(
+    'Ask Marketing whether the 2023 template is still current.',
+  );
+});
+
+test('a note on a library item is marked in the list and shown in its detail card', async ({ page }) => {
+  await page.getByTestId('fleet-menu-toggle').click();
+  await page.getByRole('button', { name: /Libraries/ }).click();
+  const manager = page.getByTestId('library-manager');
+
+  await manager.getByRole('button', { name: 'Data sources' }).click();
+  await expect(manager.getByTestId('lib-note-dot')).toHaveCount(0);
+
+  await manager.getByRole('button', { name: 'Edit Brand guidelines' }).click();
+  const notes = manager.getByTestId('data-notes');
+  await notes.fill('Superseded by the 2026 pack — confirm before reuse.');
+  await notes.blur();
+
+  // The list now says this item carries a note, without opening it.
+  await expect(manager.getByTestId('lib-note-dot')).toHaveCount(1);
+  await expect(manager.getByTestId('notes-count')).toContainText('words');
+
+  await page.getByRole('button', { name: 'Done' }).click();
+  // Marketing is the agent that uses Brand guidelines in the seeded fleet.
+  await cards(page, 'Marketing').first().click();
+  // The name appears on the chip, the detail card and the panel heading, so take
+  // the chip - it is the one that opens the detail.
+  await page.getByTestId('inspector').getByRole('button', { name: 'Brand guidelines', exact: true }).first().click();
+  await expect(page.getByTestId('detail-notes')).toContainText('Superseded by the 2026 pack');
+});
+
+test('notes are undoable like any other edit', async ({ page }) => {
+  await cards(page, 'Lead Qualifier').first().click();
+  const notes = page.getByTestId('inspector').getByTestId('panel-notes');
+  await notes.fill('A note that should vanish.');
+  await notes.blur();
+
+  await page.keyboard.press('Control+z');
+  await expect(page.getByTestId('inspector').getByTestId('panel-notes')).toHaveValue('');
+});

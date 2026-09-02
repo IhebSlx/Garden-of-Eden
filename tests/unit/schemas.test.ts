@@ -188,3 +188,43 @@ describe('FleetSchema', () => {
     expect(parsed.dataSources[0]?.ref).toBe('sites/sales/prices');
   });
 });
+
+const AGENT_FIXTURE = {
+  id: 'agt_1',
+  kind: 'worker' as const,
+  name: 'A',
+  role: '',
+  status: 'planned' as const,
+  skillIds: [],
+  toolIds: [],
+  dataSourceIds: [],
+};
+
+describe('notes — free text about a component, for people', () => {
+  it('is optional on all four kinds, so nothing existing breaks', () => {
+    expect(AgentSchema.safeParse({ ...AGENT_FIXTURE }).success).toBe(true);
+    expect(SkillSchema.safeParse({ id: 's', name: 'S' }).success).toBe(true);
+    expect(ToolSchema.safeParse({ id: 't', name: 'T', description: 'd', type: 'python' }).success).toBe(true);
+    expect(DataSourceSchema.safeParse({ id: 'd', name: 'D', type: 'md', status: 'planned' }).success).toBe(true);
+  });
+
+  it('round-trips on all four kinds', () => {
+    const notes = 'Ask Marketing whether the 2023 template is still current.';
+    expect(AgentSchema.parse({ ...AGENT_FIXTURE, notes }).notes).toBe(notes);
+    expect(SkillSchema.parse({ id: 's', name: 'S', notes }).notes).toBe(notes);
+    expect(ToolSchema.parse({ id: 't', name: 'T', description: 'd', type: 'python', notes }).notes).toBe(notes);
+    expect(DataSourceSchema.parse({ id: 'd', name: 'D', type: 'md', status: 'planned', notes }).notes).toBe(notes);
+  });
+
+  it('keeps line breaks, because a note is prose not a label', () => {
+    const notes = 'Open:\n- who owns the images?\n- template version?';
+    expect(SkillSchema.parse({ id: 's', name: 'S', notes }).notes).toBe(notes);
+  });
+
+  it('is separate from an agent\'s instructions', () => {
+    // Instructions are given to the agent; notes are never sent anywhere.
+    const agent = AgentSchema.parse({ ...AGENT_FIXTURE, instructions: 'Always cite the source.', notes: 'Klaus disagrees with this rule.' });
+    expect(agent.instructions).toBe('Always cite the source.');
+    expect(agent.notes).toBe('Klaus disagrees with this rule.');
+  });
+});

@@ -7,6 +7,7 @@
  * JSON and import it, so the renderer had nothing to render.
  */
 import { useState } from 'react';
+import { NotesField } from './NotesField.js';
 import { ID_PREFIX, newId } from '../model/ids.js';
 import type { Tool, ToolType, WorkflowStep, WorkflowStepKind } from '../model/schemas.js';
 import { TOOL_TYPE_COLOR, TOOL_TYPE_LABEL } from '../ui/palette.js';
@@ -212,6 +213,13 @@ export function ToolEditor({ tool, onChange, onClose, error }: Props): React.JSX
           </p>
         </div>
       )}
+
+      <NotesField
+        value={tool.notes}
+        label={tool.name}
+        testId="tool-notes"
+        onCommit={(next) => onChange({ notes: next })}
+      />
 
       {error && (
         <p className="dialog-error" role="status">

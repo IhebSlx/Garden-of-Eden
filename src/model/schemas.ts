@@ -40,6 +40,13 @@ export const SkillSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
   instructions: z.string().optional(),
+  /**
+   * DEVIATION: beyond SPEC §4. Free text ABOUT this component, written for people
+   * — an open question, a decision and why, who to ask, what still has to happen.
+   * Deliberately not `instructions`: instructions are given to the agent and shape
+   * what it does; notes are never sent anywhere and shape nothing.
+   */
+  notes: z.string().optional(),
 });
 export type Skill = z.infer<typeof SkillSchema>;
 
@@ -73,6 +80,13 @@ export const ToolSchema = z
     type: ToolTypeSchema,
     workflow: WorkflowSchema.optional(),
     config: z.record(z.string(), z.unknown()).optional(),
+    /**
+     * DEVIATION: beyond SPEC §4. Free text ABOUT this component, written for people
+     * — an open question, a decision and why, who to ask, what still has to happen.
+     * Deliberately not `instructions`: instructions are given to the agent and shape
+     * what it does; notes are never sent anywhere and shape nothing.
+     */
+    notes: z.string().optional(),
   })
   .superRefine((tool, ctx) => {
     // SPEC §4: `workflow` is "only when type === 'workflow'".
@@ -143,6 +157,12 @@ export const DataSourceSchema = z.object({
    */
   owner: z.string().optional(),
   requirement: z.string().optional(),
+  /**
+   * DEVIATION: beyond SPEC §4. Free text ABOUT this source, written for people.
+   * Distinct from `description` (what the source is, often imported) and from
+   * `requirement` (what must be prepared before it can go Live).
+   */
+  notes: z.string().optional(),
 });
 export type DataSource = z.infer<typeof DataSourceSchema>;
 
@@ -174,6 +194,13 @@ export const AgentSchema = z.object({
   skillIds: z.array(z.string()),
   toolIds: z.array(z.string()),
   dataSourceIds: z.array(z.string()),
+  /**
+   * DEVIATION: beyond SPEC §4. Free text ABOUT this component, written for people
+   * — an open question, a decision and why, who to ask, what still has to happen.
+   * Deliberately not `instructions`: instructions are given to the agent and shape
+   * what it does; notes are never sent anywhere and shape nothing.
+   */
+  notes: z.string().optional(),
   /** Manual 2D override; absent = auto-layout (SPEC §7: the graph is the file). */
   position: PositionSchema.optional(),
 });

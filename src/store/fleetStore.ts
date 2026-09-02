@@ -69,6 +69,8 @@ export type AgentPatch = {
   status?: Status;
   instructions?: string;
   model?: ModelConfig;
+  /** Free text about the agent, for people (SPEC-adjacent; see AgentSchema). */
+  notes?: string;
 };
 
 export type EdgePatch = {

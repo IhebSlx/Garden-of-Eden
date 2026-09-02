@@ -495,3 +495,21 @@ by shortening the level steps rather than touching the wires: `baseRadius` 95 �
 | A wide viewport is governed by the vertical FOV | ✅ | › "is governed by the vertical field of view once the viewport is wider than tall" |
 | The sphere fits on whichever axis is narrower | ✅ | › "fits the sphere on the narrow axis, whichever that is" |
 | A zero-height viewport does not divide by nothing | ✅ | › "survives a zero-height viewport rather than dividing by nothing" |
+
+**DEVIATION 14 — notes on every component.** SPEC §4 gives an agent `instructions` and gives
+skills/tools/data a `description`, but both are copy the agent or the reader consumes. Neither is
+a place to write *about* a component: an open question, a decision and why, who to ask, what has
+to happen before it can go Live. All four kinds gain an optional `notes`, written in the panel
+where that kind is edited, quoted in its detail card, and marked with a dot in the library list so
+a note can be found again without opening every row. Notes are document data — persisted,
+exported and undoable — and are never sent anywhere.
+
+| Item | Status | Test(s) |
+|---|---|---|
+| Optional on all four kinds | ✅ | `schemas.test.ts` › "is optional on all four kinds, so nothing existing breaks" |
+| Round-trips on all four kinds | ✅ | › "round-trips on all four kinds" |
+| Keeps line breaks | ✅ | › "keeps line breaks, because a note is prose not a label" |
+| Distinct from an agent's instructions | ✅ | › "is separate from an agent's instructions" |
+| Written on an agent and autosaved | ✅ | e2e › "a note can be written on an agent and survives a reload" |
+| Marked in the library and shown in the detail card | ✅ | e2e › "a note on a library item is marked in the list and shown in its detail card" |
+| Undoable | ✅ | e2e › "notes are undoable like any other edit" |
