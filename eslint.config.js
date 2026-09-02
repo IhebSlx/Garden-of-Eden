@@ -8,6 +8,13 @@ export default tseslint.config(
   js.configs.recommended,
   tseslint.configs.recommendedTypeChecked,
   {
+    // Plain Node build scripts: outside the TypeScript project, so the type-aware
+    // rules have no programme to consult. Still linted, just not type-checked.
+    files: ['scripts/**/*.{js,mjs}'],
+    extends: [tseslint.configs.disableTypeChecked],
+    languageOptions: { globals: { ...globals.node } },
+  },
+  {
     files: ['**/*.{ts,tsx}'],
     languageOptions: {
       ecmaVersion: 2022,

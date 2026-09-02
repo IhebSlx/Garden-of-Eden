@@ -17,7 +17,8 @@
     "test:watch": "vitest",
     "verify": "pnpm typecheck && pnpm lint && pnpm test",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "icons": "node scripts/make-icons.mjs"
   },
   "dependencies": {
     "@react-three/drei": "10.7.8",
