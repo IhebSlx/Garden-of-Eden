@@ -17,16 +17,18 @@ describe('Solarlux vision fleet', () => {
     expect(checkFleetIntegrity(fleet)).toEqual([]);
   });
 
-  it('has the orchestrator, three departments and five sub-agents', () => {
-    expect(fleet.agents).toHaveLength(9);
+  it('has the orchestrator, five departments and five sub-agents', () => {
+    expect(fleet.agents).toHaveLength(11);
     const orchestrators = fleet.agents.filter((a) => a.kind === 'orchestrator');
     expect(orchestrators).toHaveLength(1);
     expect(orchestrators[0]?.name).toBe('Orchestrator');
 
-    expect(childIdsOf(fleet, 'vagt_orchestrator')).toHaveLength(3);
+    expect(childIdsOf(fleet, 'vagt_orchestrator')).toHaveLength(5);
     expect(fleet.agents.filter((a) => a.kind === 'department').map((a) => a.name)).toEqual([
       'Objektvertrieb',
       'Business Development',
+      'Marketing',
+      'Service',
       'Weitere Fachagenten',
     ]);
     expect(fleet.agents.filter((a) => a.kind === 'worker').map((a) => a.name)).toEqual([
@@ -69,7 +71,7 @@ describe('Solarlux vision fleet', () => {
       expect(parentsOf(fleet, agent.id).map((p) => p.name)).toEqual(['Orchestrator']);
     }
     const fromOrchestrator = fleet.edges.filter((e) => e.source === 'vagt_orchestrator');
-    expect(fromOrchestrator).toHaveLength(3);
+    expect(fromOrchestrator).toHaveLength(5);
     for (const edge of fromOrchestrator) {
       expect(edge.kind).toBe('hierarchy');
       expect(edge.label).toBe('delegiert');

@@ -226,6 +226,26 @@ const agents: Agent[] = [
     dataSourceIds: ['vdsr_marktdaten', 'vdsr_icp', 'vdsr_unternehmenskontext'],
   },
   {
+    id: 'vagt_marketing',
+    kind: 'department',
+    name: 'Marketing',
+    role: 'Kampagnen, Content, Markenauftritt',
+    status: 'planned',
+    skillIds: [],
+    toolIds: [...SUBSTRATE],
+    dataSourceIds: ['vdsr_unternehmenskontext'],
+  },
+  {
+    id: 'vagt_service',
+    kind: 'department',
+    name: 'Service',
+    role: 'Wartung, Ersatzteile, Reklamationen',
+    status: 'planned',
+    skillIds: [],
+    toolIds: [...SUBSTRATE],
+    dataSourceIds: ['vdsr_unternehmenskontext'],
+  },
+  {
     // The vision's dashed "…" column: more specialist agents, domain by domain.
     id: 'vagt_weitere',
     kind: 'department',
@@ -241,6 +261,8 @@ const agents: Agent[] = [
 const HIERARCHY: [child: string, status: Edge['status']][] = [
   ['vagt_objektvertrieb', 'live'],
   ['vagt_businessdev', 'planned'],
+  ['vagt_marketing', 'planned'],
+  ['vagt_service', 'planned'],
   ['vagt_weitere', 'planned'],
 ];
 
