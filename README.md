@@ -39,6 +39,11 @@ Double-clicking it runs `scripts/Start Agent Visualiser.cmd`, which builds when 
 sources are newer than the last build, serves the production build, and opens the
 browser. Closing the console window stops it.
 
+It needs **only node**, found by probing the usual install locations rather than
+trusting PATH: a double-clicked shortcut gets a different environment from a
+developer shell, and the first version failed with "pnpm was not found on PATH".
+The build is served by `scripts/serve.mjs`, which has no dependencies at all.
+
 The launcher and `pnpm dev` deliberately share **port 5178**. The app keeps its
 fleets in the browser's IndexedDB, which is scoped to the origin — and the origin
 includes the port — so a different port would present an empty app with every fleet

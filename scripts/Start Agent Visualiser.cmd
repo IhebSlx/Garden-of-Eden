@@ -1,45 +1,73 @@
 @echo off
-setlocal
+setlocal enabledelayedexpansion
 title Solarlux Agent Visualiser
 
 rem ---------------------------------------------------------------------------
 rem Double-click launcher.
 rem
-rem Serves the PRODUCTION build rather than the dev server: it starts faster, and
-rem the dev server's hot reload has nothing to do while nobody is editing code.
+rem Needs ONLY node. It used to call `pnpm exec vite preview`, which failed with
+rem "pnpm was not found on PATH" when launched from Explorer: a double-clicked
+rem shortcut gets a different environment from a developer shell. The app is now
+rem served by scripts/serve.mjs, which has no dependencies, and node is found by
+rem probing the usual install locations rather than trusting PATH.
 rem
-rem The app keeps its data in the browser's IndexedDB, which is per ORIGIN, and an
-rem origin includes the PORT. 5178 is the same port the dev server uses, so the app
-rem and the dev server share one set of fleets instead of each having its own and
-rem the data appearing to vanish. Changing PORT hides every fleet already saved -
-rem export first if you ever must.
+rem PORT is pinned to 5178, the same port as `pnpm dev`. The app keeps its fleets
+rem in the browser's IndexedDB, which is scoped to the origin - and an origin
+rem includes the port - so a different port would open an empty app with every
+rem fleet apparently gone. Export before ever changing it.
 rem
-rem --strictPort therefore matters: if the dev server is already on 5178 this fails
-rem loudly rather than quietly starting on another port with an empty app.
-rem
-rem Closing this window stops the server. That is deliberate - it is the only
-rem visible sign the app is running.
+rem Closing this window stops the server.
 rem ---------------------------------------------------------------------------
 
 set "PORT=5178"
 cd /d "%~dp0.."
 
-where pnpm >nul 2>&1
-if errorlevel 1 (
+rem ---- find node -----------------------------------------------------------
+set "NODE="
+for /f "delims=" %%N in ('where node 2^>nul') do if not defined NODE set "NODE=%%N"
+
+if not defined NODE (
+  for %%P in (
+    "%ProgramFiles%\nodejs\node.exe"
+    "%ProgramFiles(x86)%\nodejs\node.exe"
+    "%LOCALAPPDATA%\Programs\nodejs\node.exe"
+    "%LOCALAPPDATA%\Volta\bin\node.exe"
+    "%APPDATA%\nvm\node.exe"
+    "%ProgramData%\nvm\node.exe"
+  ) do if not defined NODE if exist "%%~P" set "NODE=%%~P"
+)
+
+if not defined NODE (
   echo.
-  echo   pnpm was not found on PATH.
-  echo   Install Node.js and run:  npm install -g pnpm
+  echo   Node.js was not found on this machine.
+  echo   Install it from https://nodejs.org  then double-click this again.
   echo.
   pause
   exit /b 1
 )
 
-if not exist "node_modules" (
-  echo   First run - installing dependencies. This happens once.
-  call pnpm install --frozen-lockfile || goto :failed
+rem ---- dependencies (only needed to BUILD, not to run) ---------------------
+if not exist "node_modules\vite" (
+  echo   First run - installing dependencies. This takes a few minutes, once.
+  set "PM="
+  for /f "delims=" %%P in ('where pnpm 2^>nul') do if not defined PM set "PM=%%P"
+  if not defined PM if exist "%APPDATA%\npm\pnpm.cmd" set "PM=%APPDATA%\npm\pnpm.cmd"
+
+  if defined PM (
+    call "!PM!" install --frozen-lockfile || goto :failed
+  ) else (
+    set "NPM="
+    for /f "delims=" %%P in ('where npm 2^>nul') do if not defined NPM set "NPM=%%P"
+    if not defined NPM if exist "%ProgramFiles%\nodejs\npm.cmd" set "NPM=%ProgramFiles%\nodejs\npm.cmd"
+    if not defined NPM (
+      echo   Neither pnpm nor npm was found, so dependencies cannot be installed.
+      goto :failed
+    )
+    call "!NPM!" install || goto :failed
+  )
 )
 
-rem Rebuild when the build is missing, or when any source file is newer than it.
+rem ---- build when the sources are newer than the last build ----------------
 set "NEEDS_BUILD="
 if not exist "dist\index.html" set "NEEDS_BUILD=1"
 if not defined NEEDS_BUILD (
@@ -48,21 +76,17 @@ if not defined NEEDS_BUILD (
     "$n=Get-ChildItem -Path src,index.html,public -Recurse -File -ErrorAction SilentlyContinue |" ^
     "  Where-Object { $_.LastWriteTime -gt $b } | Select-Object -First 1;" ^
     "if ($n) { 'yes' } else { 'no' }"') do set "NEWER=%%F"
-  if /i "%NEWER%"=="yes" set "NEEDS_BUILD=1"
+  if /i "!NEWER!"=="yes" set "NEEDS_BUILD=1"
 )
 
 if defined NEEDS_BUILD (
   echo   Building the app...
-  call pnpm build || goto :failed
+  "%NODE%" "node_modules\vite\bin\vite.js" build || goto :failed
 )
 
-echo.
-echo   Solarlux Agent Visualiser is starting on http://localhost:%PORT%
-echo   Close this window to stop it.
-echo.
-
+rem ---- serve, and open the browser ----------------------------------------
 start "" "http://localhost:%PORT%"
-call pnpm exec vite preview --port %PORT% --strictPort
+"%NODE%" "scripts\serve.mjs" %PORT%
 goto :eof
 
 :failed
