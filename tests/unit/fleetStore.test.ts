@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { resetIdFactory, sequentialIdFactory, setIdFactory } from '../../src/model/ids.js';
 import { checkFleetIntegrity } from '../../src/model/integrity.js';
 import { instances, isShared } from '../../src/model/selectors.js';
+import { FleetSchema } from '../../src/model/schemas.js';
 import type { Fleet } from '../../src/model/schemas.js';
 import {
   canRedo,
@@ -433,5 +434,107 @@ describe('integrity across action sequences', () => {
     undo();
     undo();
     expect(checkFleetIntegrity(active())).toEqual([]);
+  });
+});
+
+describe('data requirements — what a department has to provide', () => {
+  const setup = () => {
+    store().createFleet('blank', 'Reqs');
+    const root = selectActiveFleet(store())?.agents[0];
+    if (!root) throw new Error('no orchestrator');
+    const dept = store().addAgent({ name: 'Marketing', role: '', parentId: root.id, kind: 'department' });
+    if (!dept.ok) throw new Error('setup failed');
+    return { rootId: root.id, deptId: dept.id };
+  };
+  const treeOf = (agentId: string) =>
+    selectActiveFleet(store())?.agents.find((a) => a.id === agentId)?.dataRequirements ?? [];
+
+  it('adds a top-level box, Planned', () => {
+    const { deptId } = setup();
+    const box = store().addRequirement(deptId, null, 'Produktdaten');
+    expect(box.ok).toBe(true);
+    expect(treeOf(deptId)).toHaveLength(1);
+    expect(treeOf(deptId)[0]).toMatchObject({ title: 'Produktdaten', status: 'planned' });
+  });
+
+  it('adds a box inside a box', () => {
+    const { deptId } = setup();
+    const outer = store().addRequirement(deptId, null, 'Produktdaten');
+    if (!outer.ok) throw new Error('failed');
+    const inner = store().addRequirement(deptId, outer.id, 'Bilder');
+    expect(inner.ok).toBe(true);
+    expect(treeOf(deptId)[0]?.children[0]?.title).toBe('Bilder');
+  });
+
+  it('refuses a blank title', () => {
+    const { deptId } = setup();
+    expect(store().addRequirement(deptId, null, '   ')).toMatchObject({ ok: false });
+    expect(treeOf(deptId)).toEqual([]);
+  });
+
+  it('refuses a parent box that belongs to another agent', () => {
+    const { rootId, deptId } = setup();
+    const mine = store().addRequirement(deptId, null, 'Produktdaten');
+    if (!mine.ok) throw new Error('failed');
+    // The orchestrator has no such box, so this must not silently succeed.
+    expect(store().addRequirement(rootId, mine.id, 'Bilder')).toMatchObject({ ok: false });
+  });
+
+  it('edits a box status and notes', () => {
+    const { deptId } = setup();
+    const box = store().addRequirement(deptId, null, 'Produktdaten');
+    if (!box.ok) throw new Error('failed');
+    expect(store().updateRequirement(deptId, box.id, { status: 'live', notes: 'liegt im DAM' }).ok).toBe(true);
+    expect(treeOf(deptId)[0]).toMatchObject({ status: 'live', notes: 'liegt im DAM' });
+  });
+
+  it('refuses to blank a title by edit', () => {
+    const { deptId } = setup();
+    const box = store().addRequirement(deptId, null, 'Produktdaten');
+    if (!box.ok) throw new Error('failed');
+    expect(store().updateRequirement(deptId, box.id, { title: '  ' })).toMatchObject({ ok: false });
+    expect(treeOf(deptId)[0]?.title).toBe('Produktdaten');
+  });
+
+  it('deleting a box deletes what it contains', () => {
+    const { deptId } = setup();
+    const outer = store().addRequirement(deptId, null, 'Produktdaten');
+    if (!outer.ok) throw new Error('failed');
+    const inner = store().addRequirement(deptId, outer.id, 'Bilder');
+    if (!inner.ok) throw new Error('failed');
+
+    expect(store().deleteRequirement(deptId, outer.id).ok).toBe(true);
+    expect(treeOf(deptId)).toEqual([]);
+  });
+
+  it('reorders siblings', () => {
+    const { deptId } = setup();
+    store().addRequirement(deptId, null, 'Produktdaten');
+    const second = store().addRequirement(deptId, null, 'Preise');
+    if (!second.ok) throw new Error('failed');
+    expect(store().moveRequirement(deptId, second.id, -1).ok).toBe(true);
+    expect(treeOf(deptId).map((b) => b.title)).toEqual(['Preise', 'Produktdaten']);
+  });
+
+  it('reports an unknown agent or box rather than doing nothing quietly', () => {
+    const { deptId } = setup();
+    expect(store().addRequirement('agt_ghost', null, 'X')).toMatchObject({ ok: false });
+    expect(store().updateRequirement(deptId, 'req_ghost', { status: 'live' })).toMatchObject({ ok: false });
+    expect(store().deleteRequirement(deptId, 'req_ghost')).toMatchObject({ ok: false });
+    expect(store().moveRequirement(deptId, 'req_ghost', 1)).toMatchObject({ ok: false });
+  });
+
+  it('keeps the fleet valid and is undoable', () => {
+    const { deptId } = setup();
+    const box = store().addRequirement(deptId, null, 'Produktdaten');
+    if (!box.ok) throw new Error('failed');
+    store().addRequirement(deptId, box.id, 'Bilder');
+
+    const fleet = selectActiveFleet(store());
+    expect(fleet && checkFleetIntegrity(fleet)).toEqual([]);
+    expect(fleet && FleetSchema.safeParse(fleet).success).toBe(true);
+
+    useFleetStore.temporal.getState().undo();
+    expect(treeOf(deptId)[0]?.children).toEqual([]);
   });
 });

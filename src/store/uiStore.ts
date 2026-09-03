@@ -48,6 +48,10 @@ export type UiState = {
   catalogOpen: boolean;
   openCatalog: () => void;
   closeCatalog: () => void;
+  /** "Data to provide": the boxes each department owes, across the whole fleet. */
+  provideOpen: boolean;
+  openProvide: () => void;
+  closeProvide: () => void;
   /** "Data prep": every data source grouped by whoever prepares it. */
   dataPrepOpen: boolean;
   openDataPrep: () => void;
@@ -110,6 +114,7 @@ export const useUiStore = create<UiState>()((set, get) => ({
   shortcutsOpen: false,
   catalogOpen: false,
   dataPrepOpen: false,
+  provideOpen: false,
   fitRequest: 0,
   burst: null,
   openSections: {},
@@ -118,6 +123,8 @@ export const useUiStore = create<UiState>()((set, get) => ({
   closeLibrary: () => set({ libraryOpen: false }),
   openCatalog: () => set({ catalogOpen: true }),
   closeCatalog: () => set({ catalogOpen: false }),
+  openProvide: () => set({ provideOpen: true }),
+  closeProvide: () => set({ provideOpen: false }),
   openDataPrep: () => set({ dataPrepOpen: true }),
   closeDataPrep: () => set({ dataPrepOpen: false }),
   openShortcuts: () => set({ shortcutsOpen: true }),

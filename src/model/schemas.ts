@@ -182,6 +182,42 @@ export type ModelConfig = z.infer<typeof ModelConfigSchema>;
 export const PositionSchema = z.object({ x: z.number(), y: z.number() });
 export type Position = z.infer<typeof PositionSchema>;
 
+/**
+ * A box saying what data a department has to provide, which may contain further
+ * boxes: "Produktdaten" holds "Bilder", which holds "freigestellt, 2000px".
+ *
+ * DEVIATION: beyond SPEC §4, and nested INLINE rather than id-referenced like
+ * skills, tools and data sources. SPEC §2.2 forbids nesting children inside agent
+ * objects, but that rule is about the agent DAG: an agent may have several parents,
+ * so its structure has to live in edges. A requirement box has exactly one owner,
+ * is never shared, and is meaningless apart from it — a tree is what it actually
+ * is, and flattening it into a collection with parent ids would add a whole class
+ * of orphan-and-cycle bugs to model something that cannot have them.
+ *
+ * Carries a status because the board is a roadmap (SPEC §1): the question this
+ * answers is not "what data exists" but "what does this department still owe".
+ * Distinct from a DataSource, which is a source that exists and is wired up;
+ * a requirement is a promise that may not be kept yet.
+ */
+export type DataRequirement = {
+  id: string;
+  title: string;
+  status: Status;
+  notes?: string;
+  children: DataRequirement[];
+};
+
+/** Recursive, so `z.lazy` — a box may hold boxes to any depth. */
+export const DataRequirementSchema: z.ZodType<DataRequirement> = z.lazy(() =>
+  z.object({
+    id: id(),
+    title: z.string().min(1),
+    status: StatusSchema,
+    notes: z.string().optional(),
+    children: z.array(DataRequirementSchema),
+  }),
+);
+
 export const AgentSchema = z.object({
   id: id(),
   kind: AgentKindSchema,
@@ -201,6 +237,8 @@ export const AgentSchema = z.object({
    * what it does; notes are never sent anywhere and shape nothing.
    */
   notes: z.string().optional(),
+  /** What this agent has to provide, as nested boxes (see DataRequirementSchema). */
+  dataRequirements: z.array(DataRequirementSchema).optional(),
   /** Manual 2D override; absent = auto-layout (SPEC §7: the graph is the file). */
   position: PositionSchema.optional(),
 });

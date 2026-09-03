@@ -602,3 +602,92 @@ test('notes are undoable like any other edit', async ({ page }) => {
   await page.keyboard.press('Control+z');
   await expect(page.getByTestId('inspector').getByTestId('panel-notes')).toHaveValue('');
 });
+
+test('a department records what data it owes, in boxes that hold boxes', async ({ page }) => {
+  await cards(page, 'Marketing').first().click();
+  const panel = page.getByTestId('inspector');
+  const boxes = panel.getByTestId('requirement-boxes');
+  await expect(boxes).toContainText('Nothing recorded yet');
+
+  // A top-level box.
+  await boxes.getByTestId('requirement-add').fill('Produktdaten');
+  await boxes.getByTestId('requirement-add').press('Enter');
+  await expect(boxes.getByTestId('requirement-box')).toHaveCount(1);
+  await expect(boxes.getByTestId('requirement-count')).toContainText('1 of 1 outstanding');
+
+  // A box inside it.
+  await boxes.getByRole('button', { name: 'Add a box inside Produktdaten' }).click();
+  const nested = boxes.getByRole('textbox', { name: 'New box inside Produktdaten' });
+  await nested.fill('Bilder');
+  await nested.press('Enter');
+
+  await expect(boxes.getByTestId('requirement-box')).toHaveCount(2);
+  // The inner box really is nested, not a sibling.
+  await expect(boxes.locator('[data-depth="1"]')).toHaveCount(1);
+  await expect(boxes.getByTestId('requirement-count')).toContainText('2 of 2 outstanding');
+
+  // Detail on the inner box, and a status click.
+  await boxes.getByRole('textbox', { name: 'Detail for Bilder' }).fill('freigestellt, 2000px');
+  await boxes.getByRole('textbox', { name: 'Detail for Bilder' }).blur();
+  await boxes.getByRole('button', { name: /Bilder is Planned/ }).click();
+  await expect(boxes.getByRole('button', { name: /Bilder is In progress/ })).toBeVisible();
+  await expect(boxes.getByTestId('requirement-count')).toContainText('2 of 2 outstanding');
+
+  // Survives a reload: this is fleet data, not view state.
+  await page.waitForTimeout(600);
+  await page.reload();
+  await cards(page, 'Marketing').first().click();
+  const after = page.getByTestId('inspector').getByTestId('requirement-boxes');
+  await expect(after.getByTestId('requirement-box')).toHaveCount(2);
+  // Titles and details are input values, so assert on the value, not the text.
+  await expect(after.getByRole('textbox', { name: 'Rename Produktdaten' })).toHaveValue('Produktdaten');
+  await expect(after.getByRole('textbox', { name: 'Detail for Bilder' })).toHaveValue(
+    'freigestellt, 2000px',
+  );
+});
+
+test('deleting a box deletes what it contains, and undo brings it back', async ({ page }) => {
+  await cards(page, 'Marketing').first().click();
+  const boxes = page.getByTestId('inspector').getByTestId('requirement-boxes');
+
+  await boxes.getByTestId('requirement-add').fill('Produktdaten');
+  await boxes.getByTestId('requirement-add').press('Enter');
+  await boxes.getByRole('button', { name: 'Add a box inside Produktdaten' }).click();
+  const nested = boxes.getByRole('textbox', { name: 'New box inside Produktdaten' });
+  await nested.fill('Bilder');
+  await nested.press('Enter');
+  await expect(boxes.getByTestId('requirement-box')).toHaveCount(2);
+
+  await boxes.getByRole('button', { name: 'Delete Produktdaten and everything in it' }).click();
+  await expect(boxes.getByTestId('requirement-box')).toHaveCount(0);
+
+  await page.keyboard.press('Control+z');
+  await expect(boxes.getByTestId('requirement-box')).toHaveCount(2);
+});
+
+test('the overview lists every department and what it still owes', async ({ page }) => {
+  await cards(page, 'Marketing').first().click();
+  const boxes = page.getByTestId('inspector').getByTestId('requirement-boxes');
+  await boxes.getByTestId('requirement-add').fill('Produktbilder');
+  await boxes.getByTestId('requirement-add').press('Enter');
+  await page.keyboard.press('Escape');
+
+  await page.getByTestId('fleet-menu-toggle').click();
+  await expect(page.getByTestId('open-provide')).toContainText('1 outstanding');
+  await page.getByTestId('open-provide').click();
+
+  const view = page.getByTestId('data-to-provide');
+  await expect(view).toBeVisible();
+  await expect(view.getByTestId('provide-summary')).toContainText('1 of 1 still outstanding');
+
+  const marketing = view.getByTestId('provide-group').filter({ hasText: 'Marketing' }).first();
+  await expect(marketing).toContainText('Produktbilder');
+
+  // A department with nothing recorded is still listed - that is the finding.
+  await expect(view.getByTestId('provide-group').filter({ hasText: 'nothing recorded' }).first()).toBeVisible();
+
+  // The department name jumps to it.
+  await marketing.getByRole('button', { name: 'Marketing' }).click();
+  await expect(view).toBeHidden();
+  await expect(page.getByTestId('breadcrumb')).toContainText('Marketing');
+});

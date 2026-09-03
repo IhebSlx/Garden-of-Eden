@@ -1,6 +1,6 @@
 /** SPEC 4 derived rules + the SPEC 5 behaviours that read them. */
 import { describe, expect, it } from 'vitest';
-import { ROOT_PARENT, agentDepths, agentsUsing, buildFleetIndex, childIdsOf, dataObligations, descendantIds, hierarchyEdges, instances, instancesByAgent, isShared, knownOwners, libraryUsage, parentIdsOf, parentsOf, peerEdges, peerIdsOf, rootAgentIds, sharedCount, visibleSet } from '../../src/model/selectors.js';
+import { ROOT_PARENT, agentDepths, agentsUsing, buildFleetIndex, childIdsOf, dataObligations, departmentObligations, descendantIds, hierarchyEdges, instances, instancesByAgent, isShared, knownOwners, libraryUsage, parentIdsOf, parentsOf, peerEdges, peerIdsOf, rootAgentIds, sharedCount, visibleSet } from '../../src/model/selectors.js';
 import type { DataSource, Fleet } from '../../src/model/schemas.js';
 import { AGENT, LIB, makeFleet } from '../fixtures/fleets.js';
 
@@ -363,5 +363,64 @@ describe('dataObligations — what each party has to prepare', () => {
   it('returns nothing for a fleet with no data sources', () => {
     expect(dataObligations(withSources([]))).toEqual([]);
     expect(knownOwners(withSources([]))).toEqual([]);
+  });
+});
+
+describe('departmentObligations — what each department has to provide', () => {
+  const withBoxes = (): Fleet => {
+    const fleet = makeFleet();
+    return {
+      ...fleet,
+      agents: fleet.agents.map((agent) => {
+        if (agent.name === 'Sales') {
+          return {
+            ...agent,
+            kind: 'department' as const,
+            dataRequirements: [
+              {
+                id: 'r1',
+                title: 'Produktdaten',
+                status: 'planned' as const,
+                children: [{ id: 'r2', title: 'Bilder', status: 'live' as const, children: [] }],
+              },
+            ],
+          };
+        }
+        if (agent.name === 'Operations') return { ...agent, kind: 'department' as const };
+        return agent;
+      }),
+    };
+  };
+
+  it('lists departments only', () => {
+    const groups = departmentObligations(withBoxes());
+    expect(groups.every((g) => g.agent.kind === 'department')).toBe(true);
+  });
+
+  it('counts boxes at every level, not just the top ones', () => {
+    const sales = departmentObligations(withBoxes()).find((g) => g.agent.name === 'Sales');
+    expect(sales?.progress).toEqual({
+      total: 2,
+      outstanding: 1,
+      byStatus: { live: 1, building: 0, planned: 1 },
+    });
+  });
+
+  it('puts whoever is holding up the most first', () => {
+    expect(departmentObligations(withBoxes())[0]?.agent.name).toBe('Sales');
+  });
+
+  it('still lists a department with nothing recorded — that is the finding', () => {
+    const groups = departmentObligations(withBoxes());
+    const marketing = groups.find((g) => g.agent.name === 'Operations');
+    expect(marketing).toBeDefined();
+    expect(marketing?.progress.total).toBe(0);
+    expect(marketing?.requirements).toEqual([]);
+  });
+
+  it('returns nothing for a fleet with no departments', () => {
+    const flat = makeFleet();
+    const noDepts: Fleet = { ...flat, agents: flat.agents.map((a) => ({ ...a, kind: 'worker' as const })) };
+    expect(departmentObligations(noDepts)).toEqual([]);
   });
 });

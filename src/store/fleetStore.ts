@@ -19,6 +19,7 @@ import {
 } from '../model/schemas.js';
 import type {
   Agent,
+  DataRequirement,
   AgentKind,
   DataSource,
   Edge,
@@ -34,6 +35,14 @@ import type {
 import { formatZodError, migrateFleetDocument } from '../model/migrations.js';
 import { agentsUsing, descendantIds, isShared, parentsOf } from '../model/selectors.js';
 import { fleetFromTemplate } from '../model/templates.js';
+import {
+  findRequirement,
+  insertRequirement,
+  newRequirement,
+  removeRequirement,
+  reorderRequirement,
+  updateRequirement as updateRequirementIn,
+} from '../model/requirements.js';
 import { instantiateIntoFleet } from '../model/catalog.js';
 import type { CatalogAgent } from '../model/catalog.js';
 import { useCatalogStore } from './catalogStore.js';
@@ -127,6 +136,17 @@ export type FleetStoreState = {
   setAgentPosition: (agentId: string, position: Position) => ActionResult;
   /** SPEC 5.8 auto-arrange: drop manual overrides so layout can own positions again. */
   clearAgentPositions: () => ActionResult;
+
+  // --- data requirements: nested boxes of what an agent has to provide ---
+  addRequirement: (agentId: string, parentId: string | null, title: string) => CreateResult;
+  updateRequirement: (
+    agentId: string,
+    requirementId: string,
+    patch: Partial<Omit<DataRequirement, 'id' | 'children'>>,
+  ) => ActionResult;
+  deleteRequirement: (agentId: string, requirementId: string) => ActionResult;
+  /** Reorder among siblings only, so a box can never end up inside itself. */
+  moveRequirement: (agentId: string, requirementId: string, direction: -1 | 1) => ActionResult;
 
   // --- edges (SPEC 5.8, 8.5) ---
   linkAgents: (sourceId: string, targetId: string, kind: EdgeKind) => CreateResult;
@@ -524,6 +544,75 @@ export const useFleetStore = create<FleetStoreState>()(
             ...fleet,
             agents: fleet.agents.map(({ position: _dropped, ...rest }) => rest),
           })),
+
+        // ---------- data requirements (what a department has to provide) ----------
+
+        addRequirement: (agentId, parentId, title) => {
+          const trimmed = title.trim();
+          if (trimmed === '') return fail('A box needs a title.');
+
+          const box = newRequirement(trimmed);
+          const result = mutateActive((fleet) => {
+            const agent = fleet.agents.find((a) => a.id === agentId);
+            if (!agent) return fail(`Unknown agent "${agentId}".`);
+            const tree = agent.dataRequirements ?? [];
+            if (parentId !== null && findRequirement(tree, parentId) === undefined) {
+              return fail('That box is not on this agent.');
+            }
+            return replaceAgent(fleet, agentId, (current) => ({
+              ...current,
+              dataRequirements: insertRequirement(current.dataRequirements ?? [], parentId, box),
+            }));
+          });
+          return result.ok ? { ok: true, id: box.id } : result;
+        },
+
+        updateRequirement: (agentId, requirementId, patch) =>
+          mutateActive((fleet) => {
+            const agent = fleet.agents.find((a) => a.id === agentId);
+            if (!agent) return fail(`Unknown agent "${agentId}".`);
+            const tree = agent.dataRequirements ?? [];
+            if (findRequirement(tree, requirementId) === undefined) {
+              return fail('That box is not on this agent.');
+            }
+            if (patch.title !== undefined && patch.title.trim() === '') {
+              return fail('A box needs a title.');
+            }
+
+            const clean =
+              patch.title === undefined ? patch : { ...patch, title: patch.title.trim() };
+            return replaceAgent(fleet, agentId, (current) => ({
+              ...current,
+              dataRequirements: updateRequirementIn(current.dataRequirements ?? [], requirementId, clean),
+            }));
+          }),
+
+        deleteRequirement: (agentId, requirementId) =>
+          mutateActive((fleet) => {
+            const agent = fleet.agents.find((a) => a.id === agentId);
+            if (!agent) return fail(`Unknown agent "${agentId}".`);
+            if (findRequirement(agent.dataRequirements ?? [], requirementId) === undefined) {
+              return fail('That box is not on this agent.');
+            }
+            // Deleting a box deletes what it contains - that is what a box means.
+            return replaceAgent(fleet, agentId, (current) => ({
+              ...current,
+              dataRequirements: removeRequirement(current.dataRequirements ?? [], requirementId),
+            }));
+          }),
+
+        moveRequirement: (agentId, requirementId, direction) =>
+          mutateActive((fleet) => {
+            const agent = fleet.agents.find((a) => a.id === agentId);
+            if (!agent) return fail(`Unknown agent "${agentId}".`);
+            if (findRequirement(agent.dataRequirements ?? [], requirementId) === undefined) {
+              return fail('That box is not on this agent.');
+            }
+            return replaceAgent(fleet, agentId, (current) => ({
+              ...current,
+              dataRequirements: reorderRequirement(current.dataRequirements ?? [], requirementId, direction),
+            }));
+          }),
 
         // ---------- edges ----------
 

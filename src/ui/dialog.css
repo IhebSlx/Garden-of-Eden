@@ -652,3 +652,59 @@
   background: var(--color-shared);
   flex: none;
 }
+
+/* ---------- Data to provide: the boxes each department owes, read-only ---------- */
+
+.ov-list,
+.ov-children {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.ov-children {
+  margin: 6px 0 0 8px;
+  padding-left: 10px;
+  border-left: 1px solid rgb(124 140 255 / 0.2);
+}
+.ov-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: #e6ecff;
+}
+.ov-row .sd {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: none;
+}
+.ov-status {
+  margin-left: auto;
+  font-size: 9.5px;
+  flex: none;
+}
+.ov-note {
+  margin: 3px 0 0 13px;
+  font-size: 11px;
+  color: #93a4d0;
+  line-height: 1.5;
+}
+/* The department name jumps to it, so a finding can be acted on immediately. */
+.ov-jump {
+  all: unset;
+  cursor: pointer;
+  font-size: 13px;
+  color: #e6ecff;
+}
+.ov-jump:hover {
+  color: var(--color-department);
+  text-decoration: underline;
+}
+.ov-jump:focus-visible {
+  outline: 2px solid var(--color-department);
+  outline-offset: 2px;
+}

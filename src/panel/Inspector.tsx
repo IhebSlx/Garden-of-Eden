@@ -30,6 +30,7 @@ import {
 } from '../ui/palette.js';
 import { StatusChip } from './StatusChip.js';
 import { NotesField } from './NotesField.js';
+import { RequirementBoxes } from './RequirementBoxes.js';
 import { DataSourceDetail, InstructionsDetail, SkillDetail, ToolDetail } from './ItemDetail.js';
 import { Picker } from './Picker.js';
 import type { PickerOption } from './Picker.js';
@@ -321,6 +322,8 @@ export function Inspector(): React.JSX.Element | null {
           {agent.instructions ?? 'none yet'}
         </button>
       )}
+
+      <RequirementBoxes agentId={agent.id} name={agent.name} />
 
       <NotesField
         value={agent.notes}
