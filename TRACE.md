@@ -530,3 +530,44 @@ which handles a context that existed and went away.
 | Reports unavailable when getContext throws | ✅ | › "reports unavailable when getContext throws instead of returning null" |
 | Falls back webgl2 → webgl → experimental-webgl | ✅ | › "falls back through webgl2, webgl and experimental-webgl" |
 | Survives a context with no lose-context extension | ✅ | › "survives a context with no WEBGL_lose_context extension" |
+
+**DEVIATION 16 — Data, not "data sources": a thing that HAS a source.** The boxes of DEVIATION 15
+are reverted; this replaces them, keeping data an id-referenced library so the same item can be
+linked to several agents rather than being trapped in one panel.
+
+- **The source may be a department.** `DataSourceTypeSchema` gains `'department'`: product data
+  comes from Produktmanagement long before it lives in Dataverse, and without this such data has
+  to be mislabelled as a file or as a SharePoint site it is not in yet.
+- **Existing, or owed by someone.** `DATA_SOURCE_STATUS_LABELS` now reads Existing / Being
+  prepared / To be provided. The same three-state enum underneath, so the filter bar and every
+  status control keep working — only the words change, and only for data.
+- **Ansprechpartner.** `contact` beside `owner`: a department is not someone you can chase.
+- **Nesting.** `parentId`, not an inline `children` array, because data stays a shared library —
+  one item may be attached to several agents, so it cannot be owned by one place in a tree.
+- **Linking a parent brings its contents.** `dataForAgent` expands a reference to include every
+  descendant, so an agent linked to "Produktdaten" gets "Bilder" without attaching it by hand.
+- **A real filter.** "Provided by" sits beside the status chips and composes with it and with
+  focus by intersection. It reaches through nesting: an agent linked only to the parent still
+  matches the provider of a part.
+
+| Item | Status | Test(s) |
+|---|---|---|
+| A department is a valid source | ✅ | `dataNesting.test.ts` › "accepts a department as the source" |
+| Provider and Ansprechpartner recorded, both optional | ✅ | › "records who provides it and who to ask"; "leaves provider and contact optional…" |
+| Roots, children, descendants | ✅ | › "lists only top-level data as roots"; "finds direct children and all descendants" |
+| A missing parent is shown, not hidden | ✅ | › "shows an item whose parent is missing at the top rather than hiding it" |
+| Descendant walk cannot hang on a cycle | ✅ | › "does not hang on a nesting cycle" |
+| Integrity rejects missing parent / self / cycle | ✅ | › "integrity rejects broken nesting" (4 tests) |
+| Linking a parent brings its children, without duplicates | ✅ | › "gives an agent the whole box from one reference"; "never lists the same item twice…" |
+| Providers listed once, case- and space-insensitive | ✅ | › "lists every provider once, in name order"; "does not split one provider…" |
+| A parent matches a part's provider | ✅ | › "matches a parent when a part of it is owed…" |
+| Data labels speak of provision, agents of readiness | ✅ | `schemas.test.ts` › "labels agents by readiness and data by provision" |
+| One enum underneath, so controls keep working | ✅ | › "shares one enum, so every status control keeps working" |
+| Filter lights only those waiting on that provider | ✅ | `visibility.test.ts` › "lights only the agents waiting on that provider" |
+| Filter reaches through nesting | ✅ | › "reaches through nesting — a parent box counts for the child's provider" |
+| Filter composes with status by intersection | ✅ | › "composes with the status filter by intersection" |
+| A wire goes with a hidden endpoint | ✅ | › "drops a wire when the provider filter hides an endpoint" |
+| Wires still filter by their OWN status (SPEC §5.6) | ✅ | › "filters wires by their own status, not their endpoints" |
+| Nesting, cycle and delete guards in the store | ✅ | `fleetStore.test.ts` › "data nesting through the store" (8 tests) |
+| Source, department, nesting and the delete guard in the UI | ✅ | e2e › "data has a source, can be a department, and nests inside other data" |
+| The filter, end to end | ✅ | e2e › "the provider filter shows only what a department still owes" |

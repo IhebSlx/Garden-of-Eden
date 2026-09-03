@@ -12,7 +12,7 @@
 import { matchesFilter } from '../store/uiStore.js';
 import type { Fleet, Status } from './schemas.js';
 import type { Instance } from './selectors.js';
-import { visibleSet } from './selectors.js';
+import { agentsWaitingOn, visibleSet } from './selectors.js';
 import type { Wire } from './wires.js';
 
 export type VisibilityResult = {
@@ -32,8 +32,14 @@ export function computeVisibility(
   wireList: Wire[],
   focusId: string | null,
   statusFilter: Status | null,
+  /**
+   * Show only what depends on data this party still owes. Composes with focus and
+   * with the status filter, exactly as the status filter composes with focus.
+   */
+  providerFilter: string | null = null,
 ): VisibilityResult {
   const statusOf = new Map(fleet.agents.map((a) => [a.id, a.status]));
+  const waiting = providerFilter === null ? null : agentsWaitingOn(fleet, providerFilter);
   const focused = focusId === null ? null : visibleSet(fleet, focusId);
 
   let focusDepth = 0;
@@ -56,16 +62,36 @@ export function computeVisibility(
   const litInstanceKeys = new Set<string>();
   for (const instance of instanceList) {
     const status = statusOf.get(instance.agentId);
-    if (inFocus.has(instance.key) && status !== undefined && matchesFilter(status, statusFilter)) {
+    const provides = waiting === null || waiting.has(instance.agentId);
+    if (
+      inFocus.has(instance.key) &&
+      status !== undefined &&
+      matchesFilter(status, statusFilter) &&
+      provides
+    ) {
       litInstanceKeys.add(instance.key);
     }
   }
+
+  /**
+   * Whether an instance's agent passes the provider filter, on its own — separate
+   * from `litInstanceKeys`, which also folds in focus and status.
+   */
+  const passesProvider = (key: string): boolean => {
+    if (waiting === null) return true;
+    const instance = instanceList.find((i) => i.key === key);
+    return instance !== undefined && waiting.has(instance.agentId);
+  };
 
   const litWireIds = new Set<string>();
   const focusedWireIds = new Set<string>();
   for (const wire of wireList) {
     const endpointsInFocus = inFocus.has(wire.fromKey) && inFocus.has(wire.toKey);
-    if (endpointsInFocus && matchesFilter(wire.status, statusFilter)) {
+    // SPEC §5.6: a wire is filtered by its OWN status, never its endpoints'. The
+    // provider filter is different in kind - it hides whole branches of the fleet -
+    // so a wire between two hidden agents goes with them.
+    const endpointsProvide = passesProvider(wire.fromKey) && passesProvider(wire.toKey);
+    if (endpointsInFocus && endpointsProvide && matchesFilter(wire.status, statusFilter)) {
       litWireIds.add(wire.id);
       if (focused !== null) focusedWireIds.add(wire.id);
     }

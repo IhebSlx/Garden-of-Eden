@@ -7,6 +7,7 @@ import { STATUS_LABELS } from '../../model/schemas.js';
 import type { Status } from '../../model/schemas.js';
 import { useUiStore } from '../../store/uiStore.js';
 import { STATUS_COLOR } from '../../ui/palette.js';
+import { ProviderFilter } from './ProviderFilter.js';
 
 const ORDER: Status[] = ['live', 'building', 'planned'];
 
@@ -15,7 +16,8 @@ export function FilterBar(): React.JSX.Element {
   const toggleStatusFilter = useUiStore((s) => s.toggleStatusFilter);
 
   return (
-    <div className="glass-bar fixed top-[52px] left-4 z-20 flex gap-0.5" data-testid="filter-bar">
+    <div className="filter-row fixed top-[52px] left-4 z-20 flex items-start gap-2">
+      <div className="glass-bar flex gap-0.5" data-testid="filter-bar">
       <button
         type="button"
         className={`fbtn ${statusFilter === null ? 'on' : ''}`}
@@ -36,6 +38,9 @@ export function FilterBar(): React.JSX.Element {
           {STATUS_LABELS[status]}
         </button>
       ))}
+      </div>
+
+      <ProviderFilter />
     </div>
   );
 }

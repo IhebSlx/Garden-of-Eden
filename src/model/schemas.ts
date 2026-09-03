@@ -26,11 +26,18 @@ export const STATUS_LABELS: Record<Status, string> = {
   planned: 'Planned',
 };
 
-/** SPEC §4/§5.6: data sources use "Ready" where agents say "Live". */
+/**
+ * SPEC §4/§5.6 gives data its own labels where agents say Live / In progress / Planned.
+ *
+ * DEVIATION: those labels are now about PROVISION rather than readiness, because the
+ * question asked of data is "does this exist, or does somebody still owe it?". The
+ * same three-state enum underneath, so the filter bar and every status control keep
+ * working — only the words change, and only for data.
+ */
 export const DATA_SOURCE_STATUS_LABELS: Record<Status, string> = {
-  live: 'Ready',
-  building: 'In progress',
-  planned: 'Planned',
+  live: 'Existing',
+  building: 'Being prepared',
+  planned: 'To be provided',
 };
 
 // ---------- libraries (first-class entities, referenced by id) ----------
@@ -123,8 +130,13 @@ export type Tool = z.infer<typeof ToolSchema>;
  * a folder of resources - templates, images, reference docs, JSON schemas - and
  * they are genuinely data the agent reads, but none of them is md, Dataverse or
  * SharePoint. Forcing them into one of those would misreport where the data lives.
+ *
+ * DEVIATION: 'department' is added too. Data HAS a source, and that source may be an
+ * organisational unit rather than a system: product data comes from Produktmanagement
+ * long before it lives in Dataverse. Without it, data a team still owes has to be
+ * mislabelled as a file or as a SharePoint site it is not in yet.
  */
-export const DataSourceTypeSchema = z.enum(['md', 'dataverse', 'sharepoint', 'file']);
+export const DataSourceTypeSchema = z.enum(['md', 'dataverse', 'sharepoint', 'file', 'department']);
 export type DataSourceType = z.infer<typeof DataSourceTypeSchema>;
 
 export const DataSourceSchema = z.object({
@@ -157,6 +169,22 @@ export const DataSourceSchema = z.object({
    */
   owner: z.string().optional(),
   requirement: z.string().optional(),
+  /**
+   * DEVIATION: the Ansprechpartner — the person to ask at `owner`. A department is
+   * not someone you can chase; a name is.
+   */
+  contact: z.string().optional(),
+  /**
+   * DEVIATION: nesting. Data comes in wholes made of parts — "Produktdaten" is
+   * images and prices and dimensions — and an overview of what a department owes is
+   * unreadable as a flat list of leaves.
+   *
+   * A parent id rather than an inline `children` array, because data stays an
+   * id-referenced library (SPEC §8.7): the same item may be attached to several
+   * agents, so it cannot be owned by one place in a tree. Absent = a top-level item.
+   * `integrity.ts` rejects a missing parent, a self-parent and any cycle.
+   */
+  parentId: z.string().optional(),
   /**
    * DEVIATION: beyond SPEC §4. Free text ABOUT this source, written for people.
    * Distinct from `description` (what the source is, often imported) and from

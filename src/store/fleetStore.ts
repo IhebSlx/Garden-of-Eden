@@ -32,7 +32,7 @@ import type {
   Tool,
 } from '../model/schemas.js';
 import { formatZodError, migrateFleetDocument } from '../model/migrations.js';
-import { agentsUsing, descendantIds, isShared, parentsOf } from '../model/selectors.js';
+import { agentsUsing, dataDescendants, descendantIds, isShared, parentsOf } from '../model/selectors.js';
 import { fleetFromTemplate } from '../model/templates.js';
 import { instantiateIntoFleet } from '../model/catalog.js';
 import type { CatalogAgent } from '../model/catalog.js';
@@ -162,7 +162,7 @@ const LIBRARY_COLLECTION = {
 const LIBRARY_LABEL: Record<LibraryKind, string> = {
   skill: 'skill',
   tool: 'tool',
-  dataSource: 'data source',
+  dataSource: 'data',
 };
 
 function replaceAgent(fleet: Fleet, agentId: string, update: (agent: Agent) => Agent): Fleet {
@@ -652,6 +652,20 @@ export const useFleetStore = create<FleetStoreState>()(
           mutateActive((fleet) => {
             const source = fleet.dataSources.find((d) => d.id === dataSourceId);
             if (!source) return fail(`Unknown data source "${dataSourceId}".`);
+
+            // Nesting is a parent pointer, so moving an item needs the same three
+            // guards the hierarchy has: no self, no missing parent, no ring.
+            if (patch.parentId !== undefined && patch.parentId !== source.parentId) {
+              const target = patch.parentId;
+              if (target === dataSourceId) return fail('Data cannot sit inside itself.');
+              if (!fleet.dataSources.some((d) => d.id === target)) {
+                return fail(`Unknown data source "${target}".`);
+              }
+              if (dataDescendants(fleet, dataSourceId).some((d) => d.id === target)) {
+                return fail('That would put this data inside something it already contains.');
+              }
+            }
+
             const parsed = DataSourceSchema.safeParse({ ...source, ...patch });
             if (!parsed.success) return fail(formatZodError(parsed.error).join('; '));
             return {
@@ -660,7 +674,21 @@ export const useFleetStore = create<FleetStoreState>()(
             };
           }),
 
-        deleteDataSource: (dataSourceId) => deleteLibraryItem('dataSource', dataSourceId),
+        deleteDataSource: (dataSourceId) => {
+          const fleet = activeFleet();
+          if (!fleet) return fail('No active fleet.');
+
+          // Deleting a box that still holds items would silently orphan them, and
+          // an orphan is invisible in a tree view. Say so instead.
+          const inside = fleet.dataSources.filter((d) => d.parentId === dataSourceId);
+          if (inside.length > 0) {
+            return fail(
+              `This data still contains ${inside.length} item(s). Move or delete those first.`,
+              inside.map((d) => d.name),
+            );
+          }
+          return deleteLibraryItem('dataSource', dataSourceId);
+        },
 
         attachLibraryItem: (agentId, kind, itemId) =>
           mutateActive((fleet) => {

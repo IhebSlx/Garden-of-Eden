@@ -18,7 +18,10 @@ export type IntegrityCode =
   | 'edge-self-loop'
   | 'edge-duplicate'
   | 'hierarchy-cycle'
-  | 'library-ref-missing';
+  | 'library-ref-missing'
+  | 'data-parent-missing'
+  | 'data-parent-self'
+  | 'data-parent-cycle';
 
 export type IntegrityIssue = {
   code: IntegrityCode;
@@ -180,6 +183,55 @@ function checkLibraryRefs(fleet: Fleet, issues: IntegrityIssue[]): void {
   });
 }
 
+/**
+ * Data nests by `parentId`, so the same three things can go wrong as with any
+ * parent pointer: a parent that is not there, an item inside itself, and a ring of
+ * items each inside the next. Every renderer walks this tree, so a cycle would hang
+ * the app rather than merely look wrong.
+ */
+function checkDataNesting(fleet: Fleet, issues: IntegrityIssue[]): void {
+  const byId = new Map(fleet.dataSources.map((source) => [source.id, source]));
+
+  fleet.dataSources.forEach((source, index) => {
+    const { parentId } = source;
+    if (parentId === undefined) return;
+
+    if (parentId === source.id) {
+      issues.push({
+        code: 'data-parent-self',
+        message: `data "${source.name}" is inside itself`,
+        path: ['dataSources', index, 'parentId'],
+      });
+      return;
+    }
+
+    if (!byId.has(parentId)) {
+      issues.push({
+        code: 'data-parent-missing',
+        message: `data "${source.name}" sits inside unknown data "${parentId}"`,
+        path: ['dataSources', index, 'parentId'],
+      });
+      return;
+    }
+
+    // Walk up to the root; meeting ourselves again is a cycle.
+    const seen = new Set<string>([source.id]);
+    let cursor = byId.get(parentId);
+    while (cursor !== undefined) {
+      if (seen.has(cursor.id)) {
+        issues.push({
+          code: 'data-parent-cycle',
+          message: `data "${source.name}" is in a nesting cycle`,
+          path: ['dataSources', index, 'parentId'],
+        });
+        return;
+      }
+      seen.add(cursor.id);
+      cursor = cursor.parentId === undefined ? undefined : byId.get(cursor.parentId);
+    }
+  });
+}
+
 /** All §4 integrity violations in the fleet, in a stable order. Empty array = valid. */
 export function checkFleetIntegrity(fleet: Fleet): IntegrityIssue[] {
   const issues: IntegrityIssue[] = [];
@@ -188,6 +240,7 @@ export function checkFleetIntegrity(fleet: Fleet): IntegrityIssue[] {
   checkEdges(fleet, issues);
   checkHierarchyCycles(fleet, issues);
   checkLibraryRefs(fleet, issues);
+  checkDataNesting(fleet, issues);
   return issues;
 }
 

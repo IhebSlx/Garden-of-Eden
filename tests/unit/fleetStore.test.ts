@@ -435,3 +435,69 @@ describe('integrity across action sequences', () => {
     expect(checkFleetIntegrity(active())).toEqual([]);
   });
 });
+
+describe('data nesting through the store', () => {
+  const setup = () => {
+    store().createFleet('blank', 'Nesting');
+    const outer = store().addDataSource({ name: 'Produktdaten', type: 'department', status: 'planned' });
+    const inner = store().addDataSource({ name: 'Bilder', type: 'department', status: 'planned' });
+    if (!outer.ok || !inner.ok) throw new Error('setup failed');
+    return { outerId: outer.id, innerId: inner.id };
+  };
+  const dataOf = (id: string) => selectActiveFleet(store())?.dataSources.find((d) => d.id === id);
+
+  it('puts one item inside another', () => {
+    const { outerId, innerId } = setup();
+    expect(store().updateDataSource(innerId, { parentId: outerId }).ok).toBe(true);
+    expect(dataOf(innerId)?.parentId).toBe(outerId);
+    expect(selectActiveFleet(store())).toBeDefined();
+    expect(checkFleetIntegrity(selectActiveFleet(store())!)).toEqual([]);
+  });
+
+  it('records who provides it and the Ansprechpartner', () => {
+    const { outerId } = setup();
+    store().updateDataSource(outerId, { owner: 'Produktmanagement', contact: 'Frau Bauer' });
+    expect(dataOf(outerId)).toMatchObject({ owner: 'Produktmanagement', contact: 'Frau Bauer' });
+  });
+
+  it('refuses to put an item inside itself', () => {
+    const { outerId } = setup();
+    expect(store().updateDataSource(outerId, { parentId: outerId })).toMatchObject({ ok: false });
+  });
+
+  it('refuses a parent that does not exist', () => {
+    const { innerId } = setup();
+    expect(store().updateDataSource(innerId, { parentId: 'dsr_ghost' })).toMatchObject({ ok: false });
+  });
+
+  it('refuses a move that would make a cycle', () => {
+    const { outerId, innerId } = setup();
+    store().updateDataSource(innerId, { parentId: outerId });
+    // Putting the parent inside its own child would close a loop.
+    expect(store().updateDataSource(outerId, { parentId: innerId })).toMatchObject({ ok: false });
+    expect(checkFleetIntegrity(selectActiveFleet(store())!)).toEqual([]);
+  });
+
+  it('refuses to delete an item that still contains others, and names them', () => {
+    const { outerId, innerId } = setup();
+    store().updateDataSource(innerId, { parentId: outerId });
+    const result = store().deleteDataSource(outerId);
+    expect(result).toMatchObject({ ok: false });
+    if (!result.ok) expect(result.blockedBy).toEqual(['Bilder']);
+  });
+
+  it('allows the delete once the contents are moved out', () => {
+    const { outerId, innerId } = setup();
+    store().updateDataSource(innerId, { parentId: outerId });
+    store().updateDataSource(innerId, { parentId: undefined });
+    expect(store().deleteDataSource(outerId).ok).toBe(true);
+  });
+
+  it('is undoable', () => {
+    const { outerId, innerId } = setup();
+    store().updateDataSource(innerId, { parentId: outerId });
+    expect(dataOf(innerId)?.parentId).toBe(outerId);
+    useFleetStore.temporal.getState().undo();
+    expect(dataOf(innerId)?.parentId).toBeUndefined();
+  });
+});

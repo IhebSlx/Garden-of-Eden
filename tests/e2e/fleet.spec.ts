@@ -125,7 +125,8 @@ test('the panel shows relations, opens a detail card and jumps to a linked agent
 
   await panel.getByRole('button', { name: 'Unternehmenskontext', exact: true }).click();
   const detail = page.getByTestId('item-detail');
-  await expect(detail).toContainText('Ready');
+  // Data speaks about provision now: Existing rather than Ready.
+  await expect(detail).toContainText('Existing');
   await expect(detail).toContainText('linked ✓');
 
   // "linked to" jumps focus to another agent (SPEC 5.7).
@@ -211,7 +212,7 @@ test('a library item in use cannot be deleted, and the usage list is shown', asy
 
   const manager = page.getByTestId('library-manager');
   await expect(manager).toBeVisible();
-  await manager.getByRole('button', { name: 'Data sources' }).click();
+  await manager.getByRole('button', { name: 'Data', exact: true }).click();
   await manager.getByRole('button', { name: 'Delete Unternehmenskontext' }).click();
 
   const error = page.getByTestId('library-error');
@@ -464,10 +465,10 @@ test('data prep says who owes each source and who is blocked without it', async 
   await page.getByTestId('fleet-menu-toggle').click();
   await page.getByRole('button', { name: /Libraries/ }).click();
   const manager = page.getByTestId('library-manager');
-  await manager.getByRole('button', { name: 'Data sources' }).click();
+  await manager.getByRole('button', { name: 'Data', exact: true }).click();
   await manager.getByRole('button', { name: 'Edit Brand guidelines' }).click();
 
-  await manager.getByLabel('Who prepares Brand guidelines').fill('Marketing');
+  await manager.getByLabel('Who provides Brand guidelines').fill('Marketing');
   const requirement = manager.getByLabel('Requirement for Brand guidelines');
   await requirement.fill('Every product image, named produkt_variante.png');
   // These fields commit on blur, as every other field in the manager does.
@@ -572,7 +573,7 @@ test('a note on a library item is marked in the list and shown in its detail car
   await page.getByRole('button', { name: /Libraries/ }).click();
   const manager = page.getByTestId('library-manager');
 
-  await manager.getByRole('button', { name: 'Data sources' }).click();
+  await manager.getByRole('button', { name: 'Data', exact: true }).click();
   await expect(manager.getByTestId('lib-note-dot')).toHaveCount(0);
 
   await manager.getByRole('button', { name: 'Edit Brand guidelines' }).click();
@@ -601,4 +602,66 @@ test('notes are undoable like any other edit', async ({ page }) => {
 
   await page.keyboard.press('Control+z');
   await expect(page.getByTestId('inspector').getByTestId('panel-notes')).toHaveValue('');
+});
+
+test('data has a source, can be a department, and nests inside other data', async ({ page }) => {
+  await page.getByTestId('fleet-menu-toggle').click();
+  await page.getByRole('button', { name: /Libraries/ }).click();
+  const manager = page.getByTestId('library-manager');
+  await manager.getByRole('button', { name: 'Data', exact: true }).click();
+
+  // Two items: a whole and a part.
+  await manager.getByTestId('lib-new-name').fill('Produktdaten');
+  await manager.getByRole('button', { name: 'Add', exact: true }).click();
+  await manager.getByTestId('data-provider').fill('Produktmanagement');
+  await manager.getByTestId('data-contact').fill('Frau Bauer');
+  await manager.getByLabel('Source of Produktdaten').selectOption('department');
+  await expect(manager.getByLabel('Status of Produktdaten')).toHaveValue('planned');
+
+  await manager.getByTestId('lib-new-name').fill('Bilder');
+  await manager.getByRole('button', { name: 'Add', exact: true }).click();
+  await manager.getByTestId('data-provider').fill('Marketing');
+
+  // Put Bilder inside Produktdaten.
+  await manager.getByTestId('data-parent').selectOption({ label: 'Produktdaten' });
+  await expect(manager.locator('.lib-entry[data-depth="1"]')).toHaveCount(1);
+
+  // Provision language, not readiness.
+  await expect(manager.getByLabel('Status of Bilder')).toBeVisible();
+  await expect(manager).toContainText('To be provided');
+
+  // Deleting the whole is refused while it still holds a part.
+  await manager.getByRole('button', { name: 'Delete Produktdaten' }).click();
+  await expect(page.getByTestId('library-error')).toContainText('still contains');
+});
+
+test('the provider filter shows only what a department still owes', async ({ page }) => {
+  // Give one existing data item a provider, so the filter has something to offer.
+  await page.getByTestId('fleet-menu-toggle').click();
+  await page.getByRole('button', { name: /Libraries/ }).click();
+  const manager = page.getByTestId('library-manager');
+  await manager.getByRole('button', { name: 'Data', exact: true }).click();
+  await manager.getByRole('button', { name: 'Edit Brand guidelines' }).click();
+  await manager.getByTestId('data-provider').fill('Marketing');
+  await manager.getByTestId('data-provider').blur();
+  await page.getByRole('button', { name: 'Done' }).click();
+
+  const filter = page.getByTestId('provider-filter-select');
+  await expect(filter).toBeVisible();
+  await expect(filter).toContainText('Marketing');
+
+  const before = await page.getByTestId('agent-card').count();
+  await filter.selectOption('Marketing');
+
+  // Only the agents that depend on Marketing's data stay lit.
+  const ghosted = page.getByTestId('agent-card').filter({ has: page.locator('.ghost') });
+  await expect(page.getByTestId('agent-card')).toHaveCount(before);
+  await expect
+    .poll(async () => page.locator('[data-testid="agent-card"].ghost').count())
+    .toBeGreaterThan(0);
+  expect(await ghosted.count()).toBeGreaterThanOrEqual(0);
+
+  // Clearing it brings everything back.
+  await page.getByRole('button', { name: 'Show every provider again' }).click();
+  await expect.poll(async () => page.locator('[data-testid="agent-card"].ghost').count()).toBe(0);
 });

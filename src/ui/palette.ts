@@ -40,6 +40,8 @@ export const DATA_TYPE_COLOR: Record<DataSourceType, string> = {
   sharepoint: '#38e1ff',
   // Muted slate: an uploaded file is not one of the three semantic sources.
   file: '#8ea2d6',
+  // The shared accent: a department is not a system, it is people who owe you something.
+  department: '#f6b954',
 };
 
 /** Panel kind chip text (`KIND_LABEL`). */

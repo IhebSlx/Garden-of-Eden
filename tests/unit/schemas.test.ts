@@ -20,11 +20,19 @@ describe('Status', () => {
     expect(StatusSchema.safeParse('done').success).toBe(false);
   });
 
-  it('labels agents and data sources differently (SPEC 4 / 5.6)', () => {
+  it('labels agents by readiness and data by provision (SPEC 4 / 5.6)', () => {
+    // An agent is Live or not; data either exists or somebody still owes it.
     expect(STATUS_LABELS.live).toBe('Live');
-    expect(DATA_SOURCE_STATUS_LABELS.live).toBe('Ready');
     expect(STATUS_LABELS.building).toBe('In progress');
-    expect(DATA_SOURCE_STATUS_LABELS.building).toBe('In progress');
+    expect(STATUS_LABELS.planned).toBe('Planned');
+
+    expect(DATA_SOURCE_STATUS_LABELS.live).toBe('Existing');
+    expect(DATA_SOURCE_STATUS_LABELS.building).toBe('Being prepared');
+    expect(DATA_SOURCE_STATUS_LABELS.planned).toBe('To be provided');
+  });
+
+  it('shares one enum, so every status control keeps working', () => {
+    expect(Object.keys(DATA_SOURCE_STATUS_LABELS)).toEqual(Object.keys(STATUS_LABELS));
   });
 });
 

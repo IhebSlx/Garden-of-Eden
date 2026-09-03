@@ -186,3 +186,97 @@ describe('computeVisibility - status filter (SPEC 5.6)', () => {
     expect(visible(fleet, null, 'planned').litInstanceKeys.size).toBe(0);
   });
 });
+
+describe('provider filter — show only what depends on data X still owes', () => {
+  /**
+   * Sales is linked to "Produktdaten", which is Produktmanagement's but contains
+   * "Bilder", which is Marketing's. Operations is linked to existing CRM data that
+   * nobody owes.
+   */
+  const withProviders = (): Fleet => {
+    const base = makeFleet();
+    return {
+      ...base,
+      dataSources: [
+        {
+          id: 'produkt',
+          name: 'Produktdaten',
+          type: 'department',
+          status: 'planned',
+          owner: 'Produktmanagement',
+        },
+        {
+          id: 'bilder',
+          name: 'Bilder',
+          type: 'department',
+          status: 'planned',
+          parentId: 'produkt',
+          owner: 'Marketing',
+        },
+        { id: 'crm', name: 'CRM', type: 'dataverse', status: 'live' },
+      ],
+      agents: base.agents.map((agent) => {
+        if (agent.id === AGENT.sales) return { ...agent, dataSourceIds: ['produkt'] };
+        if (agent.id === AGENT.operations) return { ...agent, dataSourceIds: ['crm'] };
+        return { ...agent, dataSourceIds: [] };
+      }),
+    };
+  };
+
+  const litAgents = (fleet: Fleet, provider: string | null): Set<string> => {
+    const { instanceList, wireList } = setup(fleet);
+    const result = computeVisibility(fleet, instanceList, wireList, null, null, provider);
+    return new Set(
+      [...result.litInstanceKeys].map(
+        (key) => instanceList.find((i) => i.key === key)?.agentId ?? '',
+      ),
+    );
+  };
+
+  it('lights everything when no provider is chosen', () => {
+    const fleet = withProviders();
+    expect(litAgents(fleet, null).size).toBe(new Set(fleet.agents.map((a) => a.id)).size);
+  });
+
+  it('lights only the agents waiting on that provider', () => {
+    const fleet = withProviders();
+    const lit = litAgents(fleet, 'Produktmanagement');
+    expect(lit.has(AGENT.sales)).toBe(true);
+    expect(lit.has(AGENT.operations)).toBe(false);
+  });
+
+  it('reaches through nesting — a parent box counts for the child\'s provider', () => {
+    // Sales references only Produktdaten, but Bilder inside it is Marketing's.
+    const lit = litAgents(withProviders(), 'Marketing');
+    expect(lit.has(AGENT.sales)).toBe(true);
+  });
+
+  it('lights nothing for a provider that owes nothing here', () => {
+    expect(litAgents(withProviders(), 'HR').size).toBe(0);
+  });
+
+  it('ignores case and stray spaces', () => {
+    expect(litAgents(withProviders(), '  marketing ').has(AGENT.sales)).toBe(true);
+  });
+
+  it('composes with the status filter by intersection', () => {
+    const fleet = withProviders();
+    const { instanceList, wireList } = setup(fleet);
+    // Sales waits on Marketing, but ask for Live agents only.
+    const salesStatus = fleet.agents.find((a) => a.id === AGENT.sales)?.status;
+    const other = salesStatus === 'live' ? 'planned' : 'live';
+    const result = computeVisibility(fleet, instanceList, wireList, null, other, 'Marketing');
+    const lit = new Set(
+      [...result.litInstanceKeys].map((k) => instanceList.find((i) => i.key === k)?.agentId),
+    );
+    expect(lit.has(AGENT.sales)).toBe(false);
+  });
+
+  it('drops a wire when the provider filter hides an endpoint', () => {
+    const fleet = withProviders();
+    const { instanceList, wireList } = setup(fleet);
+    const all = computeVisibility(fleet, instanceList, wireList, null, null, null);
+    const filtered = computeVisibility(fleet, instanceList, wireList, null, null, 'Marketing');
+    expect(filtered.litWireIds.size).toBeLessThan(all.litWireIds.size);
+  });
+});

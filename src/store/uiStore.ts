@@ -34,6 +34,11 @@ export type UiState = {
   selectedEdgeId: string | null;
   /** null = "All" (SPEC 5.6 filter bar). */
   statusFilter: Status | null;
+  /**
+   * Show only what depends on data this party still owes; null = every provider.
+   * View state, so it never enters the undo history or the saved document.
+   */
+  providerFilter: string | null;
   searchQuery: string;
   /** SPEC 5.8 "Details toggle": chips inside cards / 3D satellites. */
   showDetails: boolean;
@@ -81,6 +86,7 @@ export type UiState = {
   activate: (agentId: string) => void;
   clearFocus: () => void;
   setStatusFilter: (status: Status | null) => void;
+  setProviderFilter: (provider: string | null) => void;
   toggleStatusFilter: (status: Status | null) => void;
   setSearchQuery: (query: string) => void;
   toggleDetails: () => void;
@@ -102,6 +108,7 @@ export const useUiStore = create<UiState>()((set, get) => ({
   selectedId: null,
   selectedEdgeId: null,
   statusFilter: null,
+  providerFilter: null,
   searchQuery: '',
   showDetails: false,
   openDetail: null,
@@ -155,6 +162,7 @@ export const useUiStore = create<UiState>()((set, get) => ({
     set({ focusId: null, selectedId: null, selectedEdgeId: null, openDetail: null, focusStartedAt: now() }),
 
   setStatusFilter: (statusFilter) => set({ statusFilter }),
+  setProviderFilter: (providerFilter) => set({ providerFilter }),
   toggleStatusFilter: (status) =>
     // Clicking the active filter (or "All") clears it, exactly as the prototype does.
     set({ statusFilter: status === null || get().statusFilter === status ? null : status }),
@@ -184,6 +192,7 @@ export const useUiStore = create<UiState>()((set, get) => ({
       selectedEdgeId: null,
       openDetail: null,
       searchQuery: '',
+      providerFilter: null,
       focusStartedAt: 0,
       burst: null,
       openSections: {},

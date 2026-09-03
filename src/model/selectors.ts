@@ -330,3 +330,124 @@ export function knownOwners(fleet: Fleet): string[] {
   }
   return [...seen.values()].sort((a, b) => a.localeCompare(b));
 }
+
+// ---------- data: nesting, provision and who provides it ----------
+
+/** Top-level data — the items not inside anything else. */
+export function dataRoots(fleet: Fleet): DataSource[] {
+  const byId = new Map(fleet.dataSources.map((source) => [source.id, source]));
+  // An item whose parent is missing is shown at the top rather than hidden.
+  return fleet.dataSources.filter((s) => s.parentId === undefined || !byId.has(s.parentId));
+}
+
+export function dataChildren(fleet: Fleet, parentId: string): DataSource[] {
+  return fleet.dataSources.filter((source) => source.parentId === parentId);
+}
+
+/**
+ * Everything inside `id`, at any depth. Cycle-safe: a malformed document must not
+ * hang a renderer, so a repeat visit ends that branch.
+ */
+export function dataDescendants(fleet: Fleet, id: string): DataSource[] {
+  const out: DataSource[] = [];
+  const seen = new Set<string>([id]);
+  const queue = [id];
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (current === undefined) continue;
+    for (const child of dataChildren(fleet, current)) {
+      if (seen.has(child.id)) continue;
+      seen.add(child.id);
+      out.push(child);
+      queue.push(child.id);
+    }
+  }
+  return out;
+}
+
+/**
+ * The data an agent actually gets: what it references, plus everything inside
+ * those items. Linking an agent to "Produktdaten" gives it the whole box, so the
+ * contents never have to be attached one by one.
+ */
+export function dataForAgent(fleet: Fleet, agent: Agent): DataSource[] {
+  const byId = new Map(fleet.dataSources.map((source) => [source.id, source]));
+  const out: DataSource[] = [];
+  const seen = new Set<string>();
+
+  for (const id of agent.dataSourceIds) {
+    const direct = byId.get(id);
+    if (!direct || seen.has(id)) continue;
+    seen.add(id);
+    out.push(direct);
+    for (const child of dataDescendants(fleet, id)) {
+      if (seen.has(child.id)) continue;
+      seen.add(child.id);
+      out.push(child);
+    }
+  }
+  return out;
+}
+
+/** Every party that owes data, in name order. Casing and stray spaces do not split one. */
+export function dataProviders(fleet: Fleet): string[] {
+  const seen = new Map<string, string>();
+  for (const source of fleet.dataSources) {
+    const named = source.owner?.trim();
+    if (named === undefined || named === '') continue;
+    const key = named.toLowerCase();
+    if (!seen.has(key)) seen.set(key, named);
+  }
+  return [...seen.values()].sort((a, b) => a.localeCompare(b));
+}
+
+/** Does this data item, or anything inside it, come from `provider`? */
+export function dataMatchesProvider(fleet: Fleet, source: DataSource, provider: string): boolean {
+  const wanted = provider.trim().toLowerCase();
+  if ((source.owner ?? '').trim().toLowerCase() === wanted) return true;
+  // A parent counts when a part of it is owed, so context is never filtered away.
+  return dataDescendants(fleet, source.id).some(
+    (child) => (child.owner ?? '').trim().toLowerCase() === wanted,
+  );
+}
+
+/** Agents that depend on data owed by `provider`, directly or through nesting. */
+export function agentsWaitingOn(fleet: Fleet, provider: string): Set<string> {
+  const wanted = provider.trim().toLowerCase();
+  const waiting = new Set<string>();
+
+  for (const agent of fleet.agents) {
+    const hit = dataForAgent(fleet, agent).some(
+      (source) => (source.owner ?? '').trim().toLowerCase() === wanted,
+    );
+    if (hit) waiting.add(agent.id);
+  }
+  return waiting;
+}
+
+/**
+ * Data as a depth-first list with its nesting depth, for rendering a tree in a flat
+ * list. Cycle-safe, and an item whose parent is missing appears at the top rather
+ * than vanishing.
+ */
+export function flattenData(fleet: Fleet): { source: DataSource; depth: number }[] {
+  const out: { source: DataSource; depth: number }[] = [];
+  const seen = new Set<string>();
+
+  const walk = (nodes: DataSource[], depth: number): void => {
+    for (const source of nodes) {
+      if (seen.has(source.id)) continue;
+      seen.add(source.id);
+      out.push({ source, depth });
+      walk(dataChildren(fleet, source.id), depth + 1);
+    }
+  };
+
+  walk(dataRoots(fleet), 0);
+  // Anything a cycle kept out of the walk is still listed, or it could not be fixed.
+  for (const source of fleet.dataSources) {
+    if (!seen.has(source.id)) out.push({ source, depth: 0 });
+  }
+  return out;
+}

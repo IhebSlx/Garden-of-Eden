@@ -33,6 +33,7 @@ function Fleet3d(): React.JSX.Element | null {
   const focusId = useUiStore((s) => s.focusId);
   const selectedId = useUiStore((s) => s.selectedId);
   const statusFilter = useUiStore((s) => s.statusFilter);
+  const providerFilter = useUiStore((s) => s.providerFilter);
   const showDetails = useUiStore((s) => s.showDetails);
   const activate = useUiStore((s) => s.activate);
   const clearFocus = useUiStore((s) => s.clearFocus);
@@ -67,10 +68,17 @@ function Fleet3d(): React.JSX.Element | null {
         z: (point.y - board.height / 2) * scale,
       });
     }
-    const visibility = computeVisibility(fleet, instanceList, wireList, focusId, statusFilter);
+    const visibility = computeVisibility(
+      fleet,
+      instanceList,
+      wireList,
+      focusId,
+      statusFilter,
+      providerFilter,
+    );
     const agentsById = new Map(fleet.agents.map((a) => [a.id, a]));
     return { index, instanceList, wireList, layout, flat, visibility, agentsById };
-  }, [fleet, focusId, statusFilter]);
+  }, [fleet, focusId, statusFilter, providerFilter]);
 
   // SPEC 5.2: focusing frames the subtree; leaving focus returns to the full fleet.
   // Both are the same operation - frame a bounding sphere - so both are solved from

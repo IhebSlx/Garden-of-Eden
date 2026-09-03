@@ -4,13 +4,16 @@
  *
  * Every field the schema carries is reachable from here: a skill's description and
  * instructions, a tool's description, type and workflow steps (SPEC §8.6), and a
- * data source's type, status, `linked` flag and `ref`. Deleting an item that is
- * still in use is blocked by the store, which returns the usage list (SPEC §5.8).
+ * data item's source (a system, or a department), whether it exists or is still
+ * owed and by whom, its Ansprechpartner, what it sits inside, its `ref` and notes.
+ *
+ * Deleting an item that is still in use is blocked by the store, which returns the
+ * usage list (SPEC §5.8); so is deleting one that still contains other items.
  */
 import { useState } from 'react';
 import { selectActiveFleet, useFleetStore } from '../store/fleetStore.js';
 import { useUiStore } from '../store/uiStore.js';
-import { agentsUsing, knownOwners } from '../model/selectors.js';
+import { agentsUsing, dataDescendants, flattenData, knownOwners } from '../model/selectors.js';
 import { DATA_SOURCE_STATUS_LABELS } from '../model/schemas.js';
 import type { DataSourceType, LibraryKind, Status } from '../model/schemas.js';
 import { DATA_TYPE_COLOR, SKILL_COLOR, STATUS_COLOR, TOOL_TYPE_COLOR } from '../ui/palette.js';
@@ -20,10 +23,19 @@ import { NotesField } from './NotesField.js';
 const TABS: { kind: LibraryKind; label: string }[] = [
   { kind: 'skill', label: 'Skills' },
   { kind: 'tool', label: 'Tools' },
-  { kind: 'dataSource', label: 'Data sources' },
+  { kind: 'dataSource', label: 'Data' },
 ];
 
-const DATA_TYPES: DataSourceType[] = ['md', 'dataverse', 'sharepoint', 'file'];
+const DATA_TYPES: DataSourceType[] = ['dataverse', 'sharepoint', 'md', 'file', 'department'];
+
+/** The source reads as a label, not an enum key. */
+const SOURCE_LABEL: Record<DataSourceType, string> = {
+  dataverse: 'Dataverse',
+  sharepoint: 'SharePoint',
+  md: 'Markdown',
+  file: 'File',
+  department: 'A department',
+};
 const STATUSES: Status[] = ['live', 'building', 'planned'];
 
 export function LibraryManager(): React.JSX.Element | null {
@@ -103,19 +115,29 @@ export function LibraryManager(): React.JSX.Element | null {
   const hasNote = (notes: string | undefined): boolean => (notes ?? '').trim() !== '';
   const items =
     tab === 'skill'
-      ? fleet.skills.map((s) => ({ id: s.id, name: s.name, dot: SKILL_COLOR, noted: hasNote(s.notes) }))
+      ? fleet.skills.map((s) => ({
+          id: s.id,
+          name: s.name,
+          dot: SKILL_COLOR,
+          noted: hasNote(s.notes),
+          depth: 0,
+        }))
       : tab === 'tool'
         ? fleet.tools.map((t) => ({
             id: t.id,
             name: t.name,
             dot: TOOL_TYPE_COLOR[t.type],
             noted: hasNote(t.notes),
+            depth: 0,
           }))
-        : fleet.dataSources.map((d) => ({
-            id: d.id,
-            name: d.name,
-            dot: DATA_TYPE_COLOR[d.type],
-            noted: hasNote(d.notes),
+        : // Data nests, so it is listed as a tree: parents first, contents indented
+          // under them. A flat list of leaves hides which whole they belong to.
+          flattenData(fleet).map(({ source, depth }) => ({
+            id: source.id,
+            name: source.name,
+            dot: DATA_TYPE_COLOR[source.type],
+            noted: hasNote(source.notes),
+            depth,
           }));
 
   return (
@@ -123,8 +145,9 @@ export function LibraryManager(): React.JSX.Element | null {
       <div className="dialog library-dialog">
         <h2>Libraries</h2>
         <p className="dialog-lead">
-          Skills, tools and data sources are shared across the fleet and referenced by id, so
-          renaming one updates every agent that uses it.
+          Skills, tools and data are shared across the fleet and referenced by id, so renaming one
+          updates every agent that uses it. Data nests: an item placed &ldquo;inside&rdquo; another
+          travels with it whenever an agent is linked to the parent.
         </p>
 
         <div className="lib-tabs">
@@ -150,7 +173,13 @@ export function LibraryManager(): React.JSX.Element | null {
             const users = agentsUsing(fleet, tab, item.id);
             const editing = editingId === item.id;
             return (
-              <div key={item.id} className={`lib-entry ${editing ? 'editing' : ''}`}>
+              <div
+                key={item.id}
+                className={`lib-entry ${editing ? 'editing' : ''}`}
+                data-depth={item.depth}
+                // Indent by nesting depth so a whole and its parts read as one thing.
+                style={item.depth > 0 ? { marginLeft: `${item.depth * 14}px` } : undefined}
+              >
                 <div className="lib-row">
                   <span className="tdot" style={{ background: item.dot }} />
                   <input
@@ -224,7 +253,7 @@ export function LibraryManager(): React.JSX.Element | null {
 
                 {editing && tab === 'skill' && <SkillFields id={item.id} />}
                 {editing && tab === 'tool' && <ToolFields id={item.id} onClose={() => setEditingId(null)} error={error} onError={setError} />}
-                {editing && tab === 'dataSource' && <DataFields id={item.id} />}
+                {editing && tab === 'dataSource' && <DataFields id={item.id} onError={setError} />}
               </div>
             );
           })}
@@ -331,7 +360,13 @@ function ToolFields({
   );
 }
 
-function DataFields({ id }: { id: string }): React.JSX.Element | null {
+function DataFields({
+  id,
+  onError,
+}: {
+  id: string;
+  onError: (reason: string) => void;
+}): React.JSX.Element | null {
   const fleet = useFleetStore(selectActiveFleet);
   const updateDataSource = useFleetStore((s) => s.updateDataSource);
   const source = fleet?.dataSources.find((d) => d.id === id);
@@ -341,15 +376,15 @@ function DataFields({ id }: { id: string }): React.JSX.Element | null {
     <div className="lib-fields" data-testid="data-editor">
       <div className="lib-field-row">
         <label className="dialog-field">
-          <span>Type</span>
+          <span>Source</span>
           <select
             value={source.type}
-            aria-label={`Type of ${source.name}`}
+            aria-label={`Source of ${source.name}`}
             onChange={(event) => updateDataSource(id, { type: event.target.value as DataSourceType })}
           >
             {DATA_TYPES.map((type) => (
               <option key={type} value={type}>
-                {type}
+                {SOURCE_LABEL[type]}
               </option>
             ))}
           </select>
@@ -386,16 +421,60 @@ function DataFields({ id }: { id: string }): React.JSX.Element | null {
 
       <div className="lib-field-row">
         <label className="dialog-field">
-          <span>Prepared by</span>
+          <span>Provided by</span>
           <input
             defaultValue={source.owner ?? ''}
-            aria-label={`Who prepares ${source.name}`}
+            aria-label={`Who provides ${source.name}`}
             placeholder="Marketing"
             list="known-owners"
+            data-testid="data-provider"
             onBlur={(event) => updateDataSource(id, { owner: event.target.value })}
           />
         </label>
+        <label className="dialog-field">
+          <span>Ansprechpartner</span>
+          <input
+            defaultValue={source.contact ?? ''}
+            key={`contact-${source.contact ?? ''}`}
+            aria-label={`Contact for ${source.name}`}
+            placeholder="Who to ask"
+            data-testid="data-contact"
+            onBlur={(event) => {
+              if (event.target.value !== (source.contact ?? '')) {
+                updateDataSource(id, { contact: event.target.value });
+              }
+            }}
+          />
+        </label>
       </div>
+
+      <label className="dialog-field">
+        <span>Inside</span>
+        <select
+          value={source.parentId ?? ''}
+          aria-label={`What ${source.name} is part of`}
+          data-testid="data-parent"
+          onChange={(event) => {
+            const next = event.target.value;
+            const result = updateDataSource(id, next === '' ? { parentId: undefined } : { parentId: next });
+            if (!result.ok) onError(result.reason);
+          }}
+        >
+          <option value="">Nothing — this is a top-level item</option>
+          {/* Itself and its own contents are excluded, or nesting could loop. */}
+          {(fleet ? flattenData(fleet) : [])
+            .filter(
+              ({ source: candidate }) =>
+                candidate.id !== id &&
+                !dataDescendants(fleet!, id).some((d) => d.id === candidate.id),
+            )
+            .map(({ source: candidate, depth }) => (
+              <option key={candidate.id} value={candidate.id}>
+                {`${'  '.repeat(depth)}${candidate.name}`}
+              </option>
+            ))}
+        </select>
+      </label>
       <datalist id="known-owners">
         {owners.map((owner) => (
           <option key={owner} value={owner} />
