@@ -12,9 +12,7 @@
  * that want to address the (agent, parent) pair. Where no shared agent has children the
  * two are 1:1, so the spec's key survives as an alias.
  */
-import type { Agent, DataRequirement, DataSource, Edge, Fleet, LibraryKind } from './schemas.js';
-import { requirementProgress } from './requirements.js';
-import type { RequirementProgress } from './requirements.js';
+import type { Agent, DataSource, Edge, Fleet, LibraryKind } from './schemas.js';
 
 /** Stand-in parent id for root instances in the SPEC 4 `agentId@parentId` key form. */
 export const ROOT_PARENT = '__root__';
@@ -331,37 +329,4 @@ export function knownOwners(fleet: Fleet): string[] {
     if (!seen.has(ownerKey(named))) seen.set(ownerKey(named), named);
   }
   return [...seen.values()].sort((a, b) => a.localeCompare(b));
-}
-
-/** One department and the boxes it has to provide. */
-export type DepartmentObligations = {
-  agent: Agent;
-  requirements: DataRequirement[];
-  progress: RequirementProgress;
-};
-
-/**
- * What every department has to provide, for the overview.
- *
- * Departments only: level 2 names an area of the business, and "what does this
- * area owe" is the question the overview answers. An agent at another level may
- * still carry boxes — nothing forbids it — but it is not a department, so it does
- * not get a column here.
- *
- * Whoever is holding up the most comes first; a department with nothing recorded
- * is still listed, because an empty list is itself the finding.
- */
-export function departmentObligations(fleet: Fleet): DepartmentObligations[] {
-  return fleet.agents
-    .filter((agent) => agent.kind === 'department')
-    .map((agent) => {
-      const requirements = agent.dataRequirements ?? [];
-      return { agent, requirements, progress: requirementProgress(requirements) };
-    })
-    .sort((a, b) => {
-      if (a.progress.outstanding !== b.progress.outstanding) {
-        return b.progress.outstanding - a.progress.outstanding;
-      }
-      return a.agent.name.localeCompare(b.agent.name);
-    });
 }

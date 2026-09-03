@@ -13,7 +13,6 @@ export const ID_PREFIX = {
   tool: 'tol',
   dataSource: 'dsr',
   workflowStep: 'stp',
-  requirement: 'req',
 } as const;
 
 const defaultFactory: IdFactory = (prefix) => `${prefix}_${crypto.randomUUID().slice(0, 8)}`;

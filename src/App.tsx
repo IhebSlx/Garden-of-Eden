@@ -17,7 +17,6 @@ import { EdgeInspector } from './panel/EdgeInspector.js';
 import { LibraryManager } from './panel/LibraryManager.js';
 import { CatalogManager } from './panel/CatalogManager.js';
 import { DataPrep } from './panel/DataPrep.js';
-import { DataToProvide } from './panel/DataToProvide.js';
 import { LinkKindDialog } from './views/dialogs/LinkKindDialog.js';
 import { hydrateFleetStore, selectActiveFleet, useFleetStore } from './store/fleetStore.js';
 import { solarluxFleet } from './model/seed.js';
@@ -138,7 +137,6 @@ export function App(): React.JSX.Element {
       <LibraryManager />
       <CatalogManager />
       <DataPrep />
-      <DataToProvide />
       <Hint />
       <ShortcutsHelp />
       <Shortcuts />

@@ -530,34 +530,3 @@ which handles a context that existed and went away.
 | Reports unavailable when getContext throws | ✅ | › "reports unavailable when getContext throws instead of returning null" |
 | Falls back webgl2 → webgl → experimental-webgl | ✅ | › "falls back through webgl2, webgl and experimental-webgl" |
 | Survives a context with no lose-context extension | ✅ | › "survives a context with no WEBGL_lose_context extension" |
-
-**DEVIATION 15 — data requirements: nested boxes of what a department has to provide.** Beyond
-SPEC §4, and nested INLINE rather than id-referenced like skills, tools and data sources. §2.2
-forbids nesting children inside agent objects, but that rule is about the agent DAG: an agent may
-have several parents, so its structure has to live in edges. A requirement box has exactly one
-owner, is never shared, and is meaningless apart from it — a tree is what it is, and flattening it
-into a collection with parent ids would add a whole class of orphan-and-cycle bugs to model
-something that cannot have them.
-
-Each box carries a status, because the board is a roadmap (SPEC §1): the question is not "what
-data exists" but "what does this department still owe". Distinct from a `DataSource`, which is a
-source that exists and is wired up — a requirement is a promise that may not be kept yet, and
-distinct again from `DataSource.requirement`, which describes one existing source. Any agent may
-hold boxes; only departments get a column in the overview.
-
-| Item | Status | Test(s) |
-|---|---|---|
-| A box may contain boxes, to any depth | ✅ | `requirements.test.ts` › "nests to any depth and validates" |
-| Walk reports parents before children, with depth | ✅ | › "walks parents before children, reporting depth" |
-| Tree operations are immutable, so undo works | ✅ | › "leaves the original tree untouched, so undo has something to go back to" |
-| Deleting a box deletes its contents | ✅ | › "takes the contents with it — that is what a box means" |
-| Reordering never moves a box into itself | ✅ | › "never moves a box into itself — reordering only" |
-| Progress counts every level | ✅ | › "counts every level, not just the top boxes" |
-| Add / edit / delete / reorder through the store | ✅ | `fleetStore.test.ts` › "data requirements — what a department has to provide" (10 tests) |
-| A parent box from another agent is refused | ✅ | › "refuses a parent box that belongs to another agent" |
-| Fleet stays valid; edits are undoable | ✅ | › "keeps the fleet valid and is undoable" |
-| Overview lists departments, worst first | ✅ | `selectors.test.ts` › "puts whoever is holding up the most first" |
-| A department with nothing recorded is still listed | ✅ | › "still lists a department with nothing recorded — that is the finding" |
-| Boxes in boxes through the real UI, surviving reload | ✅ | e2e › "a department records what data it owes, in boxes that hold boxes" |
-| Delete cascades, undo restores | ✅ | e2e › "deleting a box deletes what it contains, and undo brings it back" |
-| Overview totals, empty departments, jump-to-department | ✅ | e2e › "the overview lists every department and what it still owes" |

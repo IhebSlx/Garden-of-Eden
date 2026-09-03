@@ -16,7 +16,6 @@ import {
 } from '../../store/fleetStore.js';
 import { useUiStore } from '../../store/uiStore.js';
 import { exportFleetToJson, suggestFleetFileName } from '../../store/io.js';
-import { departmentObligations } from '../../model/selectors.js';
 import { solarluxFleet } from '../../model/seed.js';
 import { solarluxVisionFleet } from '../../model/visionFleet.js';
 import { FLEET_TEMPLATE_LABELS } from '../../model/templates.js';
@@ -45,7 +44,6 @@ export function FleetBar(): React.JSX.Element {
   const resetForFleet = useUiStore((s) => s.resetForFleet);
   const openLibrary = useUiStore((s) => s.openLibrary);
   const openDataPrep = useUiStore((s) => s.openDataPrep);
-  const openProvide = useUiStore((s) => s.openProvide);
   const openCatalog = useUiStore((s) => s.openCatalog);
 
   const pastCount = useStore(useFleetStore.temporal, (s) => s.pastStates.length);
@@ -53,10 +51,6 @@ export function FleetBar(): React.JSX.Element {
 
   // A count in the menu is the only nudge that data prep is outstanding at all.
   const outstandingSources = fleet?.dataSources.filter((d) => d.status !== 'live').length ?? 0;
-  // Counted across every department, so the menu shows the backlog without opening it.
-  const boxes = fleet ? departmentObligations(fleet) : [];
-  const recordedBoxes = boxes.reduce((total, group) => total + group.progress.total, 0);
-  const outstandingBoxes = boxes.reduce((total, group) => total + group.progress.outstanding, 0);
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -217,24 +211,6 @@ export function FleetBar(): React.JSX.Element {
                 Libraries…
                 <small>
                   {fleet.skills.length + fleet.tools.length + fleet.dataSources.length} items
-                </small>
-              </button>
-              <button
-                type="button"
-                className="fleetmenu-row"
-                data-testid="open-provide"
-                onClick={() => {
-                  openProvide();
-                  setMenuOpen(false);
-                }}
-              >
-                Data to provide…
-                <small>
-                  {outstandingBoxes === 0
-                    ? recordedBoxes === 0
-                      ? 'nothing recorded yet'
-                      : 'everything delivered'
-                    : `${outstandingBoxes} outstanding`}
                 </small>
               </button>
               <button
