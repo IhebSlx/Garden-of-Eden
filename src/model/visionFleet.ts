@@ -116,6 +116,26 @@ const dataSources: DataSource[] = [
   { id: 'vdsr_holzoffensive', name: 'SharePoint Holzoffensive', type: 'sharepoint', status: 'planned' },
   { id: 'vdsr_marktdaten', name: 'Marktdaten / Anreicherung', type: 'dataverse', status: 'planned' },
   { id: 'vdsr_icp', name: 'Zielkundenprofil (ICP)', type: 'md', status: 'planned' },
+  // Department sites that already exist but that no agent reads yet: Existing,
+  // `linked: false`. Only the departments whose site the vision names are listed.
+  {
+    id: 'vdsr_sp_finanzen',
+    name: 'SharePoint Finanzen',
+    type: 'sharepoint',
+    status: 'live',
+    linked: false,
+    owner: 'Finanzen',
+    ref: 'https://solarlux.sharepoint.com/sites/Finanzen',
+  },
+  {
+    id: 'vdsr_sp_fue',
+    name: 'SharePoint Forschung & Entwicklung',
+    type: 'sharepoint',
+    status: 'live',
+    linked: false,
+    owner: 'Forschung & Entwicklung',
+    ref: 'https://solarlux.sharepoint.com/sites/ForschungundEntwicklung',
+  },
 ];
 
 const SUBSTRATE = ['vtol_dataverse', 'vtol_sharepoint', 'vtol_flows'];
@@ -204,7 +224,7 @@ const agents: Agent[] = [
   },
   {
     id: 'vagt_holzoffensive',
-    // A sub-agent of Business Development, working alongside the deck builder.
+    // A sub-agent of Controlling, working alongside the deck builder.
     kind: 'worker',
     name: 'Holzoffensive Buddy',
     role: 'Q&A zur Holzoffensive',
@@ -215,10 +235,13 @@ const agents: Agent[] = [
     dataSourceIds: ['vdsr_holzoffensive', 'vdsr_unternehmenskontext'],
   },
   {
-    id: 'vagt_businessdev',
+    id: 'vagt_controlling',
+    // Renamed from Business Development, which is not a Solarlux department.
+    // It kept the subtree it had - the market work, the Holzoffensive answers and
+    // the second claim on the deck builder - so nothing was lost in the rename.
     kind: 'department',
-    name: 'Business Development',
-    role: 'Markt, Leads, ICP',
+    name: 'Controlling',
+    role: 'Kennzahlen, Markt und Zielkunden',
     status: 'planned',
     instructions: 'Belege Marktaussagen mit mindestens zwei unabhängigen Quellen.',
     skillIds: ['vskl_marktanalyse', 'vskl_icp'],
@@ -246,6 +269,46 @@ const agents: Agent[] = [
     dataSourceIds: ['vdsr_unternehmenskontext'],
   },
   {
+    id: 'vagt_finanzen',
+    kind: 'department',
+    name: 'Finanzen',
+    role: 'Buchhaltung, Zahlungen, Abschlüsse',
+    status: 'planned',
+    skillIds: [],
+    toolIds: [...SUBSTRATE],
+    dataSourceIds: ['vdsr_unternehmenskontext', 'vdsr_sp_finanzen'],
+  },
+  {
+    id: 'vagt_fue',
+    kind: 'department',
+    name: 'Forschung & Entwicklung',
+    role: 'Neue Systeme, Konstruktion, Versuche',
+    status: 'planned',
+    skillIds: [],
+    toolIds: [...SUBSTRATE],
+    dataSourceIds: ['vdsr_unternehmenskontext', 'vdsr_sp_fue'],
+  },
+  {
+    id: 'vagt_it',
+    kind: 'department',
+    name: 'IT',
+    role: 'Systeme, Integrationen, Berechtigungen',
+    status: 'planned',
+    skillIds: [],
+    toolIds: [...SUBSTRATE],
+    dataSourceIds: ['vdsr_unternehmenskontext'],
+  },
+  {
+    id: 'vagt_produktion',
+    kind: 'department',
+    name: 'Produktion',
+    role: 'Fertigung, Kapazität, Qualität',
+    status: 'planned',
+    skillIds: [],
+    toolIds: [...SUBSTRATE],
+    dataSourceIds: ['vdsr_unternehmenskontext'],
+  },
+  {
     // The vision's dashed "…" column: more specialist agents, domain by domain.
     id: 'vagt_weitere',
     kind: 'department',
@@ -260,9 +323,13 @@ const agents: Agent[] = [
 
 const HIERARCHY: [child: string, status: Edge['status']][] = [
   ['vagt_objektvertrieb', 'live'],
-  ['vagt_businessdev', 'planned'],
+  ['vagt_controlling', 'planned'],
   ['vagt_marketing', 'planned'],
   ['vagt_service', 'planned'],
+  ['vagt_finanzen', 'planned'],
+  ['vagt_fue', 'planned'],
+  ['vagt_it', 'planned'],
+  ['vagt_produktion', 'planned'],
   ['vagt_weitere', 'planned'],
 ];
 
@@ -273,8 +340,8 @@ const HIERARCHY: [child: string, status: Edge['status']][] = [
 const SUB_AGENTS: [parent: string, child: string, status: Edge['status']][] = [
   ['vagt_objektvertrieb', 'vagt_projektsuche', 'live'],
   ['vagt_objektvertrieb', 'vagt_pptx', 'building'],
-  ['vagt_businessdev', 'vagt_pptx', 'planned'],
-  ['vagt_businessdev', 'vagt_holzoffensive', 'planned'],
+  ['vagt_controlling', 'vagt_pptx', 'planned'],
+  ['vagt_controlling', 'vagt_holzoffensive', 'planned'],
   ['vagt_objektvertrieb', 'vagt_lvdecoder', 'planned'],
   ['vagt_objektvertrieb', 'vagt_kalkulation', 'planned'],
 ];

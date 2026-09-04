@@ -17,18 +17,22 @@ describe('Solarlux vision fleet', () => {
     expect(checkFleetIntegrity(fleet)).toEqual([]);
   });
 
-  it('has the orchestrator, five departments and five sub-agents', () => {
-    expect(fleet.agents).toHaveLength(11);
+  it('has the orchestrator, nine departments and five sub-agents', () => {
+    expect(fleet.agents).toHaveLength(15);
     const orchestrators = fleet.agents.filter((a) => a.kind === 'orchestrator');
     expect(orchestrators).toHaveLength(1);
     expect(orchestrators[0]?.name).toBe('Orchestrator');
 
-    expect(childIdsOf(fleet, 'vagt_orchestrator')).toHaveLength(5);
+    expect(childIdsOf(fleet, 'vagt_orchestrator')).toHaveLength(9);
     expect(fleet.agents.filter((a) => a.kind === 'department').map((a) => a.name)).toEqual([
       'Objektvertrieb',
-      'Business Development',
+      'Controlling',
       'Marketing',
       'Service',
+      'Finanzen',
+      'Forschung & Entwicklung',
+      'IT',
+      'Produktion',
       'Weitere Fachagenten',
     ]);
     expect(fleet.agents.filter((a) => a.kind === 'worker').map((a) => a.name)).toEqual([
@@ -47,16 +51,13 @@ describe('Solarlux vision fleet', () => {
 
   it('hangs the deck builder off both departments that commission decks', () => {
     // A sub-agent, one level below the departments, shared by two of them (SPEC §2.2).
-    expect(parentsOf(fleet, 'vagt_pptx').map((p) => p.name)).toEqual([
-      'Objektvertrieb',
-      'Business Development',
-    ]);
+    expect(parentsOf(fleet, 'vagt_pptx').map((p) => p.name)).toEqual(['Objektvertrieb', 'Controlling']);
     expect(parentsOf(fleet, 'vagt_pptx').some((p) => p.kind === 'orchestrator')).toBe(false);
     expect(isShared(fleet, 'vagt_pptx')).toBe(true);
   });
 
   it('puts the Holzoffensive answers beside the deck builder, not above it', () => {
-    expect(parentsOf(fleet, 'vagt_holzoffensive').map((p) => p.name)).toEqual(['Business Development']);
+    expect(parentsOf(fleet, 'vagt_holzoffensive').map((p) => p.name)).toEqual(['Controlling']);
     // Same level, so neither reports to the other.
     expect(childIdsOf(fleet, 'vagt_holzoffensive')).toEqual([]);
 
@@ -71,7 +72,7 @@ describe('Solarlux vision fleet', () => {
       expect(parentsOf(fleet, agent.id).map((p) => p.name)).toEqual(['Orchestrator']);
     }
     const fromOrchestrator = fleet.edges.filter((e) => e.source === 'vagt_orchestrator');
-    expect(fromOrchestrator).toHaveLength(5);
+    expect(fromOrchestrator).toHaveLength(9);
     for (const edge of fromOrchestrator) {
       expect(edge.kind).toBe('hierarchy');
       expect(edge.label).toBe('delegiert');
@@ -93,7 +94,7 @@ describe('Solarlux vision fleet', () => {
     // not in the "heute" diagram at all -> planned
     expect(status('vagt_orchestrator')).toBe('planned');
     expect(status('vagt_holzoffensive')).toBe('planned');
-    expect(status('vagt_businessdev')).toBe('planned');
+    expect(status('vagt_controlling')).toBe('planned');
     expect(status('vagt_weitere')).toBe('planned');
   });
 
@@ -145,6 +146,25 @@ describe('Solarlux vision fleet', () => {
     // PPTX sources are "fehlt / nicht verknüpft".
     expect(source('vdsr_produktbilder')).toMatchObject({ status: 'planned', linked: false });
     expect(source('vdsr_produktwissen')).toMatchObject({ status: 'planned', linked: false });
+  });
+
+  it('records the department sites that exist but that nobody reads yet', () => {
+    const source = (id: string) => fleet.dataSources.find((d) => d.id === id);
+    // Existing, so not something a department still owes - but not linked either,
+    // which is exactly the state a site is in before an agent is pointed at it.
+    expect(source('vdsr_sp_finanzen')).toMatchObject({
+      status: 'live',
+      linked: false,
+      owner: 'Finanzen',
+      ref: 'https://solarlux.sharepoint.com/sites/Finanzen',
+    });
+    expect(source('vdsr_sp_fue')?.owner).toBe('Forschung & Entwicklung');
+
+    // Each site sits with its own department and nowhere else.
+    const holders = (id: string) =>
+      fleet.agents.filter((a) => a.dataSourceIds.includes(id)).map((a) => a.name);
+    expect(holders('vdsr_sp_finanzen')).toEqual(['Finanzen']);
+    expect(holders('vdsr_sp_fue')).toEqual(['Forschung & Entwicklung']);
   });
 
   it('has one branching workflow tool, so the mini-DAG has something to show', () => {
@@ -202,9 +222,21 @@ describe('departments carry no work of their own', () => {
     expect(worker?.instructions).toContain('Qualifiziere jedes Bauprojekt');
   });
 
+  it('leaves the departments added for the org chart empty of work', () => {
+    for (const id of ['vagt_finanzen', 'vagt_fue', 'vagt_it', 'vagt_produktion']) {
+      const department = fleet.agents.find((a) => a.id === id);
+      expect(department?.kind).toBe('department');
+      expect(department?.skillIds).toEqual([]);
+      expect(department?.instructions).toBeUndefined();
+      // Named at level 2, so the orchestrator delegates to them directly.
+      expect(parentsOf(fleet, id).map((p) => p.name)).toEqual(['Orchestrator']);
+      expect(childIdsOf(fleet, id)).toEqual([]);
+    }
+  });
+
   it('keeps every second-level node a department', () => {
     // The rule is about what sits at level 2, not about departments being empty:
-    // Business Development still carries its own skills and has not been split yet.
+    // Controlling still carries its own skills and has not been split yet.
     for (const id of childIdsOf(fleet, 'vagt_orchestrator')) {
       expect(fleet.agents.find((a) => a.id === id)?.kind).toBe('department');
     }

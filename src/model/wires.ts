@@ -47,9 +47,8 @@ function sharedAncestry(a: Instance, b: Instance): number {
  * A shared agent is drawn once under every parent (SPEC §2.3), so an edge naming
  * it is ambiguous at render time: which copy should the wire reach? The nearest
  * one — the copy sharing the deepest common ancestor with the source. A peer of
- * something under Business Development links to the copy under Business
- * Development, not to a copy three columns away that happens to come first in the
- * instance walk.
+ * something under Controlling links to the copy under Controlling, not to a copy
+ * three columns away that happens to come first in the instance walk.
  *
  * Ties (two copies equally close) fall back to the smaller depth and then to key
  * order, so the choice is deterministic and never flickers between renders.
