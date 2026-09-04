@@ -169,12 +169,14 @@ describe('a fan is measured in world units, not radians', () => {
     expect(gap).toBeLessThan(LAYOUT_3D.siblingArc * 1.6);
   });
 
-  it('never lets one fan exceed the hard cap', () => {
-    const { positions, angles } = layoutInstances3d(fan(1, 40));
+  it('never lets one fan spill out of the wedge its parent owns', () => {
+    const { positions, angles, wedges } = layoutInstances3d(fan(1, 40));
     expect(positions.size).toBeGreaterThan(0);
-    const spread = Math.max(...[...Array(40).keys()].map((i) => angles.get(`c${i}`) ?? 0)) -
-      Math.min(...[...Array(40).keys()].map((i) => angles.get(`c${i}`) ?? 0));
-    expect(spread).toBeLessThanOrEqual(LAYOUT_3D.spreadMax + 1e-9);
+    const all = [...Array(40).keys()].map((i) => angles.get(`c${i}`) ?? 0);
+    const spread = Math.max(...all) - Math.min(...all);
+    // The old rule was a fixed 1.15 rad regardless of the room available, which is
+    // what let neighbouring branches interleave once there were nine departments.
+    expect(spread).toBeLessThanOrEqual((wedges.get('p1') ?? 0) + 1e-9);
   });
 
   it('puts a lone child straight out from its parent', () => {
@@ -253,5 +255,79 @@ describe('fitDistance in a portrait viewport', () => {
 
   it('survives a zero-height viewport rather than dividing by nothing', () => {
     expect(Number.isFinite(fitDistance(100, 55, 1, 0))).toBe(true);
+  });
+});
+
+describe('a branch never reaches into another branch', () => {
+  /** Angular half-width actually used by a fan, and the wedge it was given. */
+  const branchOf = (fleet: ReturnType<typeof solarluxVisionFleet>, name: string) => {
+    const list = instances(fleet);
+    const { angles, wedges } = layoutInstances3d(list);
+    const agent = fleet.agents.find((a) => a.name === name);
+    if (!agent) throw new Error(`no agent ${name}`);
+    const parent = list.find((i) => i.agentId === agent.id);
+    if (!parent) throw new Error('no instance');
+    const children = list.filter((i) => i.parentKey === parent.key);
+    const offsets = children.map((c) => Math.abs((angles.get(c.key) ?? 0) - (angles.get(parent.key) ?? 0)));
+    return { used: Math.max(0, ...offsets) * 2, wedge: wedges.get(parent.key) ?? 0 };
+  };
+
+  it('keeps every fan inside its own wedge, so nine departments do not collide', () => {
+    const fleet = solarluxVisionFleet();
+    for (const name of ['Objektvertrieb', 'Controlling']) {
+      const { used, wedge } = branchOf(fleet, name);
+      expect(used).toBeLessThanOrEqual(wedge + 1e-9);
+    }
+  });
+
+  it('gives a branch with more under it a wider slice of the circle', () => {
+    const fleet = solarluxVisionFleet();
+    const list = instances(fleet);
+    const { wedges } = layoutInstances3d(list);
+    const wedgeOf = (name: string): number => {
+      const agent = fleet.agents.find((a) => a.name === name);
+      const instance = list.find((i) => i.agentId === agent?.id);
+      return wedges.get(instance?.key ?? '') ?? 0;
+    };
+    // Objektvertrieb carries four sub-agents; Finanzen carries none.
+    expect(wedgeOf('Objektvertrieb')).toBeGreaterThan(wedgeOf('Finanzen'));
+    // The whole circle is handed out and none of it twice.
+    const departments = list.filter((i) => i.depth === 1);
+    const total = departments.reduce((sum, i) => sum + (wedges.get(i.key) ?? 0), 0);
+    expect(total).toBeCloseTo(Math.PI * 2, 6);
+  });
+
+  it('keeps neighbouring departments at least a department apart', () => {
+    const list = instances(solarluxVisionFleet());
+    const { positions } = layoutInstances3d(list);
+    const ring = list
+      .filter((i) => i.depth === 1)
+      .map((i) => positions.get(i.key))
+      .filter((p) => p !== undefined)
+      .sort((a, b) => Math.atan2(a.z, a.x) - Math.atan2(b.z, b.x));
+
+    for (let i = 0; i < ring.length; i += 1) {
+      const here = ring[i];
+      const next = ring[(i + 1) % ring.length];
+      if (!here || !next) throw new Error('missing');
+      expect(Math.hypot(next.x - here.x, next.z - here.z)).toBeGreaterThanOrEqual(
+        LAYOUT_3D.departmentArc * 0.85,
+      );
+    }
+  });
+
+  it('keeps every pair of sub-agents apart too', () => {
+    const list = instances(solarluxVisionFleet());
+    const { positions } = layoutInstances3d(list);
+    const deep = list.filter((i) => i.depth === 2);
+    for (const a of deep) {
+      for (const b of deep) {
+        if (a.key >= b.key) continue;
+        const pa = positions.get(a.key);
+        const pb = positions.get(b.key);
+        if (!pa || !pb) throw new Error('missing');
+        expect(Math.hypot(pb.x - pa.x, pb.z - pa.z)).toBeGreaterThanOrEqual(LAYOUT_3D.siblingArc * 0.85);
+      }
+    }
   });
 });

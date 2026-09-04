@@ -20,6 +20,7 @@ import { DataPrep } from './panel/DataPrep.js';
 import { LinkKindDialog } from './views/dialogs/LinkKindDialog.js';
 import { hydrateFleetStore, selectActiveFleet, useFleetStore } from './store/fleetStore.js';
 import { solarluxFleet } from './model/seed.js';
+import { solarluxVisionFleet } from './model/visionFleet.js';
 import { attachPersistence, createIndexedDbRepository } from './store/persistence.js';
 import { useCatalogStore } from './store/catalogStore.js';
 
@@ -50,10 +51,11 @@ function useBootstrap(): Bootstrap {
       const loaded = await repository.loadAll();
       useCatalogStore.getState().hydrate(await repository.loadCatalog());
 
-      // First run opens the Solarlux example so the board is never empty on arrival.
-      // SPEC 5.11 keeps it a loadable example: it is seeded once, then editable and
-      // replaceable like any other fleet.
-      const fleets = loaded.fleets.length > 0 ? loaded.fleets : [solarluxFleet()];
+      // First run opens the Solarlux Vision fleet: it is the architecture this app
+      // exists to show, so a fresh install - a new machine, a colleague's browser -
+      // lands on the real thing rather than on the feature demo. SPEC 5.11 keeps both
+      // loadable examples: seeded once, then editable and replaceable like any fleet.
+      const fleets = loaded.fleets.length > 0 ? loaded.fleets : [solarluxVisionFleet()];
       const activeFleetId = loaded.fleets.length > 0 ? loaded.activeFleetId : (fleets[0]?.id ?? null);
 
       hydrateFleetStore({ fleets, activeFleetId });
@@ -99,13 +101,16 @@ function EmptyState(): React.JSX.Element {
   return (
     <div className="empty-state" data-testid="empty-state">
       <h1>No fleet open</h1>
-      <p>Start from a template, or load the Solarlux example to see a full fleet.</p>
+      <p>Start from a template, or load the Solarlux architecture to see a full fleet.</p>
       <div className="empty-actions">
         <button type="button" className="btn" onClick={() => createFleet('company')}>
           Company fleet
         </button>
         <button type="button" className="btn ghost" onClick={() => createFleet('blank')}>
           Blank
+        </button>
+        <button type="button" className="btn ghost" onClick={() => importFleet(solarluxVisionFleet())}>
+          Solarlux Vision
         </button>
         <button type="button" className="btn ghost" onClick={() => importFleet(solarluxFleet())}>
           Solarlux example

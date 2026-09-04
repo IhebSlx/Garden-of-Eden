@@ -209,10 +209,14 @@ export const LAYOUT_3D = {
   yPerDepth: 48,
   /** Target gap between adjacent siblings, in world units. */
   siblingArc: 42,
+  /**
+   * Target gap between two departments on the ring. Larger than `siblingArc`
+   * because a department is drawn half again as big as a sub-agent and carries a
+   * wider label. The ring only grows when nine of them cannot hold it.
+   */
+  departmentArc: 46,
   /** Cap on the angle between two siblings, so a pair does not splay on a tight ring. */
   maxSiblingStep: 0.42,
-  /** Hard cap on the total arc one fan may occupy. */
-  spreadMax: 1.15,
 } as const;
 
 /** Focus camera distance: clamp(subtreeRadius * 2.3 + 70, 120, 340). */

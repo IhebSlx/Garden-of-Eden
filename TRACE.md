@@ -597,3 +597,46 @@ linked to several agents rather than being trapped in one panel.
 | An inherited part blocks whoever waits on the box | ✅ | `dataNesting.test.ts` › "names the agent under the part, not only under the box it references" |
 | An item nobody reaches has nobody waiting | ✅ | › "leaves an item nobody reaches with nobody waiting" |
 | The Ansprechpartner reaches Data prep | ✅ | › "carries the Ansprechpartner through to the obligation" |
+
+**Data prep answers "prepared by whom?" where the question is asked.** Assigning a department
+used to mean leaving the view and finding the item in Libraries, so in practice nothing was ever
+assigned and every obligation sat under Unassigned. Each item now carries a **Provided by** select
+and, once assigned, an **Ansprechpartner** field. `providerOptions` offers every department in the
+fleet — not only the names somebody has already typed, because a department that owes nothing yet
+still has to be askable — plus any provider already named, so nothing recorded is lost.
+
+| Item | Status | Test(s) |
+|---|---|---|
+| Every department is offered, even one that owes nothing | ✅ | `dataNesting.test.ts` › "offers every department, including those that owe nothing yet" |
+| Providers that are not departments survive | ✅ | › "keeps providers that are not departments, so nothing already named is lost" |
+| A name appears once, whatever its casing | ✅ | › "lists a name once when a department is also a named provider" |
+| Assigning from Data prep moves the item and sticks | ✅ | e2e › "a department can be assigned to a data item from Data prep" |
+
+**A fresh install opens the architecture, not the demo.** The Vision fleet is what this app exists
+to show, so a new machine — a colleague's browser, a cleared profile — lands on it. The demo fleet
+stays one click away in the fleet menu and in the empty state, because it is what exercises the
+app's features (shared agents ×3, a branching workflow tool, four departments of workers).
+
+| Item | Status | Test(s) |
+|---|---|---|
+| First run seeds the Vision fleet | ✅ | e2e › "a fresh install opens the Solarlux Vision fleet, not the demo" |
+| The demo is still reachable and complete | ✅ | e2e › every other test — `freshApp` loads it through the menu |
+
+**DEVIATION 17 — a 3D branch owns a wedge, replacing the fixed fan cap.** `spreadMax` capped every
+fan at 1.15 rad regardless of the room its parent actually had. With four departments that was
+narrower than a department's share of the circle, so nothing collided; with nine it was nearly
+twice as wide, and neighbouring departments' fans interleaved — spheres and labels overlapping on
+screen. Each branch now owns a disjoint wedge: the root's children tile the full circle, and below
+that a node's children tile their parent's wedge, each taking a share proportional to the leaves
+beneath it. Compactness is preserved by drawing a fan only as wide as its members need
+(`siblingArc` apart) and by growing a ring outward only when the tightest pair on it would
+otherwise be closer than one node needs. A small fleet lays out exactly where it always did.
+
+| Item | Status | Test(s) |
+|---|---|---|
+| A fan never leaves its parent's wedge | ✅ | `layout3d.test.ts` › "never lets one fan spill out of the wedge its parent owns"; "keeps every fan inside its own wedge, so nine departments do not collide" |
+| The circle is handed out once and in full | ✅ | › "gives a branch with more under it a wider slice of the circle" |
+| Nine departments stay a department apart | ✅ | › "keeps neighbouring departments at least a department apart" |
+| No two sub-agents collide either | ✅ | › "keeps every pair of sub-agents apart too" |
+| A small fleet is where it always was | ✅ | › "fans departments around the orchestrator at the base radius"; "holds the department ring where it was — that level never sprawled"; "puts every node of a level on one ring, at one height" |
+| A fan stays as wide when it sits further out | ✅ | › "keeps the same fan roughly as wide when it sits further out"; "spaces siblings by about siblingArc on a wide ring" |

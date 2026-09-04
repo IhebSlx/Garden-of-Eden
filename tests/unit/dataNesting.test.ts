@@ -13,6 +13,7 @@ import {
   dataForAgent,
   dataMatchesProvider,
   dataProviders,
+  providerOptions,
   dataRoots,
 } from '../../src/model/selectors.js';
 import { DataSourceSchema } from '../../src/model/schemas.js';
@@ -214,5 +215,31 @@ describe('an inherited part still blocks whoever waits on the box', () => {
       .flatMap((group) => group.obligations)
       .find(({ source }) => source.id === 'bilder');
     expect(bilder?.source.contact).toBe('Herr Klein');
+  });
+});
+
+describe('who a data item can be assigned to', () => {
+  it('offers every department, including those that owe nothing yet', () => {
+    const fleet = nested();
+    const departments = fleet.agents.filter((a) => a.kind === 'department').map((a) => a.name);
+    expect(departments.length).toBeGreaterThan(0);
+    for (const name of departments) expect(providerOptions(fleet)).toContain(name);
+  });
+
+  it('keeps providers that are not departments, so nothing already named is lost', () => {
+    // Produktmanagement and Vertrieb provide data but are not agents in this fleet.
+    expect(providerOptions(nested())).toEqual(expect.arrayContaining(['Produktmanagement', 'Vertrieb']));
+  });
+
+  it('lists a name once when a department is also a named provider', () => {
+    const fleet = nested();
+    const department = fleet.agents.find((a) => a.kind === 'department');
+    if (!department) throw new Error('no department in the fixture');
+    const withOverlap: Fleet = {
+      ...fleet,
+      dataSources: [...fleet.dataSources, data('extra', { owner: department.name.toUpperCase() })],
+    };
+    const hits = providerOptions(withOverlap).filter((o) => o.toLowerCase() === department.name.toLowerCase());
+    expect(hits).toHaveLength(1);
   });
 });

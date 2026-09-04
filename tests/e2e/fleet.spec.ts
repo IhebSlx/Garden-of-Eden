@@ -2,7 +2,8 @@
  * SPEC 10, Phase 1 DoD: "Playwright smoke covers focus / filter / search / add /
  * rename / delete / undo."
  *
- * Every test starts from a clean IndexedDB so the app seeds the Solarlux example.
+ * A fresh install now opens the Solarlux Vision fleet, so `freshApp` switches to the
+ * demo the suite below is written against - one click, the same one a user makes.
  */
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
@@ -19,7 +20,14 @@ async function freshApp(page: Page): Promise<void> {
   });
   await page.goto('/');
   await expect(page.getByTestId('board')).toBeVisible();
-  // Wait for the seeded fleet to be laid out and fitted.
+
+  // A fresh install lands on the Vision fleet; the suite below needs the demo.
+  const breadcrumb = await page.getByTestId('breadcrumb').textContent();
+  if (breadcrumb === null || !breadcrumb.includes('Solarlux Fleet')) {
+    await page.getByTestId('fleet-menu-toggle').click();
+    await page.getByTestId('load-example').click();
+  }
+  // Wait for the fleet to be laid out and fitted.
   await expect(page.getByTestId('agent-card')).toHaveCount(20);
   await expect(page.getByTestId('breadcrumb')).toContainText('Solarlux Fleet');
 }
@@ -489,7 +497,7 @@ test('data prep says who owes each source and who is blocked without it', async 
   await expect(marketing).toContainText('needed by');
 
   // Everything nobody has claimed is still gathered under Unassigned.
-  await expect(prep.getByTestId('prep-group').filter({ hasText: 'Unassigned' })).toHaveCount(1);
+  await expect(prep.locator('[data-testid="prep-group"][data-owner=""]')).toHaveCount(1);
 });
 
 test('data prep jumps from an obligation to the agent waiting on it', async ({ page }) => {
@@ -697,4 +705,53 @@ test('linking a box gives the agent what is inside it', async ({ page }) => {
 
   // And the agent counts as waiting on Marketing, whom it never referenced directly.
   await expect(page.getByTestId('provider-filter-select')).toContainText('Marketing');
+});
+
+test('a fresh install opens the Solarlux Vision fleet, not the demo', async ({ browser }) => {
+  const context = await browser.newContext();
+  const fresh = await context.newPage();
+  await fresh.addInitScript(() => {
+    indexedDB.deleteDatabase('agent-fleet-studio');
+  });
+  await fresh.goto('/');
+
+  await expect(fresh.getByTestId('breadcrumb')).toContainText('Solarlux Vision');
+  // Fifteen agents, and the shared deck builder drawn under both its parents.
+  await expect(fresh.getByTestId('agent-card')).toHaveCount(16);
+  await expect(fresh.getByTestId('agent-card').filter({ hasText: 'Controlling' })).toHaveCount(1);
+  await expect(fresh.getByTestId('agent-card').filter({ hasText: 'Business Development' })).toHaveCount(0);
+
+  await context.close();
+});
+
+test('a department can be assigned to a data item from Data prep', async ({ page }) => {
+  await page.getByTestId('fleet-menu-toggle').click();
+  await page.getByRole('button', { name: /Data prep/ }).click();
+  const prep = page.getByTestId('data-prep');
+
+  // Nothing in the demo has a provider, so everything starts in Unassigned.
+  await expect(prep.getByTestId('prep-group').first()).toHaveAttribute('data-owner', '');
+  const first = prep.getByTestId('prep-item').first();
+  const owner = first.getByTestId('prep-owner');
+  await expect(owner).toHaveValue('');
+
+  // Every department is offered, including ones that owe nothing yet.
+  await expect(owner.locator('option')).toContainText(['Unassigned', 'Marketing']);
+
+  await owner.selectOption('Marketing');
+  // The item leaves Unassigned for a group of its own, and can name a contact.
+  const marketing = prep.locator('[data-testid="prep-group"][data-owner="Marketing"]');
+  await expect(marketing).toHaveCount(1);
+  const contact = marketing.getByTestId('prep-contact').first();
+  const label = await contact.getAttribute('aria-label');
+  await contact.fill('Frau Bauer');
+  await contact.blur();
+
+  // It survives a reload, so the answer is stored, not just displayed.
+  await page.waitForTimeout(600);
+  await page.reload();
+  await expect(page.getByTestId('breadcrumb')).toContainText('Solarlux Fleet');
+  await page.getByTestId('fleet-menu-toggle').click();
+  await page.getByRole('button', { name: /Data prep/ }).click();
+  await expect(page.getByTestId('data-prep').getByLabel(label ?? '')).toHaveValue('Frau Bauer');
 });

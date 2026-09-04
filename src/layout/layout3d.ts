@@ -3,13 +3,27 @@
  * over the instance TREE (the prototype walked by agent id, which was only safe
  * because it disabled children under shared agents).
  *
- * Departments fan out around the orchestrator; deeper levels spread within their
- * parent's arc and drop a level each time, with odd siblings pushed further out so
- * dense branches do not overlap.
+ * Every branch owns a WEDGE of the circle and may never place anything outside it.
+ * The root's children tile the full circle; below that, a node's children tile
+ * their parent's wedge, each taking a share proportional to how many leaves hang
+ * beneath it. Two branches therefore cannot reach into each other however lopsided
+ * the tree is.
+ *
+ * DEVIATION: the fan used to be capped at a fixed `spreadMax` of 1.15 rad no matter
+ * how much room the parent actually had. With four departments that was narrower
+ * than a department's share of the circle and looked fine; with nine it was nearly
+ * twice as wide, so the fans of neighbouring departments interleaved and their
+ * spheres and labels overlapped on screen. A wedge is the honest bound, so
+ * `spreadMax` is gone.
+ *
+ * Two things keep it compact rather than sprawling. A fan is drawn only as wide as
+ * its members need - `siblingArc` world units apart - and merely *allowed* the rest
+ * of the wedge; and a ring moves outward only when the tightest pair on it would
+ * otherwise sit closer than one node needs (`departmentArc` on the department ring,
+ * `siblingArc` below it). A small fleet lays out exactly where it always did.
  *
  * A fan's width is measured in world units between siblings, not in radians, so a
- * wide fan far from the centre stays as tight as the same fan near it. See the
- * DEVIATION note on LAYOUT_3D.
+ * wide fan far from the centre stays as tight as the same fan near it.
  */
 import { LAYOUT_3D } from '../ui/constants.js';
 import type { Instance } from '../model/selectors.js';
@@ -20,12 +34,72 @@ export type Layout3dResult = {
   positions: Map<string, Point3>;
   /** Polar angle per instance, reused when placing its children. */
   angles: Map<string, number>;
+  /**
+   * The slice of the circle each instance owns, in radians. Its own descendants are
+   * laid out inside it and nothing else ever is.
+   */
+  wedges: Map<string, number>;
 };
+
+/** Leaves beneath an instance - how much room its branch has to be given. */
+function leafWeights(
+  instances: Instance[],
+  childrenByParentKey: ReadonlyMap<string, Instance[]>,
+): Map<string, number> {
+  const weights = new Map<string, number>();
+  // Deepest first, so a node's children are always counted before the node is.
+  const byDepth = [...instances].sort((a, b) => b.depth - a.depth);
+  for (const instance of byDepth) {
+    const children = childrenByParentKey.get(instance.key) ?? [];
+    let total = 0;
+    for (const child of children) total += weights.get(child.key) ?? 1;
+    weights.set(instance.key, Math.max(1, total));
+  }
+  return weights;
+}
+
+/**
+ * Where each child sits inside its parent's wedge, before the fan is tightened.
+ * Shares tile the wedge in order and each child sits at the centre of its share.
+ */
+function shareOffsets(wedge: number, weights: number[]): { offsets: number[]; shares: number[] } {
+  const total = weights.reduce((sum, weight) => sum + weight, 0) || 1;
+  const offsets: number[] = [];
+  const shares: number[] = [];
+  let cursor = -wedge / 2;
+  for (const weight of weights) {
+    const share = (wedge * weight) / total;
+    shares.push(share);
+    offsets.push(cursor + share / 2);
+    cursor += share;
+  }
+  return { offsets, shares };
+}
+
+/**
+ * The radius at which the tightest pair of neighbours is still `minArc` world units
+ * apart. Adjacent shares meet halfway, so the angle between two centres is half of
+ * each share.
+ */
+function radiusForArc(shares: number[], minArc: number, wrap: boolean): number {
+  let needed = 0;
+  for (let index = 0; index + 1 < shares.length; index += 1) {
+    const gap = ((shares[index] ?? 0) + (shares[index + 1] ?? 0)) / 2;
+    if (gap > 0) needed = Math.max(needed, minArc / gap);
+  }
+  // On a closed ring the last neighbour is the first one again.
+  if (wrap && shares.length > 1) {
+    const gap = ((shares[shares.length - 1] ?? 0) + (shares[0] ?? 0)) / 2;
+    if (gap > 0) needed = Math.max(needed, minArc / gap);
+  }
+  return needed;
+}
 
 export function layoutInstances3d(instances: Instance[]): Layout3dResult {
   const positions = new Map<string, Point3>();
   const angles = new Map<string, number>();
-  if (instances.length === 0) return { positions, angles };
+  const wedges = new Map<string, number>();
+  if (instances.length === 0) return { positions, angles, wedges };
 
   const childrenByParentKey = new Map<string, Instance[]>();
   const roots: Instance[] = [];
@@ -39,11 +113,11 @@ export function layoutInstances3d(instances: Instance[]): Layout3dResult {
     else childrenByParentKey.set(instance.parentKey, [instance]);
   }
 
-  const queue: Instance[] = [];
+  const weights = leafWeights(instances, childrenByParentKey);
 
   roots.forEach((root, index) => {
-    // Several roots would sit on top of each other at the origin, so they share
-    // the top ring instead.
+    // Several roots would sit on top of each other at the origin, so they share the
+    // top ring instead.
     const angle = roots.length === 1 ? Math.PI / 2 : Math.PI / 2 + (index * Math.PI * 2) / roots.length;
     const radius = roots.length === 1 ? 0 : LAYOUT_3D.baseRadius;
     positions.set(root.key, {
@@ -52,50 +126,74 @@ export function layoutInstances3d(instances: Instance[]): Layout3dResult {
       z: Math.sin(angle) * radius,
     });
     angles.set(root.key, angle);
-    queue.push(root);
+    wedges.set(root.key, (Math.PI * 2) / roots.length);
   });
 
-  while (queue.length > 0) {
-    const parent = queue.shift();
-    if (parent === undefined) continue;
+  const byDepth = new Map<number, Instance[]>();
+  for (const instance of instances) {
+    const bucket = byDepth.get(instance.depth);
+    if (bucket) bucket.push(instance);
+    else byDepth.set(instance.depth, [instance]);
+  }
+  const depths = [...byDepth.keys()].filter((depth) => depth > 0).sort((a, b) => a - b);
 
-    const children = childrenByParentKey.get(parent.key) ?? [];
-    const count = children.length;
-    const parentAngle = angles.get(parent.key) ?? Math.PI / 2;
+  // Depth by depth: a ring's radius depends on every fan that lands on it, so the
+  // whole level is measured before any of it is placed. One radius per level also
+  // keeps a level reading as a level (SPEC §5.4).
+  let previousRadius = 0;
+  for (const depth of depths) {
+    const parents = (byDepth.get(depth - 1) ?? []).filter(
+      (parent) => (childrenByParentKey.get(parent.key) ?? []).length > 0,
+    );
 
-    children.forEach((child, index) => {
-      let angle: number;
-      let radius: number;
+    // The department ring is a closed circle around a single root; everything below
+    // it is a fan hanging off its own parent.
+    const isDepartmentRing = depth === 1 && roots.length === 1;
+    const minArc = isDepartmentRing ? LAYOUT_3D.departmentArc : LAYOUT_3D.siblingArc;
 
-      if (parent.depth === 0) {
-        // Departments take the full circle around the orchestrator.
-        angle = Math.PI / 4 + (index * Math.PI * 2) / count;
-        radius = LAYOUT_3D.baseRadius;
-      } else {
-        // The ring this fan sits on, before the odd-sibling stagger nudges
-        // individual children in or out.
-        const ringRadius = LAYOUT_3D.baseRadius + LAYOUT_3D.radiusPerDepth * parent.depth;
+    let radius = isDepartmentRing ? LAYOUT_3D.baseRadius : previousRadius + LAYOUT_3D.radiusPerDepth;
 
-        // A fixed gap in world units needs a smaller angle the further out it is
-        // applied. Spacing by angle instead made deep fans sweep across the scene.
-        const step = Math.min(LAYOUT_3D.siblingArc / ringRadius, LAYOUT_3D.maxSiblingStep);
-        const spread = Math.min((count - 1) * step, LAYOUT_3D.spreadMax);
+    for (const parent of parents) {
+      const children = childrenByParentKey.get(parent.key) ?? [];
+      const { shares } = shareOffsets(
+        wedges.get(parent.key) ?? Math.PI * 2,
+        children.map((child) => weights.get(child.key) ?? 1),
+      );
+      radius = Math.max(radius, radiusForArc(shares, minArc, isDepartmentRing));
+    }
 
-        angle = parentAngle + (count === 1 ? 0 : (index / (count - 1) - 0.5) * spread);
-        radius = ringRadius;
-      }
+    for (const parent of parents) {
+      const children = childrenByParentKey.get(parent.key) ?? [];
+      const parentAngle = angles.get(parent.key) ?? Math.PI / 2;
+      const { offsets, shares } = shareOffsets(
+        wedges.get(parent.key) ?? Math.PI * 2,
+        children.map((child) => weights.get(child.key) ?? 1),
+      );
 
-      angles.set(child.key, angle);
-      positions.set(child.key, {
-        x: Math.cos(angle) * radius,
-        y: LAYOUT_3D.rootY - LAYOUT_3D.yPerDepth * child.depth,
-        z: Math.sin(angle) * radius,
+      // Draw the fan only as wide as its members need, and let it keep the wedge it
+      // did not use. A closed ring is never tightened - that would leave a gap in
+      // the circle instead of filling it.
+      const span = (offsets[offsets.length - 1] ?? 0) - (offsets[0] ?? 0);
+      const step = Math.min(LAYOUT_3D.siblingArc / radius, LAYOUT_3D.maxSiblingStep);
+      const wanted = (children.length - 1) * step;
+      const tighten = isDepartmentRing || span <= 0 ? 1 : Math.min(1, wanted / span);
+
+      children.forEach((child, index) => {
+        const angle = parentAngle + (offsets[index] ?? 0) * tighten;
+        angles.set(child.key, angle);
+        wedges.set(child.key, (shares[index] ?? 0) * tighten);
+        positions.set(child.key, {
+          x: Math.cos(angle) * radius,
+          y: LAYOUT_3D.rootY - LAYOUT_3D.yPerDepth * child.depth,
+          z: Math.sin(angle) * radius,
+        });
       });
-      queue.push(child);
-    });
+    }
+
+    previousRadius = radius;
   }
 
-  return { positions, angles };
+  return { positions, angles, wedges };
 }
 
 /** Centre and radius of a set of instances, for the focus camera (SPEC 5.2). */

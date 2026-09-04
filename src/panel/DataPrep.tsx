@@ -12,8 +12,9 @@
  */
 import { DATA_SOURCE_STATUS_LABELS } from '../model/schemas.js';
 import type { Status } from '../model/schemas.js';
-import { dataObligations } from '../model/selectors.js';
+import { dataObligations, providerOptions } from '../model/selectors.js';
 import type { OwnerWorkload } from '../model/selectors.js';
+import type { DataSource } from '../model/schemas.js';
 import { selectActiveFleet, useFleetStore } from '../store/fleetStore.js';
 import { useUiStore } from '../store/uiStore.js';
 import { DATA_TYPE_COLOR, STATUS_COLOR } from '../ui/palette.js';
@@ -32,6 +33,55 @@ function StatusTag({ status }: { status: Status }): React.JSX.Element {
   );
 }
 
+/**
+ * Assigning a department is the whole point of this view, so it happens here
+ * rather than three clicks away in Libraries. The options are the fleet's
+ * departments plus any provider already named — a department that owes nothing yet
+ * still has to be offerable, or it can never be asked for anything.
+ */
+function Assignment({ source, options }: { source: DataSource; options: string[] }): React.JSX.Element {
+  const updateDataSource = useFleetStore((s) => s.updateDataSource);
+  return (
+    <div className="prep-assign">
+      <label>
+        <span>Provided by</span>
+        <select
+          value={source.owner ?? ''}
+          data-testid="prep-owner"
+          aria-label={`Which department provides ${source.name}`}
+          onChange={(event) => updateDataSource(source.id, { owner: event.target.value })}
+        >
+          <option value="">Unassigned</option>
+          {options.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      {/* A department is not someone you can chase, so the name comes next. */}
+      {(source.owner ?? '') !== '' && (
+        <label>
+          <span>Ansprechpartner</span>
+          <input
+            defaultValue={source.contact ?? ''}
+            key={`${source.id}-${source.contact ?? ''}`}
+            placeholder="Who to ask"
+            data-testid="prep-contact"
+            aria-label={`Contact for ${source.name}`}
+            onBlur={(event) => {
+              if (event.target.value !== (source.contact ?? '')) {
+                updateDataSource(source.id, { contact: event.target.value });
+              }
+            }}
+          />
+        </label>
+      )}
+    </div>
+  );
+}
+
 export function DataPrep(): React.JSX.Element | null {
   const open = useUiStore((s) => s.dataPrepOpen);
   const close = useUiStore((s) => s.closeDataPrep);
@@ -42,6 +92,7 @@ export function DataPrep(): React.JSX.Element | null {
   if (!open || !fleet) return null;
 
   const groups = dataObligations(fleet);
+  const options = providerOptions(fleet);
   const outstanding = groups.reduce((total, group) => total + group.outstanding, 0);
 
   return (
@@ -88,7 +139,9 @@ export function DataPrep(): React.JSX.Element | null {
                   </header>
 
                   {group.owner === null && (
-                    <p className="prep-hint">Nobody has been asked for these yet.</p>
+                    <p className="prep-hint">
+                      Nobody has been asked for these yet — pick the department under each item.
+                    </p>
                   )}
 
                   <ul className="prep-items">
@@ -98,14 +151,9 @@ export function DataPrep(): React.JSX.Element | null {
                           <span className="tdot" style={{ background: DATA_TYPE_COLOR[source.type] }} />
                           <b>{source.name}</b>
                           <StatusTag status={source.status} />
-                          {/* The person to ask - an obligation without a name to
-                              chase is not actionable. */}
-                          {source.contact !== undefined && source.contact !== '' && (
-                            <span className="prep-contact" data-testid="prep-contact">
-                              {source.contact}
-                            </span>
-                          )}
                         </div>
+
+                        <Assignment source={source} options={options} />
 
                         {source.requirement !== undefined && source.requirement !== '' ? (
                           <p className="prep-req">{source.requirement}</p>

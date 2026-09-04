@@ -337,6 +337,25 @@ export function knownOwners(fleet: Fleet): string[] {
   return [...seen.values()].sort((a, b) => a.localeCompare(b));
 }
 
+/**
+ * Who a data item can be assigned to: every department in the fleet, plus any
+ * provider already named. Departments come first even when they owe nothing yet —
+ * the question "which department prepares this?" cannot be answered from a list
+ * that only contains the departments somebody has already thought of.
+ */
+export function providerOptions(fleet: Fleet): string[] {
+  const seen = new Map<string, string>();
+  for (const agent of fleet.agents) {
+    if (agent.kind !== 'department') continue;
+    const named = agent.name.trim();
+    if (named !== '' && !seen.has(ownerKey(named))) seen.set(ownerKey(named), named);
+  }
+  for (const named of knownOwners(fleet)) {
+    if (!seen.has(ownerKey(named))) seen.set(ownerKey(named), named);
+  }
+  return [...seen.values()].sort((a, b) => a.localeCompare(b));
+}
+
 // ---------- data: nesting, provision and who provides it ----------
 
 /** Top-level data — the items not inside anything else. */
