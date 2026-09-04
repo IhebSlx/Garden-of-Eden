@@ -291,8 +291,16 @@ const ownerKey = (owner: string): string => owner.trim().toLowerCase();
  * is at the top; ties fall back to name order for a stable list.
  */
 export function dataObligations(fleet: Fleet): OwnerWorkload[] {
-  const usage = libraryUsage(fleet, 'dataSource');
-  const agentsById = new Map(fleet.agents.map((agent) => [agent.id, agent]));
+  // Who waits on an item, counting inheritance: an agent linked only to the box
+  // that contains it is blocked by it just the same.
+  const waitingBySource = new Map<string, Agent[]>();
+  for (const agent of fleet.agents) {
+    for (const source of dataForAgent(fleet, agent)) {
+      const bucket = waitingBySource.get(source.id) ?? [];
+      bucket.push(agent);
+      waitingBySource.set(source.id, bucket);
+    }
+  }
   const byOwner = new Map<string, OwnerWorkload>();
 
   for (const source of fleet.dataSources) {
@@ -303,9 +311,7 @@ export function dataObligations(fleet: Fleet): OwnerWorkload[] {
     const bucket = byOwner.get(key) ?? { owner, obligations: [], outstanding: 0 };
     bucket.obligations.push({
       source,
-      waitingAgents: (usage.get(source.id) ?? [])
-        .map((agentId) => agentsById.get(agentId))
-        .filter((agent): agent is Agent => agent !== undefined),
+      waitingAgents: waitingBySource.get(source.id) ?? [],
     });
     if (source.status !== 'live') bucket.outstanding += 1;
     byOwner.set(key, bucket);

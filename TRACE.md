@@ -549,6 +549,10 @@ linked to several agents rather than being trapped in one panel.
 - **A real filter.** "Provided by" sits beside the status chips and composes with it and with
   focus by intersection. It reaches through nesting: an agent linked only to the parent still
   matches the provider of a part.
+- **Inheritance is visible, not just true.** The panel, the 2D card and the 3D bundle all read
+  through `dataForAgent`, so a part that arrived inside a box is listed where the agent is —
+  dashed and without a ✕, since detaching a part the agent never attached would only bring it
+  straight back. Data prep counts the same way: an inherited part names the agents blocked by it.
 
 | Item | Status | Test(s) |
 |---|---|---|
@@ -571,3 +575,7 @@ linked to several agents rather than being trapped in one panel.
 | Nesting, cycle and delete guards in the store | ✅ | `fleetStore.test.ts` › "data nesting through the store" (8 tests) |
 | Source, department, nesting and the delete guard in the UI | ✅ | e2e › "data has a source, can be a department, and nests inside other data" |
 | The filter, end to end | ✅ | e2e › "the provider filter shows only what a department still owes" |
+| Inheritance reaches the panel, the card and the 3D bundle | ✅ | e2e › "linking a box gives the agent what is inside it" |
+| An inherited part blocks whoever waits on the box | ✅ | `dataNesting.test.ts` › "names the agent under the part, not only under the box it references" |
+| An item nobody reaches has nobody waiting | ✅ | › "leaves an item nobody reaches with nobody waiting" |
+| The Ansprechpartner reaches Data prep | ✅ | › "carries the Ansprechpartner through to the obligation" |

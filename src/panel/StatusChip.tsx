@@ -14,7 +14,7 @@ const ALL: Status[] = ['live', 'building', 'planned'];
 type Props = {
   status: Status;
   onChange: (status: Status) => void;
-  /** Data sources say "Ready" where agents say "Live" (SPEC 4). */
+  /** Data says "Existing" where an agent says "Live" (SPEC 4). */
   variant?: 'agent' | 'dataSource';
   label?: string;
 };

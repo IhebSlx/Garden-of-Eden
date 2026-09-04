@@ -665,3 +665,36 @@ test('the provider filter shows only what a department still owes', async ({ pag
   await page.getByRole('button', { name: 'Show every provider again' }).click();
   await expect.poll(async () => page.locator('[data-testid="agent-card"].ghost').count()).toBe(0);
 });
+
+test('linking a box gives the agent what is inside it', async ({ page }) => {
+  // A whole with a part in it.
+  await page.getByTestId('fleet-menu-toggle').click();
+  await page.getByRole('button', { name: /Libraries/ }).click();
+  const manager = page.getByTestId('library-manager');
+  await manager.getByRole('button', { name: 'Data', exact: true }).click();
+
+  await manager.getByTestId('lib-new-name').fill('Produktdaten');
+  await manager.getByRole('button', { name: 'Add', exact: true }).click();
+  await manager.getByTestId('lib-new-name').fill('Bilder');
+  await manager.getByRole('button', { name: 'Add', exact: true }).click();
+  await manager.getByTestId('data-provider').fill('Marketing');
+  await manager.getByTestId('data-parent').selectOption({ label: 'Produktdaten' });
+  await page.getByRole('button', { name: 'Done' }).click();
+
+  // Link the whole only.
+  await cards(page, 'Lead Qualifier').first().click();
+  const inspector = page.getByTestId('inspector');
+  await inspector.getByRole('button', { name: 'Add data' }).click();
+  await page.getByTestId('picker').getByText('Produktdaten', { exact: true }).click();
+
+  // The part came with it, marked as inherited and with no remove button of its own.
+  const box = inspector.locator('.chip.ichip', { hasText: 'Produktdaten' });
+  const part = inspector.locator('.chip.ichip', { hasText: 'Bilder' });
+  await expect(box).toHaveCount(1);
+  await expect(part).toHaveAttribute('data-inherited', 'true');
+  await expect(part.getByRole('button', { name: 'Remove Bilder' })).toHaveCount(0);
+  await expect(box.getByRole('button', { name: 'Remove Produktdaten' })).toHaveCount(1);
+
+  // And the agent counts as waiting on Marketing, whom it never referenced directly.
+  await expect(page.getByTestId('provider-filter-select')).toContainText('Marketing');
+});

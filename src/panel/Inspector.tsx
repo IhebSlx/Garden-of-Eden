@@ -13,6 +13,7 @@ import { useLinkDraft } from '../store/linkDraft.js';
 import {
   agentsUsing,
   childIdsOf,
+  dataForAgent,
   isShared,
   parentsOf,
   peerIdsOf,
@@ -137,9 +138,10 @@ export function Inspector(): React.JSX.Element | null {
     .map((id) => fleet.skills.find((s) => s.id === id))
     .filter((s) => s !== undefined);
   const tools = agent.toolIds.map((id) => fleet.tools.find((t) => t.id === id)).filter((t) => t !== undefined);
-  const dataSources = agent.dataSourceIds
-    .map((id) => fleet.dataSources.find((d) => d.id === id))
-    .filter((d) => d !== undefined);
+  // Linking an item brings everything inside it, so the panel shows the whole box
+  // and marks which rows arrived that way - those cannot be detached on their own.
+  const dataSources = dataForAgent(fleet, agent);
+  const linkedDirectly = new Set(agent.dataSourceIds);
 
   const jump = (agentId: string): void => activate(agentId);
   const usedBy = (kind: LibraryKind, itemId: string) => ({
@@ -188,10 +190,12 @@ export function Inspector(): React.JSX.Element | null {
     }
     if (picker === 'dataSource') {
       return {
-        title: 'Add a data source',
-        empty: 'Every data source in the library is already attached.',
+        title: 'Add data',
+        empty: 'Every item in the data library is already here.',
         options: fleet.dataSources
-          .filter((d) => !agent.dataSourceIds.includes(d.id))
+          // Contents of an already-linked box are here too - offering them again
+          // would attach a part the agent already has by inheritance.
+          .filter((d) => !dataSources.some((have) => have.id === d.id))
           .map((d) => ({ id: d.id, label: d.name, hint: d.type, dotColor: DATA_TYPE_COLOR[d.type] })),
       };
     }
@@ -436,35 +440,55 @@ export function Inspector(): React.JSX.Element | null {
       </div>
 
       <h3>
-        Data sources
+        Data
         <button
           type="button"
           className="addchip"
           onClick={() => setPicker('dataSource')}
-          aria-label="Add data source"
+          aria-label="Add data"
         >
           +
         </button>
       </h3>
       <div className="chips">
         {dataSources.length === 0 && <span className="chip empty">none yet</span>}
-        {dataSources.map((source) => (
-          <span key={source.id} className="chip ichip">
-            <button type="button" onClick={() => toggleDetail(`data:${source.id}`)}>
-              <span className="tdot" style={{ background: DATA_TYPE_COLOR[source.type] }} />
-              {source.name}
-              <span className="sdot" style={{ background: STATUS_COLOR[source.status] }} />
-            </button>
-            <button
-              type="button"
-              className="chip-x"
-              onClick={() => detachLibraryItem(agent.id, 'dataSource', source.id)}
-              aria-label={`Remove ${source.name}`}
+        {dataSources.map((source) => {
+          const inherited = !linkedDirectly.has(source.id);
+          const parent =
+            source.parentId === undefined
+              ? undefined
+              : fleet.dataSources.find((d) => d.id === source.parentId);
+          return (
+            <span
+              key={source.id}
+              className={`chip ichip${inherited ? ' inherited' : ''}`}
+              data-inherited={inherited ? 'true' : undefined}
+              title={
+                inherited && parent !== undefined
+                  ? `Part of ${parent.name} — comes with it`
+                  : undefined
+              }
             >
-              ✕
-            </button>
-          </span>
-        ))}
+              <button type="button" onClick={() => toggleDetail(`data:${source.id}`)}>
+                <span className="tdot" style={{ background: DATA_TYPE_COLOR[source.type] }} />
+                {source.name}
+                <span className="sdot" style={{ background: STATUS_COLOR[source.status] }} />
+              </button>
+              {/* Detaching a part of a box the agent never attached would be a lie:
+                  it would come straight back. Remove the box, or move the part out. */}
+              {!inherited && (
+                <button
+                  type="button"
+                  className="chip-x"
+                  onClick={() => detachLibraryItem(agent.id, 'dataSource', source.id)}
+                  aria-label={`Remove ${source.name}`}
+                >
+                  ✕
+                </button>
+              )}
+            </span>
+          );
+        })}
       </div>
 
       {detail && (

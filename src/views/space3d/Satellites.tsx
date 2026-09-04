@@ -19,6 +19,7 @@ import { useFrame } from '@react-three/fiber';
 import { BufferGeometry, Vector3 } from 'three';
 import type { Group, LineBasicMaterial, MeshBasicMaterial, SpriteMaterial, Texture } from 'three';
 import type { Agent, Fleet } from '../../model/schemas.js';
+import { dataForAgent } from '../../model/selectors.js';
 import { DATA_TYPE_COLOR, SKILL_COLOR, TOOL_TYPE_COLOR } from '../../ui/palette.js';
 import { BLOSSOM, EASE_3D, FADE_3D, NODE_SIZE_3D } from '../../ui/constants.js';
 import { sectionKey, useUiStore } from '../../store/uiStore.js';
@@ -109,10 +110,12 @@ function SatellitesComponent({ fleet, agent, position, cameraRadiusRef, lit }: P
       .map((id) => fleet.tools.find((t) => t.id === id))
       .filter((t) => t !== undefined)
       .map((t) => ({ label: t.name, color: TOOL_TYPE_COLOR[t.type] }));
-    const data: Member[] = agent.dataSourceIds
-      .map((id) => fleet.dataSources.find((d) => d.id === id))
-      .filter((d) => d !== undefined)
-      .map((d) => ({ label: d.name, color: DATA_TYPE_COLOR[d.type] }));
+    // Whatever a linked item contains comes with it, so the bundle count matches the
+    // card's and neither view understates what the agent actually gets.
+    const data: Member[] = dataForAgent(fleet, agent).map((d) => ({
+      label: d.name,
+      color: DATA_TYPE_COLOR[d.type],
+    }));
 
     return (
       [
@@ -128,7 +131,7 @@ function SatellitesComponent({ fleet, agent, position, cameraRadiusRef, lit }: P
         members: entry.members,
         color: dominantColor(entry.members, entry.fallback),
       }));
-  }, [agent.skillIds, agent.toolIds, agent.dataSourceIds, fleet.skills, fleet.tools, fleet.dataSources]);
+  }, [agent, fleet]);
 
   const size = NODE_SIZE_3D[agent.kind];
 

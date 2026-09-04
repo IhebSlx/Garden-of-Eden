@@ -164,6 +164,14 @@
 .inspector .chip.ichip:hover {
   border-color: rgb(124 140 255 / 0.6);
 }
+/* Arrived inside a linked box rather than being attached here: dimmer, and
+   dashed, so "why is this on the agent?" answers itself. */
+.inspector .chip.inherited {
+  background: rgb(90 110 200 / 0.08);
+  border-style: dashed;
+  border-color: rgb(124 140 255 / 0.28);
+  opacity: 0.82;
+}
 .inspector .chip button {
   all: unset;
   cursor: pointer;

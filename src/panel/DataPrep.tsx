@@ -3,7 +3,7 @@
  *
  * The board answers "what does this agent need?". A planning conversation asks the
  * inverse: "what does Marketing still owe, and who is blocked until they deliver?".
- * This groups every data source in the fleet by the party that prepares it, shows
+ * This groups every data item in the fleet by the party that provides it, shows
  * what finished looks like, and names the agents waiting on it.
  *
  * DEVIATION: beyond SPEC §5. SPEC §1 calls the board a roadmap and §5.6 gives every
@@ -51,8 +51,8 @@ export function DataPrep(): React.JSX.Element | null {
           <div>
             <h2>Data prep</h2>
             <p>
-              Every data source in <b>{fleet.name}</b>, grouped by whoever prepares it. Set
-              &ldquo;Prepared by&rdquo; on a source in Libraries to move it out of Unassigned.
+              Every data item in <b>{fleet.name}</b>, grouped by whoever provides it. Set
+              &ldquo;Provided by&rdquo; on an item in Libraries to move it out of Unassigned.
             </p>
           </div>
           <button type="button" className="ins-close" onClick={close} aria-label="Close data prep">
@@ -62,14 +62,14 @@ export function DataPrep(): React.JSX.Element | null {
 
         {groups.length === 0 ? (
           <p className="dialog-empty" data-testid="data-prep-empty">
-            This fleet has no data sources yet. Add one in Libraries and say who prepares it.
+            This fleet has no data yet. Add an item in Libraries and say who provides it.
           </p>
         ) : (
           <>
             <p className="prep-summary" data-testid="data-prep-summary">
               {outstanding === 0
                 ? 'Everything is ready — nothing outstanding.'
-                : `${outstanding} source${outstanding === 1 ? '' : 's'} still to prepare across ${groups.length} ${
+                : `${outstanding} item${outstanding === 1 ? '' : 's'} still to provide across ${groups.length} ${
                     groups.length === 1 ? 'party' : 'parties'
                   }.`}
             </p>
@@ -98,6 +98,13 @@ export function DataPrep(): React.JSX.Element | null {
                           <span className="tdot" style={{ background: DATA_TYPE_COLOR[source.type] }} />
                           <b>{source.name}</b>
                           <StatusTag status={source.status} />
+                          {/* The person to ask - an obligation without a name to
+                              chase is not actionable. */}
+                          {source.contact !== undefined && source.contact !== '' && (
+                            <span className="prep-contact" data-testid="prep-contact">
+                              {source.contact}
+                            </span>
+                          )}
                         </div>
 
                         {source.requirement !== undefined && source.requirement !== '' ? (

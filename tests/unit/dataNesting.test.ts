@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { checkFleetIntegrity } from '../../src/model/integrity.js';
 import {
   agentsWaitingOn,
+  dataObligations,
   dataChildren,
   dataDescendants,
   dataForAgent,
@@ -185,5 +186,33 @@ describe('who provides what', () => {
 
   it('finds nobody waiting on a provider that owes nothing', () => {
     expect(agentsWaitingOn(nested(), 'HR').size).toBe(0);
+  });
+});
+
+describe('an inherited part still blocks whoever waits on the box', () => {
+  it('names the agent under the part, not only under the box it references', () => {
+    const fleet = nested();
+    const agent = agentAt(fleet, 1);
+    const bilder = dataObligations(fleet)
+      .flatMap((group) => group.obligations)
+      .find(({ source }) => source.id === 'bilder');
+    if (!bilder) throw new Error('Bilder is missing from the obligations');
+    // The agent references only Produktdaten. Marketing still owes it Bilder.
+    expect(bilder.waitingAgents.map((a) => a.id)).toEqual([agent.id]);
+  });
+
+  it('leaves an item nobody reaches with nobody waiting', () => {
+    const orphan = dataObligations(nested())
+      .flatMap((group) => group.obligations)
+      .find(({ source }) => source.id === 'crm');
+    if (!orphan) throw new Error('CRM is missing from the obligations');
+    expect(orphan.waitingAgents).toEqual([]);
+  });
+
+  it('carries the Ansprechpartner through to the obligation', () => {
+    const bilder = dataObligations(nested())
+      .flatMap((group) => group.obligations)
+      .find(({ source }) => source.id === 'bilder');
+    expect(bilder?.source.contact).toBe('Herr Klein');
   });
 });

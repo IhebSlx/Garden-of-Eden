@@ -262,7 +262,7 @@ export function LibraryManager(): React.JSX.Element | null {
         <div className="lib-add">
           <input
             value={newName}
-            placeholder={`New ${tab === 'dataSource' ? 'data source' : tab} name`}
+            placeholder={`New ${tab === 'dataSource' ? 'data' : tab} name`}
             aria-label="New library item name"
             data-testid="lib-new-name"
             onChange={(event) => setNewName(event.target.value)}

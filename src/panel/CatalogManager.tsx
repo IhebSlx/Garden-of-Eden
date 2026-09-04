@@ -36,7 +36,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'agents', label: 'Agents' },
   { id: 'skill', label: 'Skills' },
   { id: 'tool', label: 'Tools & workflows' },
-  { id: 'dataSource', label: 'Data sources' },
+  { id: 'dataSource', label: 'Data' },
 ];
 
 const DATA_TYPES: DataSourceType[] = ['md', 'dataverse', 'sharepoint', 'file'];
@@ -93,7 +93,7 @@ export function CatalogManager(): React.JSX.Element | null {
     setEditingId(result.agentId);
     say(
       'ok',
-      `Imported "${result.agentName}": ${plural(result.counts.skills, 'skill')}, ${plural(result.counts.tools, 'tool')}, ${plural(result.counts.dataSources, 'data source')}.` +
+      `Imported "${result.agentName}": ${plural(result.counts.skills, 'skill')}, ${plural(result.counts.tools, 'tool')}, ${plural(result.counts.dataSources, 'data item')}.` +
         (result.warnings.length > 0 ? ` ${result.warnings.join(' ')}` : ''),
     );
   };
@@ -426,7 +426,7 @@ export function CatalogManager(): React.JSX.Element | null {
         {(['skill', 'tool', 'dataSource'] as LibraryKind[]).map((kind) => (
           <div key={kind} className="catalog-attach">
             <div className="catalog-attach-head">
-              <span>{kind === 'dataSource' ? 'Data sources' : kind === 'tool' ? 'Tools' : 'Skills'}</span>
+              <span>{kind === 'dataSource' ? 'Data' : kind === 'tool' ? 'Tools' : 'Skills'}</span>
               <button
                 type="button"
                 className="addchip"
@@ -458,7 +458,7 @@ export function CatalogManager(): React.JSX.Element | null {
 
         {picker?.agentId === agent.id && (
           <Picker
-            title={`Attach a ${picker.kind === 'dataSource' ? 'data source' : picker.kind}`}
+            title={`Attach ${picker.kind === 'dataSource' ? 'data' : `a ${picker.kind}`}`}
             emptyText="Nothing left in the catalog to attach. Create one on its own tab first."
             options={(picker.kind === 'skill'
               ? catalog.skills.filter((s) => !agent.skillIds.includes(s.id))
@@ -578,7 +578,7 @@ export function CatalogManager(): React.JSX.Element | null {
         <div className="lib-add">
           <input
             value={newName}
-            placeholder={`New ${tab === 'dataSource' ? 'data source' : tab} name`}
+            placeholder={`New ${tab === 'dataSource' ? 'data' : tab} name`}
             aria-label="New catalog item name"
             data-testid="catalog-new-item"
             onChange={(event) => setNewName(event.target.value)}
