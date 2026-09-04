@@ -338,10 +338,12 @@ export function knownOwners(fleet: Fleet): string[] {
 }
 
 /**
- * Who a data item can be assigned to: every department in the fleet, plus any
- * provider already named. Departments come first even when they owe nothing yet —
- * the question "which department prepares this?" cannot be answered from a list
- * that only contains the departments somebody has already thought of.
+ * Who a data item can be assigned to: every department in the fleet. Data is
+ * provided by a department, so the list is the org chart — including departments
+ * that owe nothing yet, since one of those is exactly what you are about to ask.
+ *
+ * Anything already recorded as a provider is kept even if no department carries
+ * that name, so a fleet imported from elsewhere never silently loses an owner.
  */
 export function providerOptions(fleet: Fleet): string[] {
   const seen = new Map<string, string>();
@@ -354,6 +356,29 @@ export function providerOptions(fleet: Fleet): string[] {
     if (!seen.has(ownerKey(named))) seen.set(ownerKey(named), named);
   }
   return [...seen.values()].sort((a, b) => a.localeCompare(b));
+}
+
+/**
+ * The Ansprechpartner for whoever provides a data item: the person recorded on the
+ * department, not on the item. Returns null when nobody has been named, or when the
+ * provider is not a department in this fleet.
+ */
+export function contactForProvider(fleet: Fleet, provider: string | undefined): string | null {
+  const wanted = (provider ?? '').trim().toLowerCase();
+  if (wanted === '') return null;
+  for (const agent of fleet.agents) {
+    if (agent.name.trim().toLowerCase() !== wanted) continue;
+    const contact = agent.contact?.trim();
+    if (contact !== undefined && contact !== '') return contact;
+  }
+  return null;
+}
+
+/** The department agent named by a provider, when the fleet has one. */
+export function departmentNamed(fleet: Fleet, provider: string | undefined): Agent | null {
+  const wanted = (provider ?? '').trim().toLowerCase();
+  if (wanted === '') return null;
+  return fleet.agents.find((agent) => agent.name.trim().toLowerCase() === wanted) ?? null;
 }
 
 // ---------- data: nesting, provision and who provides it ----------
@@ -435,20 +460,6 @@ export function dataMatchesProvider(fleet: Fleet, source: DataSource, provider: 
   return dataDescendants(fleet, source.id).some(
     (child) => (child.owner ?? '').trim().toLowerCase() === wanted,
   );
-}
-
-/** Agents that depend on data owed by `provider`, directly or through nesting. */
-export function agentsWaitingOn(fleet: Fleet, provider: string): Set<string> {
-  const wanted = provider.trim().toLowerCase();
-  const waiting = new Set<string>();
-
-  for (const agent of fleet.agents) {
-    const hit = dataForAgent(fleet, agent).some(
-      (source) => (source.owner ?? '').trim().toLowerCase() === wanted,
-    );
-    if (hit) waiting.add(agent.id);
-  }
-  return waiting;
 }
 
 /**

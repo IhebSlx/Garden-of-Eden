@@ -69,7 +69,6 @@ export function useBoardModel(bucket: ZoomBucket): BoardModel {
   const focusId = useUiStore((s) => s.focusId);
   const selectedId = useUiStore((s) => s.selectedId);
   const statusFilter = useUiStore((s) => s.statusFilter);
-  const providerFilter = useUiStore((s) => s.providerFilter);
   const focusStartedAt = useUiStore((s) => s.focusStartedAt);
 
   return useMemo(() => {
@@ -105,7 +104,6 @@ export function useBoardModel(bucket: ZoomBucket): BoardModel {
       wireList,
       focusId,
       statusFilter,
-      providerFilter,
     );
 
     const agentsById = new Map(fleet.agents.map((a) => [a.id, a]));
@@ -214,5 +212,5 @@ export function useBoardModel(bucket: ZoomBucket): BoardModel {
     });
 
     return { fleet, instanceList, wireList, layout, visibility, nodes, edges, sizeOf };
-  }, [fleet, focusId, selectedId, statusFilter, providerFilter, focusStartedAt, bucket]);
+  }, [fleet, focusId, selectedId, statusFilter, focusStartedAt, bucket]);
 }

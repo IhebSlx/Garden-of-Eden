@@ -5,7 +5,9 @@
  * Every field the schema carries is reachable from here: a skill's description and
  * instructions, a tool's description, type and workflow steps (SPEC §8.6), and a
  * data item's source (a system, or a department), whether it exists or is still
- * owed and by whom, its Ansprechpartner, what it sits inside, its `ref` and notes.
+ * owed and by which department, what it sits inside, its `ref` and notes. The
+ * Ansprechpartner shown beside the department is the department's own, edited here
+ * for convenience but stored once on the department itself.
  *
  * Deleting an item that is still in use is blocked by the store, which returns the
  * usage list (SPEC §5.8); so is deleting one that still contains other items.
@@ -13,7 +15,14 @@
 import { useState } from 'react';
 import { selectActiveFleet, useFleetStore } from '../store/fleetStore.js';
 import { useUiStore } from '../store/uiStore.js';
-import { agentsUsing, dataDescendants, flattenData, knownOwners } from '../model/selectors.js';
+import {
+  agentsUsing,
+  dataDescendants,
+  dataMatchesProvider,
+  departmentNamed,
+  flattenData,
+  providerOptions,
+} from '../model/selectors.js';
 import { DATA_SOURCE_STATUS_LABELS } from '../model/schemas.js';
 import type { DataSourceType, LibraryKind, Status } from '../model/schemas.js';
 import { DATA_TYPE_COLOR, SKILL_COLOR, STATUS_COLOR, TOOL_TYPE_COLOR } from '../ui/palette.js';
@@ -38,6 +47,30 @@ const SOURCE_LABEL: Record<DataSourceType, string> = {
 };
 const STATUSES: Status[] = ['live', 'building', 'planned'];
 
+/** How many users of an item a row names before it starts counting instead. */
+const USERS_SHOWN = 3;
+
+/**
+ * What the Data tab is showing: everything, only what nobody has been asked for,
+ * or one department. A union rather than a magic string, because any sentinel
+ * string could in principle also be a department name.
+ */
+type DataFilter = { kind: 'all' } | { kind: 'none' } | { kind: 'provider'; name: string };
+
+const ALL_DATA: DataFilter = { kind: 'all' };
+
+/** The filter as a <select> value, and back again. */
+const filterValue = (filter: DataFilter): string =>
+  filter.kind === 'all' ? '' : filter.kind === 'none' ? 'none' : `by:${filter.name}`;
+
+// Prefixed, so a department called "none" is still just a department.
+const filterFromValue = (value: string): DataFilter =>
+  value === ''
+    ? ALL_DATA
+    : value === 'none'
+      ? { kind: 'none' }
+      : { kind: 'provider', name: value.slice('by:'.length) };
+
 export function LibraryManager(): React.JSX.Element | null {
   const open = useUiStore((s) => s.libraryOpen);
   const close = useUiStore((s) => s.closeLibrary);
@@ -55,6 +88,8 @@ export function LibraryManager(): React.JSX.Element | null {
   const deleteDataSource = useFleetStore((s) => s.deleteDataSource);
 
   const [tab, setTab] = useState<LibraryKind>('skill');
+  /** Data tab only: show just what one department has to provide. */
+  const [dataFilter, setDataFilter] = useState<DataFilter>(ALL_DATA);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -132,13 +167,22 @@ export function LibraryManager(): React.JSX.Element | null {
           }))
         : // Data nests, so it is listed as a tree: parents first, contents indented
           // under them. A flat list of leaves hides which whole they belong to.
-          flattenData(fleet).map(({ source, depth }) => ({
-            id: source.id,
-            name: source.name,
-            dot: DATA_TYPE_COLOR[source.type],
-            noted: hasNote(source.notes),
-            depth,
-          }));
+          flattenData(fleet)
+            .filter(({ source }) => {
+              if (dataFilter.kind === 'all') return true;
+              // A whole is kept when a part of it is owed, or the part loses the box
+              // it belongs to and the tree stops making sense. An empty provider is
+              // exactly what "nobody yet" asks for, so one rule serves both.
+              const wanted = dataFilter.kind === 'none' ? '' : dataFilter.name;
+              return dataMatchesProvider(fleet, source, wanted);
+            })
+            .map(({ source, depth }) => ({
+              id: source.id,
+              name: source.name,
+              dot: DATA_TYPE_COLOR[source.type],
+              noted: hasNote(source.notes),
+              depth,
+            }));
 
   return (
     <div className="dialog-scrim" role="dialog" aria-modal="true" data-testid="library-manager">
@@ -166,6 +210,36 @@ export function LibraryManager(): React.JSX.Element | null {
             </button>
           ))}
         </div>
+
+        {tab === 'dataSource' && (
+          <div className="lib-filter" data-testid="data-filter">
+            <label htmlFor="data-provider-filter">Provided by</label>
+            <select
+              id="data-provider-filter"
+              data-testid="data-provider-filter"
+              value={filterValue(dataFilter)}
+              onChange={(event) => setDataFilter(filterFromValue(event.target.value))}
+            >
+              <option value="">Every department</option>
+              <option value="none">Nobody yet</option>
+              {providerOptions(fleet).map((provider) => (
+                <option key={provider} value={`by:${provider}`}>
+                  {provider}
+                </option>
+              ))}
+            </select>
+            {dataFilter.kind !== 'all' && (
+              <button
+                type="button"
+                className="lib-filter-clear"
+                onClick={() => setDataFilter(ALL_DATA)}
+                aria-label="Show data from every department again"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        )}
 
         <div className="lib-list">
           {items.length === 0 && <p className="dialog-lead">Nothing in this library yet.</p>}
@@ -208,23 +282,33 @@ export function LibraryManager(): React.JSX.Element | null {
                     />
                   )}
 
+                  {/* Shared context is used by every agent in the fleet, and fifteen
+                      names stacked in one row bury the rest of the library. Show a
+                      few and count the rest. */}
                   <div className="lib-users">
                     {users.length === 0 ? (
                       <small>unused</small>
                     ) : (
-                      users.map((agent) => (
-                        <button
-                          key={agent.id}
-                          type="button"
-                          className="ubn"
-                          onClick={() => {
-                            activate(agent.id);
-                            close();
-                          }}
-                        >
-                          {agent.name}
-                        </button>
-                      ))
+                      <>
+                        {users.slice(0, USERS_SHOWN).map((agent) => (
+                          <button
+                            key={agent.id}
+                            type="button"
+                            className="ubn"
+                            onClick={() => {
+                              activate(agent.id);
+                              close();
+                            }}
+                          >
+                            {agent.name}
+                          </button>
+                        ))}
+                        {users.length > USERS_SHOWN && (
+                          <small title={users.map((agent) => agent.name).join(', ')}>
+                            +{users.length - USERS_SHOWN} more
+                          </small>
+                        )}
+                      </>
                     )}
                   </div>
 
@@ -369,9 +453,10 @@ function DataFields({
 }): React.JSX.Element | null {
   const fleet = useFleetStore(selectActiveFleet);
   const updateDataSource = useFleetStore((s) => s.updateDataSource);
+  const updateAgent = useFleetStore((s) => s.updateAgent);
   const source = fleet?.dataSources.find((d) => d.id === id);
-  const owners = fleet ? knownOwners(fleet) : [];
-  if (!source) return null;
+  if (!fleet || !source) return null;
+  const department = departmentNamed(fleet, source.owner);
   return (
     <div className="lib-fields" data-testid="data-editor">
       <div className="lib-field-row">
@@ -422,31 +507,48 @@ function DataFields({
       <div className="lib-field-row">
         <label className="dialog-field">
           <span>Provided by</span>
-          <input
-            defaultValue={source.owner ?? ''}
-            aria-label={`Who provides ${source.name}`}
-            placeholder="Marketing"
-            list="known-owners"
+          <select
+            value={source.owner ?? ''}
+            aria-label={`Which department provides ${source.name}`}
             data-testid="data-provider"
-            onBlur={(event) => updateDataSource(id, { owner: event.target.value })}
-          />
+            onChange={(event) => updateDataSource(id, { owner: event.target.value })}
+          >
+            <option value="">Nobody yet</option>
+            {providerOptions(fleet).map((provider) => (
+              <option key={provider} value={provider}>
+                {provider}
+              </option>
+            ))}
+          </select>
         </label>
-        <label className="dialog-field">
-          <span>Ansprechpartner</span>
-          <input
-            defaultValue={source.contact ?? ''}
-            key={`contact-${source.contact ?? ''}`}
-            aria-label={`Contact for ${source.name}`}
-            placeholder="Who to ask"
-            data-testid="data-contact"
-            onBlur={(event) => {
-              if (event.target.value !== (source.contact ?? '')) {
-                updateDataSource(id, { contact: event.target.value });
-              }
-            }}
-          />
-        </label>
+
+        {/* One person per department, not one per item it provides: this edits the
+            department itself, so every item from it says the same name. */}
+        {department !== null && (
+          <label className="dialog-field">
+            <span>Ansprechpartner</span>
+            <input
+              defaultValue={department.contact ?? ''}
+              key={`contact-${department.id}-${department.contact ?? ''}`}
+              aria-label={`Contact at ${department.name}`}
+              placeholder={`Who to ask at ${department.name}`}
+              data-testid="data-contact"
+              onBlur={(event) => {
+                if (event.target.value !== (department.contact ?? '')) {
+                  updateAgent(department.id, { contact: event.target.value });
+                }
+              }}
+            />
+          </label>
+        )}
       </div>
+
+      {source.owner !== undefined && source.owner.trim() !== '' && department === null && (
+        <p className="lib-hint" data-testid="data-provider-orphan">
+          No department called &ldquo;{source.owner}&rdquo; in this fleet, so there is nobody to
+          name as Ansprechpartner. Add the department, or pick another one.
+        </p>
+      )}
 
       <label className="dialog-field">
         <span>Inside</span>
@@ -462,11 +564,10 @@ function DataFields({
         >
           <option value="">Nothing — this is a top-level item</option>
           {/* Itself and its own contents are excluded, or nesting could loop. */}
-          {(fleet ? flattenData(fleet) : [])
+          {flattenData(fleet)
             .filter(
               ({ source: candidate }) =>
-                candidate.id !== id &&
-                !dataDescendants(fleet!, id).some((d) => d.id === candidate.id),
+                candidate.id !== id && !dataDescendants(fleet, id).some((d) => d.id === candidate.id),
             )
             .map(({ source: candidate, depth }) => (
               <option key={candidate.id} value={candidate.id}>
@@ -475,11 +576,6 @@ function DataFields({
             ))}
         </select>
       </label>
-      <datalist id="known-owners">
-        {owners.map((owner) => (
-          <option key={owner} value={owner} />
-        ))}
-      </datalist>
 
       <label className="dialog-field">
         <span>What has to be prepared</span>

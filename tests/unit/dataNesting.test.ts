@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { checkFleetIntegrity } from '../../src/model/integrity.js';
 import {
-  agentsWaitingOn,
+  contactForProvider,
   dataObligations,
   dataChildren,
   dataDescendants,
@@ -40,8 +40,8 @@ const nested = (): Fleet => {
   return {
     ...base,
     dataSources: [
-      data('produkt', { name: 'Produktdaten', owner: 'Produktmanagement', contact: 'Frau Bauer' }),
-      data('bilder', { name: 'Bilder', parentId: 'produkt', owner: 'Marketing', contact: 'Herr Klein' }),
+      data('produkt', { name: 'Produktdaten', owner: 'Produktmanagement' }),
+      data('bilder', { name: 'Bilder', parentId: 'produkt', owner: 'Marketing' }),
       data('freigestellt', { name: 'Freigestellt', parentId: 'bilder', owner: 'Marketing' }),
       data('preise', { name: 'Preise', parentId: 'produkt', owner: 'Vertrieb' }),
       data('crm', { name: 'CRM', type: 'dataverse', status: 'live' }),
@@ -64,15 +64,19 @@ describe('data has a source, and a department is one of them', () => {
     expect(DataSourceSchema.safeParse(data('x', { type: 'department' })).success).toBe(true);
   });
 
-  it('records who provides it and who to ask', () => {
-    const parsed = DataSourceSchema.parse(data('x', { owner: 'Marketing', contact: 'Herr Klein' }));
-    expect(parsed).toMatchObject({ owner: 'Marketing', contact: 'Herr Klein' });
+  it('records the department that has to provide it', () => {
+    const parsed = DataSourceSchema.parse(data('x', { owner: 'Marketing' }));
+    expect(parsed).toMatchObject({ owner: 'Marketing' });
   });
 
-  it('leaves provider and contact optional, so existing data needs neither', () => {
+  it('leaves the provider optional, so existing data needs none', () => {
     const parsed = DataSourceSchema.parse(data('x', { type: 'dataverse', status: 'live' }));
     expect(parsed.owner).toBeUndefined();
-    expect(parsed.contact).toBeUndefined();
+  });
+
+  it('does not carry an Ansprechpartner of its own — that belongs to the department', () => {
+    const parsed = DataSourceSchema.parse({ ...data('x'), contact: 'Herr Klein' });
+    expect('contact' in parsed).toBe(false);
   });
 });
 
@@ -177,16 +181,19 @@ describe('who provides what', () => {
     expect(dataMatchesProvider(fleet, produkt, 'HR')).toBe(false);
   });
 
-  it('finds the agents waiting on one provider, through nesting', () => {
+  it('keeps a box in view when a part of it is owed, so context is not filtered away', () => {
     const fleet = nested();
-    const waiting = agentsWaitingOn(fleet, 'Marketing');
-    // The agent references only Produktdaten, but Bilder inside it is Marketing's.
-    expect(waiting.has(agentAt(fleet, 1).id)).toBe(true);
-    expect(waiting.size).toBe(1);
+    const produkt = fleet.dataSources[0];
+    const crm = fleet.dataSources[4];
+    if (!produkt || !crm) throw new Error('missing');
+    // This is what the Data library's "Provided by" filter shows for Marketing.
+    expect(dataMatchesProvider(fleet, produkt, 'Marketing')).toBe(true);
+    expect(dataMatchesProvider(fleet, crm, 'Marketing')).toBe(false);
   });
 
-  it('finds nobody waiting on a provider that owes nothing', () => {
-    expect(agentsWaitingOn(nested(), 'HR').size).toBe(0);
+  it('finds nothing at all for a department that owes nothing', () => {
+    const fleet = nested();
+    expect(fleet.dataSources.filter((d) => dataMatchesProvider(fleet, d, 'HR'))).toEqual([]);
   });
 });
 
@@ -210,11 +217,25 @@ describe('an inherited part still blocks whoever waits on the box', () => {
     expect(orphan.waitingAgents).toEqual([]);
   });
 
-  it('carries the Ansprechpartner through to the obligation', () => {
-    const bilder = dataObligations(nested())
-      .flatMap((group) => group.obligations)
-      .find(({ source }) => source.id === 'bilder');
-    expect(bilder?.source.contact).toBe('Herr Klein');
+  it('reads the Ansprechpartner off the department, not off each item it provides', () => {
+    const base = nested();
+    const marketing = base.agents.find((a) => a.kind === 'department');
+    if (!marketing) throw new Error('no department in the fixture');
+    const fleet: Fleet = {
+      ...base,
+      agents: base.agents.map((a) => (a.id === marketing.id ? { ...a, contact: 'Herr Klein' } : a)),
+      dataSources: base.dataSources.map((d) =>
+        d.id === 'bilder' ? { ...d, owner: marketing.name } : d,
+      ),
+    };
+    expect(contactForProvider(fleet, marketing.name)).toBe('Herr Klein');
+    // One name, however many items that department provides.
+    expect(contactForProvider(fleet, marketing.name.toUpperCase())).toBe('Herr Klein');
+  });
+
+  it('has no Ansprechpartner for a provider that is not a department here', () => {
+    expect(contactForProvider(nested(), 'Produktmanagement')).toBeNull();
+    expect(contactForProvider(nested(), undefined)).toBeNull();
   });
 });
 

@@ -299,6 +299,26 @@ export function Inspector(): React.JSX.Element | null {
         )}
       </div>
 
+      {/* The department's Ansprechpartner: every data item it provides is chased
+          through this one person, so this is where the name belongs. */}
+      {agent.kind === 'department' && (
+        <label className="ins-contact">
+          <span>Ansprechpartner</span>
+          <input
+            defaultValue={agent.contact ?? ''}
+            key={`contact-${agent.id}-${agent.contact ?? ''}`}
+            placeholder="Who to ask in this department"
+            data-testid="agent-contact"
+            aria-label={`Ansprechpartner at ${agent.name}`}
+            onBlur={(event) => {
+              if (event.target.value !== (agent.contact ?? '')) {
+                updateAgent(agent.id, { contact: event.target.value });
+              }
+            }}
+          />
+        </label>
+      )}
+
       <h3>
         Instructions
         <button

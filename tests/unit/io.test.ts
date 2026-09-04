@@ -112,3 +112,78 @@ describe('suggestFleetFileName', () => {
     expect(suggestFleetFileName({ ...makeFleet(), name: '///' })).toBe('fleet.fleet.json');
   });
 });
+
+describe('the Ansprechpartner moved from the data item to the department', () => {
+  /** A document written while the contact still sat on each data item. */
+  const older = () => {
+    const fleet = makeFleet();
+    const department = fleet.agents.find((a) => a.kind === 'department');
+    if (!department) throw new Error('no department in the fixture');
+    return {
+      document: {
+        ...fleet,
+        dataSources: [
+          ...fleet.dataSources,
+          {
+            id: 'dsr_bilder',
+            name: 'Bilder',
+            type: 'sharepoint',
+            status: 'planned',
+            owner: department.name,
+            contact: 'Herr Klein',
+          },
+        ],
+      },
+      departmentId: department.id,
+      departmentName: department.name,
+    };
+  };
+
+  it('hoists the name onto the department that provides the item', () => {
+    const { document, departmentId } = older();
+    const result = migrateFleetDocument(document);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.fleet.agents.find((a) => a.id === departmentId)?.contact).toBe('Herr Klein');
+  });
+
+  it('does not leave the name on the data item as well', () => {
+    const { document } = older();
+    const result = migrateFleetDocument(document);
+    if (!result.ok) throw new Error(result.errors.join(' '));
+    const source = result.fleet.dataSources.find((d) => d.id === 'dsr_bilder');
+    expect(source).toBeDefined();
+    expect('contact' in (source ?? {})).toBe(false);
+  });
+
+  it('matches the department however the owner was capitalised', () => {
+    const { document, departmentId, departmentName } = older();
+    const shouted = {
+      ...document,
+      dataSources: document.dataSources.map((d) =>
+        d.id === 'dsr_bilder' ? { ...d, owner: departmentName.toUpperCase() } : d,
+      ),
+    };
+    const result = migrateFleetDocument(shouted);
+    if (!result.ok) throw new Error(result.errors.join(' '));
+    expect(result.fleet.agents.find((a) => a.id === departmentId)?.contact).toBe('Herr Klein');
+  });
+
+  it('never overwrites a contact the department already has', () => {
+    const { document, departmentId } = older();
+    const already = {
+      ...document,
+      agents: document.agents.map((a) => (a.id === departmentId ? { ...a, contact: 'Frau Bauer' } : a)),
+    };
+    const result = migrateFleetDocument(already);
+    if (!result.ok) throw new Error(result.errors.join(' '));
+    expect(result.fleet.agents.find((a) => a.id === departmentId)?.contact).toBe('Frau Bauer');
+  });
+
+  it('leaves a document with no contacts exactly as it was', () => {
+    const fleet = makeFleet();
+    const result = migrateFleetDocument(fleet);
+    if (!result.ok) throw new Error(result.errors.join(' '));
+    expect(result.fleet).toEqual(fleet);
+  });
+});

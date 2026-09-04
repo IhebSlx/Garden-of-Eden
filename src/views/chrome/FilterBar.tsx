@@ -7,7 +7,6 @@ import { STATUS_LABELS } from '../../model/schemas.js';
 import type { Status } from '../../model/schemas.js';
 import { useUiStore } from '../../store/uiStore.js';
 import { STATUS_COLOR } from '../../ui/palette.js';
-import { ProviderFilter } from './ProviderFilter.js';
 
 const ORDER: Status[] = ['live', 'building', 'planned'];
 
@@ -40,7 +39,6 @@ export function FilterBar(): React.JSX.Element {
       ))}
       </div>
 
-      <ProviderFilter />
     </div>
   );
 }

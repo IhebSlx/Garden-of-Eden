@@ -71,6 +71,8 @@ export type AgentPatch = {
   model?: ModelConfig;
   /** Free text about the agent, for people (SPEC-adjacent; see AgentSchema). */
   notes?: string;
+  /** The Ansprechpartner at this department (see AgentSchema). */
+  contact?: string;
 };
 
 export type EdgePatch = {

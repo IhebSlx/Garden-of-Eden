@@ -501,6 +501,55 @@
   gap: 4px;
   margin-bottom: 10px;
 }
+/* "Provided by" scopes the data list itself, where the data is. */
+.lib-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-size: 11px;
+  color: #9fb2e0;
+}
+.lib-filter select {
+  font: inherit;
+  font-size: 11.5px;
+  color: #e6ecff;
+  background: rgb(12 18 44 / 0.9);
+  border: 1px solid rgb(124 140 255 / 0.28);
+  border-radius: 7px;
+  padding: 3px 7px;
+  min-width: 168px;
+}
+.lib-filter select:focus-visible {
+  outline: none;
+  border-color: rgb(124 140 255 / 0.7);
+}
+.lib-filter option {
+  background: #10152a;
+  color: #e6ecff;
+}
+.lib-filter-clear {
+  all: unset;
+  cursor: pointer;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  text-align: center;
+  font-size: 9px;
+  line-height: 18px;
+  color: #8fa1cd;
+}
+.lib-filter-clear:hover {
+  background: rgb(90 110 200 / 0.22);
+  color: #e6ecff;
+}
+/* An owner with no department behind it: a gap, said plainly. */
+.lib-hint {
+  margin: 6px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #d8b26a;
+}
 .lib-list {
   max-height: 320px;
   overflow-y: auto;
@@ -864,4 +913,33 @@
   border-color: var(--color-shared);
   color: var(--color-shared);
   margin-bottom: 0;
+}
+
+/* The department's Ansprechpartner, in the panel where the department lives. */
+.ins-contact {
+  display: block;
+  margin: 10px 0 2px;
+}
+.ins-contact span {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6f7fb4;
+  margin-bottom: 4px;
+}
+.ins-contact input {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 11.5px;
+  color: #e6ecff;
+  background: rgb(12 18 44 / 0.9);
+  border: 1px solid rgb(124 140 255 / 0.24);
+  border-radius: 7px;
+  padding: 5px 8px;
+}
+.ins-contact input:focus-visible {
+  outline: none;
+  border-color: rgb(124 140 255 / 0.7);
 }

@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { resetIdFactory, sequentialIdFactory, setIdFactory } from '../../src/model/ids.js';
 import { checkFleetIntegrity } from '../../src/model/integrity.js';
-import { instances, isShared } from '../../src/model/selectors.js';
+import { contactForProvider, instances, isShared } from '../../src/model/selectors.js';
 import type { Fleet } from '../../src/model/schemas.js';
 import {
   canRedo,
@@ -454,10 +454,30 @@ describe('data nesting through the store', () => {
     expect(checkFleetIntegrity(selectActiveFleet(store())!)).toEqual([]);
   });
 
-  it('records who provides it and the Ansprechpartner', () => {
+  it('records the department that has to provide it', () => {
     const { outerId } = setup();
-    store().updateDataSource(outerId, { owner: 'Produktmanagement', contact: 'Frau Bauer' });
-    expect(dataOf(outerId)).toMatchObject({ owner: 'Produktmanagement', contact: 'Frau Bauer' });
+    store().updateDataSource(outerId, { owner: 'Produktmanagement' });
+    expect(dataOf(outerId)).toMatchObject({ owner: 'Produktmanagement' });
+  });
+
+  it('keeps the Ansprechpartner on the department, where one name serves every item', () => {
+    setup();
+    // A blank fleet is an orchestrator alone, so give it a department to ask.
+    const added = store().addAgent({ name: 'Marketing', role: 'Kampagnen', kind: 'department' });
+    if (!added.ok) throw new Error('could not add the department');
+    const fleet = selectActiveFleet(store());
+    const department = fleet?.agents.find((a) => a.id === added.id);
+    if (!department) throw new Error('department missing after adding it');
+
+    store().updateAgent(department.id, { contact: 'Frau Bauer' });
+    const after = selectActiveFleet(store());
+    if (!after) throw new Error('no fleet');
+    expect(contactForProvider(after, department.name)).toBe('Frau Bauer');
+    // Undoable like any other edit to the document.
+    useFleetStore.temporal.getState().undo();
+    const undone = selectActiveFleet(store());
+    if (!undone) throw new Error('no fleet');
+    expect(contactForProvider(undone, department.name)).toBeNull();
   });
 
   it('refuses to put an item inside itself', () => {

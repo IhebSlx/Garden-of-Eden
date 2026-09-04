@@ -640,3 +640,38 @@ otherwise be closer than one node needs. A small fleet lays out exactly where it
 | No two sub-agents collide either | ✅ | › "keeps every pair of sub-agents apart too" |
 | A small fleet is where it always was | ✅ | › "fans departments around the orchestrator at the base radius"; "holds the department ring where it was — that level never sprawled"; "puts every node of a level on one ring, at one height" |
 | A fan stays as wide when it sits further out | ✅ | › "keeps the same fan roughly as wide when it sits further out"; "spaces siblings by about siblingArc on a wide ring" |
+
+**DEVIATION 18 — the filter lives with the data, and the Ansprechpartner with the department.**
+Two corrections to DEVIATION 16, both from use.
+
+The provider filter sat in the board chrome and ghosted agents. That is the wrong question in the
+wrong place: what is being scoped is a *library of data*, not a fleet of agents. It now sits at the
+top of Libraries → Data and filters that list, with "Every department", "Nobody yet" (the gap list)
+and each department. It still reaches through nesting — a box stays in view when a part of it is
+owed, or the part loses the whole it belongs to. `computeVisibility` is back to focus and status
+alone, and `agentsWaitingOn` is gone with the feature it served.
+
+The Ansprechpartner moved from the data item to the department. A department has one person to ask,
+not one per item it provides, so `DataSource.contact` is replaced by `Agent.contact`, read through
+`contactForProvider`. Set it once and every item that department provides shows the same name. It
+is editable wherever the question comes up — in the data editor, in Data prep, and on the
+department's own panel, which is where it actually belongs. A document written before the move has
+its names hoisted onto the matching department on import, so nothing is lost to Zod stripping an
+unknown key.
+
+"Provided by" is a department picker rather than free text, since data is provided by a department.
+Any owner already recorded is still offered even if no department carries that name, and an owner
+with no department behind it says so plainly instead of silently having nobody to chase.
+
+| Item | Status | Test(s) |
+|---|---|---|
+| The filter scopes the data library, not the board | ✅ | e2e › "the data library filters by the department that has to provide it" |
+| It reaches through nesting, and "Nobody yet" is the gap list | ✅ | e2e (same); `dataNesting.test.ts` › "keeps a box in view when a part of it is owed, so context is not filtered away" |
+| A department that owes nothing finds nothing | ✅ | `dataNesting.test.ts` › "finds nothing at all for a department that owes nothing" |
+| Visibility is focus and status again | ✅ | `visibility.test.ts` › the focus and status-filter suites |
+| One Ansprechpartner per department, not per item | ✅ | e2e › "the Ansprechpartner belongs to the department, not to each item"; `dataNesting.test.ts` › "reads the Ansprechpartner off the department, not off each item it provides" |
+| It is undoable like any other edit | ✅ | `fleetStore.test.ts` › "keeps the Ansprechpartner on the department, where one name serves every item" |
+| A data item carries no contact of its own | ✅ | `dataNesting.test.ts` › "does not carry an Ansprechpartner of its own — that belongs to the department" |
+| An older document keeps its names | ✅ | `io.test.ts` › "the Ansprechpartner moved from the data item to the department" (5 tests) |
+| A provider with no department says so | ✅ | `dataNesting.test.ts` › "has no Ansprechpartner for a provider that is not a department here" |
+| A row names a few users and counts the rest | ✅ | e2e › "the data library filters by the department that has to provide it" (rows stay one line high) |

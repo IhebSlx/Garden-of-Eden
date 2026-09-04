@@ -12,7 +12,7 @@
  */
 import { DATA_SOURCE_STATUS_LABELS } from '../model/schemas.js';
 import type { Status } from '../model/schemas.js';
-import { dataObligations, providerOptions } from '../model/selectors.js';
+import { dataObligations, departmentNamed, providerOptions } from '../model/selectors.js';
 import type { OwnerWorkload } from '../model/selectors.js';
 import type { DataSource } from '../model/schemas.js';
 import { selectActiveFleet, useFleetStore } from '../store/fleetStore.js';
@@ -40,7 +40,10 @@ function StatusTag({ status }: { status: Status }): React.JSX.Element {
  * still has to be offerable, or it can never be asked for anything.
  */
 function Assignment({ source, options }: { source: DataSource; options: string[] }): React.JSX.Element {
+  const fleet = useFleetStore(selectActiveFleet);
   const updateDataSource = useFleetStore((s) => s.updateDataSource);
+  const updateAgent = useFleetStore((s) => s.updateAgent);
+  const department = fleet === undefined ? null : departmentNamed(fleet, source.owner);
   return (
     <div className="prep-assign">
       <label>
@@ -60,19 +63,20 @@ function Assignment({ source, options }: { source: DataSource; options: string[]
         </select>
       </label>
 
-      {/* A department is not someone you can chase, so the name comes next. */}
-      {(source.owner ?? '') !== '' && (
+      {/* A department is not someone you can chase, so the name comes next - and it
+          belongs to the department, so every item it provides shows the same one. */}
+      {department !== null && (
         <label>
           <span>Ansprechpartner</span>
           <input
-            defaultValue={source.contact ?? ''}
-            key={`${source.id}-${source.contact ?? ''}`}
-            placeholder="Who to ask"
+            defaultValue={department.contact ?? ''}
+            key={`${department.id}-${department.contact ?? ''}`}
+            placeholder={`Who to ask at ${department.name}`}
             data-testid="prep-contact"
-            aria-label={`Contact for ${source.name}`}
+            aria-label={`Contact at ${department.name}`}
             onBlur={(event) => {
-              if (event.target.value !== (source.contact ?? '')) {
-                updateDataSource(source.id, { contact: event.target.value });
+              if (event.target.value !== (department.contact ?? '')) {
+                updateAgent(department.id, { contact: event.target.value });
               }
             }}
           />

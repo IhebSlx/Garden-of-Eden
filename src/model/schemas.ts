@@ -164,16 +164,16 @@ export const DataSourceSchema = z.object({
    * 19 sources but not who has to produce them, which is the question the fleet
    * overview is actually asked.
    *
-   * `owner` is free text on purpose: the party who prepares data is often a human
-   * team that is not an agent in any fleet.
+   * `owner` names the department that has to provide it. Free text rather than an
+   * agent id: a fleet can be edited into a state where the department agent does
+   * not exist yet, and an obligation must survive that.
+   *
+   * The Ansprechpartner is NOT here. A department has one person to ask, not one
+   * per item it provides, so it lives on the department agent (`Agent.contact`)
+   * and is read through `contactForProvider`.
    */
   owner: z.string().optional(),
   requirement: z.string().optional(),
-  /**
-   * DEVIATION: the Ansprechpartner — the person to ask at `owner`. A department is
-   * not someone you can chase; a name is.
-   */
-  contact: z.string().optional(),
   /**
    * DEVIATION: nesting. Data comes in wholes made of parts — "Produktdaten" is
    * images and prices and dimensions — and an overview of what a department owes is
@@ -229,6 +229,13 @@ export const AgentSchema = z.object({
    * what it does; notes are never sent anywhere and shape nothing.
    */
   notes: z.string().optional(),
+  /**
+   * DEVIATION: the Ansprechpartner — the person to ask at this department. Data
+   * records the department that owes it (`DataSource.owner`); a department is not
+   * someone you can chase, so the name to chase lives here, once, rather than being
+   * retyped on every item the department provides.
+   */
+  contact: z.string().optional(),
   /** Manual 2D override; absent = auto-layout (SPEC §7: the graph is the file). */
   position: PositionSchema.optional(),
 });

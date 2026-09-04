@@ -476,7 +476,7 @@ test('data prep says who owes each source and who is blocked without it', async 
   await manager.getByRole('button', { name: 'Data', exact: true }).click();
   await manager.getByRole('button', { name: 'Edit Brand guidelines' }).click();
 
-  await manager.getByLabel('Who provides Brand guidelines').fill('Marketing');
+  await manager.getByLabel('Which department provides Brand guidelines').selectOption('Marketing');
   const requirement = manager.getByLabel('Requirement for Brand guidelines');
   await requirement.fill('Every product image, named produkt_variante.png');
   // These fields commit on blur, as every other field in the manager does.
@@ -621,14 +621,14 @@ test('data has a source, can be a department, and nests inside other data', asyn
   // Two items: a whole and a part.
   await manager.getByTestId('lib-new-name').fill('Produktdaten');
   await manager.getByRole('button', { name: 'Add', exact: true }).click();
-  await manager.getByTestId('data-provider').fill('Produktmanagement');
+  await manager.getByTestId('data-provider').selectOption('Marketing');
   await manager.getByTestId('data-contact').fill('Frau Bauer');
   await manager.getByLabel('Source of Produktdaten').selectOption('department');
   await expect(manager.getByLabel('Status of Produktdaten')).toHaveValue('planned');
 
   await manager.getByTestId('lib-new-name').fill('Bilder');
   await manager.getByRole('button', { name: 'Add', exact: true }).click();
-  await manager.getByTestId('data-provider').fill('Marketing');
+  await manager.getByTestId('data-provider').selectOption('Marketing');
 
   // Put Bilder inside Produktdaten.
   await manager.getByTestId('data-parent').selectOption({ label: 'Produktdaten' });
@@ -643,35 +643,55 @@ test('data has a source, can be a department, and nests inside other data', asyn
   await expect(page.getByTestId('library-error')).toContainText('still contains');
 });
 
-test('the provider filter shows only what a department still owes', async ({ page }) => {
-  // Give one existing data item a provider, so the filter has something to offer.
+test('the data library filters by the department that has to provide it', async ({ page }) => {
   await page.getByTestId('fleet-menu-toggle').click();
   await page.getByRole('button', { name: /Libraries/ }).click();
   const manager = page.getByTestId('library-manager');
   await manager.getByRole('button', { name: 'Data', exact: true }).click();
-  await manager.getByRole('button', { name: 'Edit Brand guidelines' }).click();
-  await manager.getByTestId('data-provider').fill('Marketing');
-  await manager.getByTestId('data-provider').blur();
-  await page.getByRole('button', { name: 'Done' }).click();
 
-  const filter = page.getByTestId('provider-filter-select');
+  // The filter belongs to the data, not to the board chrome.
+  await expect(page.getByTestId('provider-filter-select')).toHaveCount(0);
+  const filter = manager.getByTestId('data-provider-filter');
   await expect(filter).toBeVisible();
-  await expect(filter).toContainText('Marketing');
 
-  const before = await page.getByTestId('agent-card').count();
-  await filter.selectOption('Marketing');
+  const all = await manager.locator('.lib-entry').count();
+  expect(all).toBeGreaterThan(1);
 
-  // Only the agents that depend on Marketing's data stay lit.
-  const ghosted = page.getByTestId('agent-card').filter({ has: page.locator('.ghost') });
-  await expect(page.getByTestId('agent-card')).toHaveCount(before);
-  await expect
-    .poll(async () => page.locator('[data-testid="agent-card"].ghost').count())
-    .toBeGreaterThan(0);
-  expect(await ghosted.count()).toBeGreaterThanOrEqual(0);
+  await manager.getByRole('button', { name: 'Edit Brand guidelines' }).click();
+  await manager.getByTestId('data-provider').selectOption('Marketing');
+  await manager.getByRole('button', { name: 'Close Brand guidelines' }).click();
 
-  // Clearing it brings everything back.
-  await page.getByRole('button', { name: 'Show every provider again' }).click();
-  await expect.poll(async () => page.locator('[data-testid="agent-card"].ghost').count()).toBe(0);
+  // One department: only what it has to provide.
+  await filter.selectOption('by:Marketing');
+  await expect(manager.locator('.lib-entry')).toHaveCount(1);
+  await expect(manager.locator('.lib-entry .lib-name')).toHaveValue('Brand guidelines');
+
+  // "Nobody yet" is the gap list, and excludes the one just assigned.
+  await filter.selectOption('none');
+  await expect(manager.locator('.lib-entry')).toHaveCount(all - 1);
+
+  // Clearing it brings the whole library back.
+  await page.getByRole('button', { name: 'Show data from every department again' }).click();
+  await expect(manager.locator('.lib-entry')).toHaveCount(all);
+});
+
+test('the Ansprechpartner belongs to the department, not to each item', async ({ page }) => {
+  await page.getByTestId('fleet-menu-toggle').click();
+  await page.getByRole('button', { name: /Libraries/ }).click();
+  const manager = page.getByTestId('library-manager');
+  await manager.getByRole('button', { name: 'Data', exact: true }).click();
+
+  // Two different items, both provided by Marketing.
+  await manager.getByRole('button', { name: 'Edit Brand guidelines' }).click();
+  await manager.getByTestId('data-provider').selectOption('Marketing');
+  await manager.getByTestId('data-contact').fill('Herr Klein');
+  await manager.getByTestId('data-contact').blur();
+  await manager.getByRole('button', { name: 'Close Brand guidelines' }).click();
+
+  await manager.getByRole('button', { name: 'Edit CRM', exact: true }).click();
+  await manager.getByTestId('data-provider').selectOption('Marketing');
+  // The name was never typed here, but Marketing has one.
+  await expect(manager.getByTestId('data-contact')).toHaveValue('Herr Klein');
 });
 
 test('linking a box gives the agent what is inside it', async ({ page }) => {
@@ -685,7 +705,7 @@ test('linking a box gives the agent what is inside it', async ({ page }) => {
   await manager.getByRole('button', { name: 'Add', exact: true }).click();
   await manager.getByTestId('lib-new-name').fill('Bilder');
   await manager.getByRole('button', { name: 'Add', exact: true }).click();
-  await manager.getByTestId('data-provider').fill('Marketing');
+  await manager.getByTestId('data-provider').selectOption('Marketing');
   await manager.getByTestId('data-parent').selectOption({ label: 'Produktdaten' });
   await page.getByRole('button', { name: 'Done' }).click();
 
@@ -703,8 +723,11 @@ test('linking a box gives the agent what is inside it', async ({ page }) => {
   await expect(part.getByRole('button', { name: 'Remove Bilder' })).toHaveCount(0);
   await expect(box.getByRole('button', { name: 'Remove Produktdaten' })).toHaveCount(1);
 
-  // And the agent counts as waiting on Marketing, whom it never referenced directly.
-  await expect(page.getByTestId('provider-filter-select')).toContainText('Marketing');
+  // And the whole box answers for Marketing, whom the agent never referenced.
+  await page.getByTestId('fleet-menu-toggle').click();
+  await page.getByRole('button', { name: /Data prep/ }).click();
+  const marketing = page.locator('[data-testid="prep-group"][data-owner="Marketing"]');
+  await expect(marketing.getByTestId('prep-item')).toContainText('Bilder');
 });
 
 test('a fresh install opens the Solarlux Vision fleet, not the demo', async ({ browser }) => {

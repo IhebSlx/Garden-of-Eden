@@ -35,6 +35,40 @@ function readSchemaVersion(raw: unknown): number | undefined {
  * Only schemaVersion 1 exists today; older versions get a migration step here as
  * the schema evolves, and a newer version is rejected rather than half-read.
  */
+/**
+ * The Ansprechpartner used to sit on every data item; it now sits once on the
+ * department that provides it. Zod strips unknown keys, so a document written
+ * before the move would lose the name silently - it is hoisted onto the matching
+ * department first. Same schemaVersion: nothing else about the shape changed, and
+ * a document without contacts passes through untouched.
+ */
+function hoistContactsToDepartments(raw: object): object {
+  const document = raw as { agents?: unknown; dataSources?: unknown };
+  const agents: unknown[] = Array.isArray(document.agents) ? document.agents : [];
+  const dataSources: unknown[] = Array.isArray(document.dataSources) ? document.dataSources : [];
+  if (agents.length === 0 || dataSources.length === 0) return raw;
+
+  const byOwner = new Map<string, string>();
+  for (const source of dataSources) {
+    if (typeof source !== 'object' || source === null) continue;
+    const { owner, contact } = source as { owner?: unknown; contact?: unknown };
+    if (typeof owner !== 'string' || typeof contact !== 'string') continue;
+    const key = owner.trim().toLowerCase();
+    if (key !== '' && contact.trim() !== '' && !byOwner.has(key)) byOwner.set(key, contact);
+  }
+  if (byOwner.size === 0) return raw;
+
+  const withContact = (agent: unknown): unknown => {
+    if (typeof agent !== 'object' || agent === null) return agent;
+    const { name, contact } = agent as { name?: unknown; contact?: unknown };
+    if (typeof name !== 'string' || typeof contact === 'string') return agent;
+    const inherited = byOwner.get(name.trim().toLowerCase());
+    return inherited === undefined ? agent : { ...agent, contact: inherited };
+  };
+
+  return { ...document, agents: agents.map(withContact) };
+}
+
 export function migrateFleetDocument(raw: unknown): MigrationResult {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
     return { ok: false, errors: ['Not a fleet file: expected a JSON object at the top level.'] };
@@ -65,7 +99,7 @@ export function migrateFleetDocument(raw: unknown): MigrationResult {
     };
   }
 
-  const parsed = FleetDocumentSchema.safeParse(raw);
+  const parsed = FleetDocumentSchema.safeParse(hoistContactsToDepartments(raw));
   if (!parsed.success) {
     return { ok: false, errors: formatZodError(parsed.error) };
   }
