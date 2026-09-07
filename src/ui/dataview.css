@@ -257,3 +257,45 @@
   border-radius: 14px;
   padding: 14px 16px;
 }
+
+/* ---------- Folder import ---------- */
+
+.import-note {
+  font-size: 10.5px;
+  color: #d8b26a;
+  max-width: 320px;
+}
+.import-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.import-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: rgb(5 7 18 / 0.6);
+  border: 1px solid rgb(124 140 255 / 0.14);
+  border-radius: 9px;
+  padding: 8px 11px;
+}
+.import-list b {
+  font-size: 12px;
+  font-weight: 500;
+  color: #e8ecf8;
+}
+.import-list span {
+  font-size: 11px;
+  line-height: 1.5;
+  color: #9fb2e0;
+}
+.import-skipped {
+  margin: 10px 0 0;
+  font-size: 11px;
+  color: #6f7fb4;
+}

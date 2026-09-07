@@ -32,6 +32,8 @@ import type {
   Tool,
 } from '../model/schemas.js';
 import { formatZodError, migrateFleetDocument } from '../model/migrations.js';
+import { applyFolderImport } from '../model/folderImport.js';
+import type { ImportPlan } from '../model/folderImport.js';
 import { agentsUsing, dataDescendants, descendantIds, isShared, parentsOf } from '../model/selectors.js';
 import { fleetFromTemplate } from '../model/templates.js';
 import { instantiateIntoFleet } from '../model/catalog.js';
@@ -143,6 +145,8 @@ export type FleetStoreState = {
   updateTool: (toolId: string, patch: Partial<Omit<Tool, 'id'>>) => ActionResult;
   deleteTool: (toolId: string) => ActionResult;
   addDataSource: (input: Omit<DataSource, 'id'>) => CreateResult;
+  /** SPEC 8.7: read a folder of documents into the data library, undoably. */
+  importDataFolder: (plan: ImportPlan) => ActionResult;
   updateDataSource: (dataSourceId: string, patch: Partial<Omit<DataSource, 'id'>>) => ActionResult;
   deleteDataSource: (dataSourceId: string) => ActionResult;
   attachLibraryItem: (agentId: string, kind: LibraryKind, itemId: string) => ActionResult;
@@ -643,6 +647,8 @@ export const useFleetStore = create<FleetStoreState>()(
           }),
 
         deleteTool: (toolId) => deleteLibraryItem('tool', toolId),
+
+        importDataFolder: (plan) => mutateActive((fleet) => applyFolderImport(fleet, plan)),
 
         addDataSource: (input) => {
           const parsed = DataSourceSchema.safeParse({ ...input, id: newId(ID_PREFIX.dataSource) });

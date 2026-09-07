@@ -1026,3 +1026,93 @@ test('clicking an agent from the Data view leaves for the board', async ({ page 
   await expect(page.getByTestId('view-switch')).toHaveAttribute('data-view', '2d');
   await expect(page.getByTestId('breadcrumb-here')).toHaveText(name ?? '');
 });
+
+/**
+ * The directory picker is a native dialog Playwright cannot drive, so the handle
+ * it returns is stubbed. Everything after that - the walk, the plan, the preview
+ * and the apply - is the real code path.
+ */
+async function stubFolder(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const file = (name: string) => ({ kind: 'file' as const, name });
+    // `for await` iterates a plain array happily, so the handle can return one.
+    const make = (name: string, children: unknown[]): unknown => ({
+      kind: 'directory',
+      name,
+      values: () => children,
+    });
+
+    const kern = make('01 Kern', [
+      file('Solarlux Unternehmensprofil.docx'),
+      file('Solarlux Produktsysteme Register.docx'),
+      file('Solarlux Unternehmensprofil.md'),
+    ]);
+    const vertrieb = make('02 Vertrieb', [file('Solarlux Vertriebsorganisation.docx')]);
+    const objekt = make('Objektvertrieb', [file('Objektvertrieb Rollen im Bauprojekt.docx')]);
+    const fach = make('03 Fachkontext', [objekt]);
+    const upload = make('UPLOAD', [kern, vertrieb, fach]);
+
+    (window as unknown as { showDirectoryPicker: () => Promise<unknown> }).showDirectoryPicker =
+      () => Promise.resolve(upload);
+  });
+}
+
+test('a folder of documents becomes the data library', async ({ page }) => {
+  await stubFolder(page);
+  await page.goto('/');
+  await expect(page.getByTestId('board')).toBeVisible();
+  await page.getByTestId('view-data').click();
+
+  const before = await page.getByTestId('data-row').count();
+  await page.getByTestId('folder-import').click();
+
+  // A preview first: the folder cannot answer every question.
+  const preview = page.getByTestId('import-preview');
+  await expect(preview).toBeVisible();
+  await expect(preview).toContainText('Import UPLOAD');
+  await expect(preview.getByTestId('import-box')).toHaveCount(4);
+  // 01 Kern goes to every agent; 02 Vertrieb is a judgement the importer refuses.
+  await expect(preview.getByTestId('import-box').first()).toContainText('ohne Ausnahme');
+  await expect(preview).toContainText('Only sales-adjacent agents');
+  // Only .docx is taken, which keeps the Markdown working copies out.
+  await expect(preview.getByTestId('import-skipped')).toContainText('1 non-');
+
+  await preview.getByTestId('import-apply').click();
+  await expect(preview).toHaveCount(0);
+
+  // Four boxes and four documents, nested under their folders.
+  await expect(page.getByTestId('data-row')).toHaveCount(before + 8);
+  await expect(page.locator('[data-testid="data-row"][data-depth="2"]').first()).toBeVisible();
+  await expect(page.getByTestId('folder-import-note')).toContainText('Imported 4 documents');
+
+  // A document knows where it lives, and reads as existing but not yet linked.
+  await page.getByTestId('data-row').filter({ hasText: 'Rollen im Bauprojekt' }).click();
+  const detail = page.getByTestId('data-detail');
+  await expect(detail.getByLabel(/Reference for/)).toHaveValue(
+    '03 Fachkontext/Objektvertrieb/Objektvertrieb Rollen im Bauprojekt.docx',
+  );
+  await expect(detail).toContainText('Existing');
+
+  // The box was linked, so every agent has the Kern documents through it.
+  await page.getByTestId('data-row').filter({ hasText: '01 Kern' }).first().click();
+  await expect(detail.locator('.ubn').first()).toBeVisible();
+
+  // And it is one edit, so it undoes in one step.
+  await page.keyboard.press('Control+z');
+  await expect(page.getByTestId('data-row')).toHaveCount(before);
+});
+
+test('importing the same folder twice refreshes rather than doubles it', async ({ page }) => {
+  await stubFolder(page);
+  await page.goto('/');
+  await expect(page.getByTestId('board')).toBeVisible();
+  await page.getByTestId('view-data').click();
+
+  await page.getByTestId('folder-import').click();
+  await page.getByTestId('import-apply').click();
+  const once = await page.getByTestId('data-row').count();
+
+  await page.getByTestId('folder-import').click();
+  await page.getByTestId('import-apply').click();
+  await expect(page.getByTestId('data-row')).toHaveCount(once);
+});

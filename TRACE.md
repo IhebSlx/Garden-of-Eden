@@ -789,3 +789,56 @@ only the spacing and type size.
 | Coverage names the provider and leads to their page | ✅ | e2e › "the coverage grid names the provider and jumps to a department page" |
 | The fleet menu opens the view, not a dialog | ✅ | e2e › "the fleet menu opens the Data view rather than a dialog over the board" |
 | An agent clicked from the Data view opens on the board | ✅ | e2e › "clicking an agent from the Data view leaves for the board" |
+
+**DEVIATION 23 — the folder is the source, so the app reads it.** `Open folder` in the Data view
+walks a picked directory and builds the data library from it. The convention is not invented here:
+it is the user's own, documented in `LIESMICH Aufbau und Einrichtung.md` beside the folder, and it
+is what makes the import possible at all — the path already says who needs the document.
+
+| Folder | Who binds it | What the importer does |
+|---|---|---|
+| `01 Kern` | every agent, "ohne Ausnahme" | links the box to all of them |
+| `02 Vertrieb` | sales-adjacent only, explicitly **not** the deck builder or Holzoffensive | links nothing and says why |
+| `03 Fachkontext/<X>` | the one agent whose folder it is | links to the agent named `<X>` |
+
+Three of their rules do real work here. **"Nur `.docx` hochladen"** — the Markdown files are
+working copies, so only `.docx` becomes an item; that is also what keeps `NICHT_HOCHLADEN` out
+without the importer ever naming it, since that folder holds only Markdown. **"Keine Kopien:
+dieselbe Bibliothek, mehrfach eingebunden"** is exactly this app's model, so a document becomes ONE
+item referenced by several agents (SPEC §8.7) — the box is linked, and its contents come with it.
+And because the documents exist on disk, they import as **Existing but `linked: false`**: present,
+but no agent reads them yet.
+
+It shows a **preview** rather than importing straight away, because the folder cannot answer every
+question. Guessing who counts as sales-adjacent would be quietly wrong, so the plan names what it
+could not decide. Applying is one undoable action, and a second import of the same folder refreshes
+the tree instead of doubling it — matched by name within a parent, keeping whatever was edited in
+the app (status, owner, requirement, notes); only structure, the path and the links belong to the
+folder.
+
+The File System Access API is Chromium-only; elsewhere the button says so instead of failing on
+click. A mis-picked folder stops at 2000 files rather than locking the tab.
+
+**Bug found by the new test:** the Data view's detail pane reused its inputs across rows, so an
+uncontrolled field kept the previous item's text while the labels showed the new one. The pane is
+now keyed by the item.
+
+| Item | Status | Test(s) |
+|---|---|---|
+| A folder becomes a box, a document an item | ✅ | `folderImport.test.ts` › "makes a box per folder and an item per document" |
+| The title is the file name without the extension | ✅ | › "takes the title from the file name, without the extension" |
+| Only `.docx`, which keeps NICHT_HOCHLADEN out | ✅ | › "takes only .docx, which is what keeps NICHT_HOCHLADEN out without naming it" |
+| An item records where it lives | ✅ | › "stores the path, so an item says where it lives" |
+| A stray file at the top is ignored | ✅ | › "ignores a stray file at the top, which belongs to no level" |
+| 01 Kern goes to every agent | ✅ | › "gives 01 Kern to every agent, ohne Ausnahme" |
+| 02 Vertrieb is left to the user | ✅ | › "leaves 02 Vertrieb for the user rather than guessing who is sales-adjacent" |
+| A Fachkontext folder goes to its own agent | ✅ | › "gives a Fachkontext folder to the one agent whose name it carries"; "gives the Fachkontext folder to its own agent and to nobody else" |
+| An unmatched or unknown folder says so | ✅ | › "says so when a Fachkontext folder matches no agent"; "links nothing it does not recognise, and says that too" |
+| The tree is built and stays schema-clean | ✅ | › "builds the tree and keeps it schema-clean"; "nests the documents inside their folders" |
+| Documents import as existing but unlinked | ✅ | › "marks the documents as existing but not yet linked" |
+| The box is linked, so its contents come along | ✅ | › "links the box, so every document inside it comes along" |
+| A second import refreshes, never doubles | ✅ | › "refreshes on a second import instead of doubling the library"; e2e › "importing the same folder twice refreshes rather than doubles it" |
+| Edits made in the app survive a re-import | ✅ | › "keeps what was edited in the app: only structure and links are the folder's" |
+| Nothing importable changes nothing | ✅ | › "does nothing to a fleet when the folder holds nothing importable" |
+| Preview, apply and undo, end to end | ✅ | e2e › "a folder of documents becomes the data library" |
+| The detail pane never shows a stale field | ✅ | e2e (same) — the reference reads the selected item's path |

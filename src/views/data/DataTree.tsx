@@ -57,7 +57,9 @@ export function DataTree({ fleet, query }: { fleet: Fleet; query: DataQuery }): 
         {selected === null ? (
           <p className="data-empty">Pick an item to see who provides it.</p>
         ) : (
-          <Detail fleet={fleet} source={selected} />
+          // Keyed by the item: the editor holds uncontrolled inputs, which would
+          // otherwise keep the previous row's text when the selection moves.
+          <Detail key={selected.id} fleet={fleet} source={selected} />
         )}
       </div>
     </div>
