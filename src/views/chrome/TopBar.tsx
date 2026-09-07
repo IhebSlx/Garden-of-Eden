@@ -32,20 +32,20 @@ export function TopBar(): React.JSX.Element {
       >
         3D
       </button>
-      {/* A peer of the two graph views, not a dialog over them: what the fleet
-          needs from the organisation is its own question. */}
+      {/* A peer of the two graph views, not a dialog over them: what the fleet is
+          made of is its own question. */}
       <button
         type="button"
-        className={`chrome-btn ${view === 'data' ? 'on' : ''}`}
-        onClick={() => setView('data')}
-        data-testid="view-data"
+        className={`chrome-btn ${view === 'library' ? 'on' : ''}`}
+        onClick={() => setView('library')}
+        data-testid="view-library"
       >
-        Data
+        Library
       </button>
 
       {/* Auto-arrange and Details act on the graph, so they are hidden where
           there is no graph rather than sitting there doing nothing. */}
-      {view !== 'data' && (
+      {view !== 'library' && (
         <>
           <span className="chrome-div" />
           <button

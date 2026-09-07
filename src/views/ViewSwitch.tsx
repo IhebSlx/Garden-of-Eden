@@ -10,7 +10,7 @@
  */
 import { Suspense, lazy, useEffect } from 'react';
 import { Board } from './board2d/Board.js';
-import { DataView } from './data/DataView.js';
+import { LibraryView } from './library/LibraryView.js';
 import { useUiStore } from '../store/uiStore.js';
 import { MORPH_MS } from '../ui/constants.js';
 import { usePrefersReducedMotion } from '../ui/usePrefersReducedMotion.js';
@@ -40,7 +40,7 @@ export function ViewSwitch(): React.JSX.Element {
   const show3d = view === '3d' || (morphing && morph.from === '3d');
   // The board only fades in once the flattening morph has landed.
   const board2dVisible = view === '2d' && !morphing;
-  const showData = view === 'data';
+  const showLibrary = view === 'library';
 
   return (
     <div className="viewswitch" data-testid="view-switch" data-view={view}>
@@ -60,12 +60,12 @@ export function ViewSwitch(): React.JSX.Element {
         )}
       </div>
       <div
-        className={`viewlayer ${showData ? 'on' : ''}`}
-        aria-hidden={!showData}
-        data-testid="viewlayer-data"
-        data-live={showData}
+        className={`viewlayer ${showLibrary ? 'on' : ''}`}
+        aria-hidden={!showLibrary}
+        data-testid="viewlayer-library"
+        data-live={showLibrary}
       >
-        {showData && <DataView />}
+        {showLibrary && <LibraryView />}
       </div>
     </div>
   );

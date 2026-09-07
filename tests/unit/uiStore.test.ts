@@ -20,7 +20,7 @@ beforeEach(() => {
     showDetails: false,
     openDetail: null,
     focusStartedAt: 0,
-    libraryOpen: false,
+    libraryTab: 'data',
     shortcutsOpen: false,
     fitRequest: 0,
     burst: null,
@@ -192,11 +192,14 @@ describe('fleet-scoped resets', () => {
 });
 
 describe('modal and fit requests', () => {
-  it('opens and closes the library manager and the shortcut sheet', () => {
+  it('opens the Library view on a tab, and the shortcut sheet', () => {
+    ui().openLibrary('tools');
+    expect(ui().view).toBe('library');
+    expect(ui().libraryTab).toBe('tools');
+    // No argument keeps whichever tab was last open.
+    ui().setView('2d');
     ui().openLibrary();
-    expect(ui().libraryOpen).toBe(true);
-    ui().closeLibrary();
-    expect(ui().libraryOpen).toBe(false);
+    expect(ui().libraryTab).toBe('tools');
 
     ui().openShortcuts();
     expect(ui().shortcutsOpen).toBe(true);

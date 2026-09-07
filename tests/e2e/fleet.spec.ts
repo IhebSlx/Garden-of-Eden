@@ -215,15 +215,15 @@ test('deleting a shared agent warns and names its parents', async ({ page }) => 
 });
 
 test('a library item in use cannot be deleted, and the usage list is shown', async ({ page }) => {
-  await page.getByTestId('fleet-menu-toggle').click();
-  await page.getByRole('button', { name: /Libraries/ }).click();
+  await page.getByTestId('view-library').click();
+  const library = page.getByTestId('library-view');
+  await expect(library).toBeVisible();
 
-  const manager = page.getByTestId('library-manager');
-  await expect(manager).toBeVisible();
-  await manager.getByRole('button', { name: 'Data', exact: true }).click();
-  await manager.getByRole('button', { name: 'Delete Unternehmenskontext' }).click();
+  await library.getByTestId('library-row').filter({ hasText: 'Unternehmenskontext' }).first().click();
+  await library.getByTestId('item-delete').click();
+  await library.getByTestId('item-delete-confirm').click();
 
-  const error = page.getByTestId('library-error');
+  const error = library.getByTestId('item-problem');
   await expect(error).toContainText('still used by');
   await expect(error).toContainText('Solarlux Orchestrator');
 });
@@ -468,53 +468,11 @@ test('the catalog survives a reload', async ({ page }) => {
   await expect(page.getByTestId('catalog').locator('.lib-name').first()).toHaveValue('Persistent Bot');
 });
 
-test('data prep says who owes each source and who is blocked without it', async ({ page }) => {
-  // Record the requirement the way a planning conversation states it...
+
+
+test('the fleet menu counts what is still to provide', async ({ page }) => {
   await page.getByTestId('fleet-menu-toggle').click();
-  await page.getByRole('button', { name: /Libraries/ }).click();
-  const manager = page.getByTestId('library-manager');
-  await manager.getByRole('button', { name: 'Data', exact: true }).click();
-  await manager.getByRole('button', { name: 'Edit Brand guidelines' }).click();
-
-  await manager.getByLabel('Which department provides Brand guidelines').selectOption('Marketing');
-  const requirement = manager.getByLabel('Requirement for Brand guidelines');
-  await requirement.fill('Every product image, named produkt_variante.png');
-  // These fields commit on blur, as every other field in the manager does.
-  await requirement.blur();
-  await page.getByRole('button', { name: 'Done' }).click();
-
-  // ...then read it back as an obligation on Marketing.
-  await page.getByTestId('fleet-menu-toggle').click();
-  await page.getByTestId('open-data-prep').click();
-
-  const prep = page.getByTestId('data-prep');
-  await expect(prep).toBeVisible();
-
-  const marketing = prep.getByTestId('prep-group').filter({ hasText: 'Marketing' }).first();
-  await expect(marketing).toContainText('Brand guidelines');
-  await expect(marketing).toContainText('named produkt_variante.png');
-  // The point of the view: who cannot work until Marketing delivers.
-  await expect(marketing).toContainText('needed by');
-
-  // Everything nobody has claimed is still gathered under Unassigned.
-  await expect(prep.locator('[data-testid="prep-group"][data-owner=""]')).toHaveCount(1);
-});
-
-test('data prep jumps from an obligation to the agent waiting on it', async ({ page }) => {
-  await page.getByTestId('fleet-menu-toggle').click();
-  await page.getByTestId('open-data-prep').click();
-
-  const prep = page.getByTestId('data-prep');
-  const item = prep.getByTestId('prep-item').filter({ hasText: 'Unternehmenskontext' }).first();
-  await item.getByRole('button', { name: 'Solarlux Orchestrator' }).first().click();
-
-  await expect(prep).toBeHidden();
-  await expect(page.getByTestId('breadcrumb')).toContainText('Solarlux Orchestrator');
-});
-
-test('the fleet menu counts what is still to prepare', async ({ page }) => {
-  await page.getByTestId('fleet-menu-toggle').click();
-  await expect(page.getByTestId('open-data-prep')).toContainText('still to prepare');
+  await expect(page.getByTestId('open-library')).toContainText('still to provide');
 });
 
 test('the app is branded as the Solarlux Agent Visualiser', async ({ page }) => {
@@ -576,30 +534,25 @@ test('a note can be written on an agent and survives a reload', async ({ page })
   );
 });
 
-test('a note on a library item is marked in the list and shown in its detail card', async ({ page }) => {
-  await page.getByTestId('fleet-menu-toggle').click();
-  await page.getByRole('button', { name: /Libraries/ }).click();
-  const manager = page.getByTestId('library-manager');
+test('a note on a library item is marked in the list and kept with the item', async ({ page }) => {
+  await page.getByTestId('view-library').click();
+  const library = page.getByTestId('library-view');
 
-  await manager.getByRole('button', { name: 'Data', exact: true }).click();
-  await expect(manager.getByTestId('lib-note-dot')).toHaveCount(0);
+  await library.getByTestId('library-row').first().click();
+  await library.getByTestId('data-notes').fill('Ask Marketing whether this is still current.');
+  await library.getByTestId('data-notes').blur();
 
-  await manager.getByRole('button', { name: 'Edit Brand guidelines' }).click();
-  const notes = manager.getByTestId('data-notes');
-  await notes.fill('Superseded by the 2026 pack — confirm before reuse.');
-  await notes.blur();
+  // The list marks which items carry a note, so one is findable again.
+  await expect(library.getByTestId('library-note-dot').first()).toBeVisible();
 
-  // The list now says this item carries a note, without opening it.
-  await expect(manager.getByTestId('lib-note-dot')).toHaveCount(1);
-  await expect(manager.getByTestId('notes-count')).toContainText('words');
-
-  await page.getByRole('button', { name: 'Done' }).click();
-  // Marketing is the agent that uses Brand guidelines in the seeded fleet.
-  await cards(page, 'Marketing').first().click();
-  // The name appears on the chip, the detail card and the panel heading, so take
-  // the chip - it is the one that opens the detail.
-  await page.getByTestId('inspector').getByRole('button', { name: 'Brand guidelines', exact: true }).first().click();
-  await expect(page.getByTestId('detail-notes')).toContainText('Superseded by the 2026 pack');
+  // And it survives a reload, so it is stored rather than a UI flourish.
+  await page.waitForTimeout(600);
+  await page.reload();
+  await page.getByTestId('view-library').click();
+  await page.getByTestId('library-row').first().click();
+  await expect(page.getByTestId('data-notes')).toHaveValue(
+    'Ask Marketing whether this is still current.',
+  );
 });
 
 test('notes are undoable like any other edit', async ({ page }) => {
@@ -612,284 +565,384 @@ test('notes are undoable like any other edit', async ({ page }) => {
   await expect(page.getByTestId('inspector').getByTestId('panel-notes')).toHaveValue('');
 });
 
-test('data has a source, can be a department, and nests inside other data', async ({ page }) => {
-  await page.getByTestId('fleet-menu-toggle').click();
-  await page.getByRole('button', { name: /Libraries/ }).click();
-  const manager = page.getByTestId('library-manager');
-  await manager.getByRole('button', { name: 'Data', exact: true }).click();
+/* ---------- The Library view: Data, Tools and Skills ---------- */
 
-  // Two items: a whole and a part.
-  await manager.getByTestId('lib-new-name').fill('Produktdaten');
-  await manager.getByRole('button', { name: 'Add', exact: true }).click();
-  await manager.getByTestId('data-provider').selectOption('Marketing');
-  await manager.getByTestId('data-contact').fill('Frau Bauer');
-  await manager.getByLabel('Source of Produktdaten').selectOption('department');
-  await expect(manager.getByLabel('Status of Produktdaten')).toHaveValue('planned');
+test('Library is a third view, with three filtrable tabs', async ({ page }) => {
+  await expect(page.getByTestId('view-library')).toBeVisible();
+  await page.getByTestId('view-library').click();
 
-  await manager.getByTestId('lib-new-name').fill('Bilder');
-  await manager.getByRole('button', { name: 'Add', exact: true }).click();
-  await manager.getByTestId('data-provider').selectOption('Marketing');
+  await expect(page.getByTestId('view-switch')).toHaveAttribute('data-view', 'library');
+  await expect(page.getByTestId('viewlayer-library')).toHaveAttribute('data-live', 'true');
+  // The board layer goes dark but stays mounted, so its pan and zoom survive.
+  await expect(page.getByTestId('viewlayer-2d')).toHaveAttribute('data-live', 'false');
+  // Chrome that only answers questions about the graph goes with it.
+  await expect(page.getByTestId('filter-bar')).toHaveCount(0);
+  await expect(page.getByTestId('auto-arrange')).toHaveCount(0);
 
-  // Put Bilder inside Produktdaten.
-  await manager.getByTestId('data-parent').selectOption({ label: 'Produktdaten' });
-  await expect(manager.locator('.lib-entry[data-depth="1"]')).toHaveCount(1);
+  const library = page.getByTestId('library-view');
+  await expect(library).toHaveAttribute('data-tab', 'data');
+  for (const tab of ['data', 'tools', 'skills']) {
+    await expect(library.getByTestId(`library-tab-${tab}`)).toBeVisible();
+  }
 
-  // Provision language, not readiness.
-  await expect(manager.getByLabel('Status of Bilder')).toBeVisible();
-  await expect(manager).toContainText('To be provided');
+  // Each tab filters by the axes its own content actually has.
+  await expect(library.getByTestId('data-filter')).toBeVisible();
 
-  // Deleting the whole is refused while it still holds a part.
-  await manager.getByRole('button', { name: 'Delete Produktdaten' }).click();
-  await expect(page.getByTestId('library-error')).toContainText('still contains');
+  await library.getByTestId('library-tab-tools').click();
+  await expect(library).toHaveAttribute('data-tab', 'tools');
+  await expect(library.getByTestId('library-search')).toBeVisible();
+  await expect(library.getByTestId('library-tool-type')).toBeVisible();
+
+  await library.getByTestId('library-tab-skills').click();
+  await expect(library).toHaveAttribute('data-tab', 'skills');
+  await expect(library.getByTestId('library-search')).toBeVisible();
+  // A skill has no type and no state, so it is offered neither.
+  await expect(library.getByTestId('library-tool-type')).toHaveCount(0);
+
+  // And back to the board, which keeps its own chrome.
+  await page.getByTestId('view-2d').click();
+  await expect(page.getByTestId('filter-bar')).toBeVisible();
 });
 
-test('the data library filters by the department that has to provide it', async ({ page }) => {
+test('the fleet menu opens the Library rather than a dialog over the board', async ({ page }) => {
   await page.getByTestId('fleet-menu-toggle').click();
-  await page.getByRole('button', { name: /Libraries/ }).click();
-  const manager = page.getByTestId('library-manager');
-  await manager.getByRole('button', { name: 'Data', exact: true }).click();
+  await page.getByTestId('open-library').click();
 
-  // The filter belongs to the data, not to the board chrome.
-  await expect(page.getByTestId('provider-filter-select')).toHaveCount(0);
-  const filter = manager.getByTestId('data-provider-filter');
-  await expect(filter).toBeVisible();
+  await expect(page.getByTestId('view-switch')).toHaveAttribute('data-view', 'library');
+  await expect(page.getByTestId('library-view')).toHaveAttribute('data-tab', 'data');
+  // No scrim: it is a view, so the board is not sitting behind it.
+  await expect(page.locator('.dialog-scrim')).toHaveCount(0);
+});
 
-  const all = await manager.locator('.lib-entry').count();
-  expect(all).toBeGreaterThan(1);
+test('each tab counts what it holds', async ({ page }) => {
+  await page.getByTestId('view-library').click();
+  const library = page.getByTestId('library-view');
 
-  await manager.getByRole('button', { name: 'Edit Brand guidelines' }).click();
-  await manager.getByTestId('data-provider').selectOption('Marketing');
-  await manager.getByRole('button', { name: 'Close Brand guidelines' }).click();
+  const rowsOn = async (tab: string): Promise<number> => {
+    await library.getByTestId(`library-tab-${tab}`).click();
+    return library.getByTestId('library-row').count();
+  };
 
-  // One department: only what it has to provide.
-  await filter.selectOption('by:Marketing');
-  await expect(manager.locator('.lib-entry')).toHaveCount(1);
-  await expect(manager.locator('.lib-entry .lib-name')).toHaveValue('Brand guidelines');
+  const data = await rowsOn('data');
+  const tools = await rowsOn('tools');
+  const skills = await rowsOn('skills');
+  expect(data).toBeGreaterThan(0);
+  expect(tools).toBeGreaterThan(0);
+  expect(skills).toBeGreaterThan(0);
 
-  // "Nobody yet" is the gap list, and excludes the one just assigned.
-  await filter.selectOption('none');
-  await expect(manager.locator('.lib-entry')).toHaveCount(all - 1);
+  await expect(library.getByTestId('library-tab-data')).toContainText(String(data));
+  await expect(library.getByTestId('library-tab-tools')).toContainText(String(tools));
+  await expect(library.getByTestId('library-tab-skills')).toContainText(String(skills));
+});
 
-  // Clearing it brings the whole library back.
+test('a skill can be added, renamed, edited and deleted', async ({ page }) => {
+  await page.getByTestId('view-library').click();
+  const library = page.getByTestId('library-view');
+  await library.getByTestId('library-tab-skills').click();
+  const before = await library.getByTestId('library-row').count();
+
+  await library.getByTestId('library-new-name').fill('Angebots-Pruefung');
+  await library.getByTestId('library-add').click();
+  await expect(library.getByTestId('library-row')).toHaveCount(before + 1);
+  await expect(library.getByTestId('item-rename')).toHaveValue('Angebots-Pruefung');
+
+  // Every field the schema carries is here, not three clicks away.
+  await library.getByTestId('skill-instructions').fill('Pruefe jede Position gegen die Preisliste.');
+  await library.getByTestId('skill-instructions').blur();
+  await library.getByTestId('item-rename').fill('Angebotspruefung');
+  await library.getByTestId('item-rename').press('Enter');
+  await expect(library.getByTestId('library-row').filter({ hasText: 'Angebotspruefung' })).toHaveCount(
+    1,
+  );
+
+  // Search narrows the list, and clearing it brings the rest back.
+  await library.getByTestId('library-search').fill('Angebotspr');
+  await expect(library.getByTestId('library-row')).toHaveCount(1);
+  await library.getByTestId('library-search').fill('');
+  await expect(library.getByTestId('library-row')).toHaveCount(before + 1);
+
+  await library.getByTestId('library-row').filter({ hasText: 'Angebotspruefung' }).click();
+  await library.getByTestId('item-delete').click();
+  await library.getByTestId('item-delete-confirm').click();
+  await expect(library.getByTestId('library-row')).toHaveCount(before);
+});
+
+test('a tool can be added, typed and deleted, and its type filters the list', async ({ page }) => {
+  await page.getByTestId('view-library').click();
+  const library = page.getByTestId('library-view');
+  await library.getByTestId('library-tab-tools').click();
+  const before = await library.getByTestId('library-row').count();
+
+  // SPEC 4: every tool explains itself, so the form asks for that too.
+  await library.getByTestId('library-new-name').fill('SAP-Abfrage');
+  await expect(library.getByTestId('library-add')).toBeDisabled();
+  await library.getByTestId('library-new-description').fill('Liest Belege aus SAP.');
+  await library.getByTestId('library-add').click();
+  await expect(library.getByTestId('library-row')).toHaveCount(before + 1);
+  await expect(library.getByTestId('item-rename')).toHaveValue('SAP-Abfrage');
+
+  // The type is the tool's only axis, and it filters.
+  await library.getByLabel('Type of SAP-Abfrage').selectOption('python');
+  await library.getByTestId('library-tool-type').selectOption('python');
+  const pythonOnly = await library.getByTestId('library-row').count();
+  expect(pythonOnly).toBeGreaterThan(0);
+  expect(pythonOnly).toBeLessThan(before + 1);
+  await expect(library.getByTestId('library-row').filter({ hasText: 'SAP-Abfrage' })).toHaveCount(1);
+
+  await library.getByTestId('library-tool-type').selectOption('');
+  await expect(library.getByTestId('library-row')).toHaveCount(before + 1);
+
+  await library.getByTestId('library-row').filter({ hasText: 'SAP-Abfrage' }).click();
+  await library.getByTestId('item-delete').click();
+  await library.getByTestId('item-delete-confirm').click();
+  await expect(library.getByTestId('library-row')).toHaveCount(before);
+});
+
+test('a tool in use cannot be deleted, and the usage list is shown', async ({ page }) => {
+  await page.getByTestId('view-library').click();
+  const library = page.getByTestId('library-view');
+  await library.getByTestId('library-tab-tools').click();
+
+  await library.getByTestId('library-row').filter({ hasText: 'Dataverse API' }).first().click();
+  await expect(library.locator('.ubn').first()).toBeVisible();
+  await library.getByTestId('item-delete').click();
+  await library.getByTestId('item-delete-confirm').click();
+  await expect(library.getByTestId('item-problem')).toContainText('still used by');
+});
+
+/* ---------- Data: the model, its filters and its guards ---------- */
+
+/** Open the Library on Data, which is where it opens by default. */
+async function openData(page: Page) {
+  await page.getByTestId('view-library').click();
+  const library = page.getByTestId('library-view');
+  await expect(library).toHaveAttribute('data-tab', 'data');
+  return library;
+}
+
+/** Select a data row by name and return the detail pane. */
+async function openItem(page: Page, name: string) {
+  const library = page.getByTestId('library-view');
+  await library.getByTestId('library-row').filter({ hasText: name }).first().click();
+  return library.getByTestId('library-detail');
+}
+
+test('data has a source, can be a department, and nests inside other data', async ({ page }) => {
+  const library = await openData(page);
+
+  await library.getByTestId('library-new-name').fill('Produktdaten');
+  await library.getByTestId('library-add').click();
+  await library.getByTestId('data-provider').selectOption('by:Marketing');
+  await library.getByLabel('Source of Produktdaten').selectOption('department');
+  await expect(library.getByLabel('Status of Produktdaten')).toHaveValue('planned');
+
+  await library.getByTestId('library-new-name').fill('Bilder');
+  await library.getByTestId('library-add').click();
+  await library.getByTestId('data-parent').selectOption({ label: 'Produktdaten' });
+  await expect(library.locator('[data-testid="library-row"][data-depth="1"]')).toHaveCount(1);
+
+  // Provision language, not readiness.
+  await expect(library).toContainText('To be provided');
+
+  // Deleting the whole is refused while it still holds a part, and names it.
+  await openItem(page, 'Produktdaten');
+  await library.getByTestId('item-delete').click();
+  await library.getByTestId('item-delete-confirm').click();
+  await expect(library.getByTestId('item-problem')).toContainText('still contains');
+  await expect(library.getByTestId('item-problem')).toContainText('Bilder');
+});
+
+test('the data list filters by state, source and department, composing', async ({ page }) => {
+  const library = await openData(page);
+  const all = await library.getByTestId('library-row').count();
+  expect(all).toBeGreaterThan(2);
+
+  // The chips carry counts, so the answer is visible before the click.
+  await expect(library.getByTestId('data-status-all')).toContainText(String(all));
+
+  await library.getByTestId('data-status-live').click();
+  const ready = await library.getByTestId('library-row').count();
+  expect(ready).toBeGreaterThan(0);
+  expect(ready).toBeLessThan(all);
+
+  await library.getByTestId('data-source-filter').selectOption('is:dataverse');
+  const both = await library.getByTestId('library-row').count();
+  expect(both).toBeLessThanOrEqual(ready);
+
+  await library.getByTestId('data-provider-filter').selectOption('none');
+  await expect.poll(async () => library.getByTestId('library-row').count()).toBeLessThanOrEqual(both);
+
+  await library.getByTestId('data-status-all').click();
+  await library.getByTestId('data-source-filter').selectOption('');
   await page.getByRole('button', { name: 'Show data from every department again' }).click();
-  await expect(manager.locator('.lib-entry')).toHaveCount(all);
+  await expect(library.getByTestId('library-row')).toHaveCount(all);
 });
 
 test('the Ansprechpartner belongs to the department, not to each item', async ({ page }) => {
-  await page.getByTestId('fleet-menu-toggle').click();
-  await page.getByRole('button', { name: /Libraries/ }).click();
-  const manager = page.getByTestId('library-manager');
-  await manager.getByRole('button', { name: 'Data', exact: true }).click();
+  const library = await openData(page);
 
-  // Two different items, both provided by Marketing.
-  await manager.getByRole('button', { name: 'Edit Brand guidelines' }).click();
-  await manager.getByTestId('data-provider').selectOption('Marketing');
-  await manager.getByTestId('data-contact').fill('Herr Klein');
-  await manager.getByTestId('data-contact').blur();
-  await manager.getByRole('button', { name: 'Close Brand guidelines' }).click();
+  await openItem(page, 'Brand guidelines');
+  await library.getByTestId('data-provider').selectOption('by:Marketing');
+  await library.getByTestId('data-contact').fill('Herr Klein');
+  await library.getByTestId('data-contact').blur();
 
-  await manager.getByRole('button', { name: 'Edit CRM', exact: true }).click();
-  await manager.getByTestId('data-provider').selectOption('Marketing');
-  // The name was never typed here, but Marketing has one.
-  await expect(manager.getByTestId('data-contact')).toHaveValue('Herr Klein');
+  // A different item from the same department shows the same name, untyped.
+  await openItem(page, 'CRM leads');
+  await library.getByTestId('data-provider').selectOption('by:Marketing');
+  await expect(library.getByTestId('data-contact')).toHaveValue('Herr Klein');
+});
+
+test('a department missing from the list can be added from the dropdown', async ({ page }) => {
+  const library = await openData(page);
+  await library.getByTestId('library-row').first().click();
+
+  const provider = library.getByTestId('data-provider');
+  await expect(provider.locator('option')).not.toContainText(['Einkauf']);
+
+  await provider.selectOption('add');
+  await library.getByTestId('provider-add-name').fill('Einkauf');
+  await library.getByTestId('provider-add-save').click();
+  await expect(provider).toHaveValue('by:Einkauf');
+
+  // The list is the org chart, so it really is a department on the board now.
+  await page.getByTestId('view-2d').click();
+  await expect(cards(page, 'Einkauf').first()).toBeVisible();
+});
+
+test('a data item can be marked linked whatever state it is in', async ({ page }) => {
+  const library = await openData(page);
+  await library.getByTestId('library-new-name').fill('Kampagnen-Kalender');
+  await library.getByTestId('library-add').click();
+  await expect(library.getByTestId('library-detail')).toContainText('To be provided');
+
+  const linked = library.getByTestId('data-linked');
+  await expect(linked).toBeVisible();
+  await linked.check();
+
+  await page.waitForTimeout(600);
+  await page.reload();
+  await openData(page);
+  await openItem(page, 'Kampagnen-Kalender');
+  await expect(page.getByTestId('data-linked')).toBeChecked();
+});
+
+test('a data item carries a source that may be undecided, and a description', async ({ page }) => {
+  const library = await openData(page);
+  await library.getByTestId('library-new-name').fill('Kampagnen-Kalender');
+  await library.getByTestId('library-add').click();
+
+  const source = library.getByTestId('data-source');
+  await expect(source.locator('option').first()).toHaveText('Not assigned yet');
+  await expect(source).toHaveValue('');
+  await expect(library.getByTestId('library-detail')).toContainText('not assigned');
+
+  await library.getByTestId('data-description').fill('Wann welche Kampagne läuft.');
+  await library.getByTestId('data-description').blur();
+
+  await page.waitForTimeout(600);
+  await page.reload();
+  await openData(page);
+  await openItem(page, 'Kampagnen-Kalender');
+  await expect(page.getByTestId('data-source')).toHaveValue('');
+  await expect(page.getByTestId('data-description')).toHaveValue('Wann welche Kampagne läuft.');
+});
+
+test('data can be added, renamed, nested and deleted, and it all undoes', async ({ page }) => {
+  const library = await openData(page);
+  const before = await library.getByTestId('library-row').count();
+
+  await library.getByTestId('library-new-name').fill('Produktdaten');
+  await library.getByTestId('library-add').click();
+  await expect(library.getByTestId('library-row')).toHaveCount(before + 1);
+  await expect(library.getByTestId('item-rename')).toHaveValue('Produktdaten');
+
+  // "Add inside" needs no name: it makes a child of what is open.
+  await library.getByTestId('data-add-inside').click();
+  await expect(library.getByTestId('item-rename')).toHaveValue('New data');
+  await library.getByTestId('item-rename').fill('Bilder');
+  await library.getByTestId('item-rename').press('Enter');
+  await expect(library.locator('[data-testid="library-row"][data-depth="1"]')).toHaveCount(1);
+
+  // An empty name reverts rather than being accepted and lost.
+  await library.getByTestId('item-rename').fill('   ');
+  await library.getByTestId('item-rename').blur();
+  await expect(library.getByTestId('item-rename')).toHaveValue('Bilder');
+
+  await library.getByTestId('item-delete').click();
+  await library.getByTestId('item-delete-confirm').click();
+  await expect(library.getByTestId('library-row')).toHaveCount(before + 1);
+
+  await page.keyboard.press('Control+z');
+  await expect(library.getByTestId('library-row')).toHaveCount(before + 2);
+});
+
+test('data an agent depends on cannot be deleted out from under it', async ({ page }) => {
+  const library = await openData(page);
+  await openItem(page, 'Brand guidelines');
+  await expect(library.locator('.ubn').first()).toBeVisible();
+
+  await library.getByTestId('item-delete').click();
+  await library.getByTestId('item-delete-confirm').click();
+  await expect(library.getByTestId('item-problem')).toContainText('still used by');
+  await expect(library.getByTestId('library-row').filter({ hasText: 'Brand guidelines' })).toHaveCount(
+    1,
+  );
+});
+
+test('clicking an agent from the Library leaves for the board', async ({ page }) => {
+  await openData(page);
+  const detail = await openItem(page, 'Brand guidelines');
+
+  const users = detail.locator('.ubn');
+  await expect(users.first()).toBeVisible();
+  const name = await users.first().textContent();
+  await users.first().click();
+
+  await expect(page.getByTestId('view-switch')).toHaveAttribute('data-view', '2d');
+  await expect(page.getByTestId('breadcrumb-here')).toHaveText(name ?? '');
 });
 
 test('linking a box gives the agent what is inside it', async ({ page }) => {
-  // A whole with a part in it.
-  await page.getByTestId('fleet-menu-toggle').click();
-  await page.getByRole('button', { name: /Libraries/ }).click();
-  const manager = page.getByTestId('library-manager');
-  await manager.getByRole('button', { name: 'Data', exact: true }).click();
+  const library = await openData(page);
 
-  await manager.getByTestId('lib-new-name').fill('Produktdaten');
-  await manager.getByRole('button', { name: 'Add', exact: true }).click();
-  await manager.getByTestId('lib-new-name').fill('Bilder');
-  await manager.getByRole('button', { name: 'Add', exact: true }).click();
-  await manager.getByTestId('data-provider').selectOption('Marketing');
-  await manager.getByTestId('data-parent').selectOption({ label: 'Produktdaten' });
-  await page.getByRole('button', { name: 'Done' }).click();
+  await library.getByTestId('library-new-name').fill('Produktdaten');
+  await library.getByTestId('library-add').click();
+  await library.getByTestId('library-new-name').fill('Bilder');
+  await library.getByTestId('library-add').click();
+  await library.getByTestId('data-provider').selectOption('by:Marketing');
+  await library.getByTestId('data-parent').selectOption({ label: 'Produktdaten' });
 
   // Link the whole only.
+  await page.getByTestId('view-2d').click();
   await cards(page, 'Lead Qualifier').first().click();
   const inspector = page.getByTestId('inspector');
   await inspector.getByRole('button', { name: 'Add data' }).click();
   await page.getByTestId('picker').getByText('Produktdaten', { exact: true }).click();
 
-  // The part came with it, marked as inherited and with no remove button of its own.
+  // The part came with it, marked as inherited and with no remove button.
   const box = inspector.locator('.chip.ichip', { hasText: 'Produktdaten' });
   const part = inspector.locator('.chip.ichip', { hasText: 'Bilder' });
   await expect(box).toHaveCount(1);
   await expect(part).toHaveAttribute('data-inherited', 'true');
   await expect(part.getByRole('button', { name: 'Remove Bilder' })).toHaveCount(0);
   await expect(box.getByRole('button', { name: 'Remove Produktdaten' })).toHaveCount(1);
-
-  // And the whole box answers for Marketing, whom the agent never referenced.
-  await page.getByTestId('fleet-menu-toggle').click();
-  await page.getByRole('button', { name: /Data prep/ }).click();
-  const marketing = page.locator('[data-testid="prep-group"][data-owner="Marketing"]');
-  await expect(marketing.getByTestId('prep-item')).toContainText('Bilder');
 });
 
-test('a fresh install opens the Solarlux Vision fleet, not the demo', async ({ browser }) => {
-  const context = await browser.newContext();
-  const fresh = await context.newPage();
-  await fresh.addInitScript(() => {
-    indexedDB.deleteDatabase('agent-fleet-studio');
-  });
-  await fresh.goto('/');
-
-  await expect(fresh.getByTestId('breadcrumb')).toContainText('Solarlux Vision');
-  // Fifteen agents, and the shared deck builder drawn under both its parents.
-  await expect(fresh.getByTestId('agent-card')).toHaveCount(16);
-  await expect(fresh.getByTestId('agent-card').filter({ hasText: 'Controlling' })).toHaveCount(1);
-  await expect(fresh.getByTestId('agent-card').filter({ hasText: 'Business Development' })).toHaveCount(0);
-
-  await context.close();
-});
-
-test('a department can be assigned to a data item from Data prep', async ({ page }) => {
-  await page.getByTestId('fleet-menu-toggle').click();
-  await page.getByRole('button', { name: /Data prep/ }).click();
-  const prep = page.getByTestId('data-prep');
-
-  // Nothing in the demo has a provider, so everything starts in Unassigned.
-  await expect(prep.getByTestId('prep-group').first()).toHaveAttribute('data-owner', '');
-  const first = prep.getByTestId('prep-item').first();
-  const owner = first.getByTestId('prep-owner');
-  await expect(owner).toHaveValue('');
-
-  // Every department is offered, including ones that owe nothing yet.
-  // One wording everywhere now that the control is shared: "Nobody yet".
-  await expect(owner).toContainText('Nobody yet');
-  await expect(owner).toContainText('Marketing');
-
-  await owner.selectOption('Marketing');
-  // The item leaves Unassigned for a group of its own, and can name a contact.
-  const marketing = prep.locator('[data-testid="prep-group"][data-owner="Marketing"]');
-  await expect(marketing).toHaveCount(1);
-  const contact = marketing.getByTestId('prep-contact').first();
-  const label = await contact.getAttribute('aria-label');
-  await contact.fill('Frau Bauer');
-  await contact.blur();
-
-  // It survives a reload, so the answer is stored, not just displayed.
-  await page.waitForTimeout(600);
-  await page.reload();
-  await expect(page.getByTestId('breadcrumb')).toContainText('Solarlux Fleet');
-  await page.getByTestId('fleet-menu-toggle').click();
-  await page.getByRole('button', { name: /Data prep/ }).click();
-  await expect(page.getByTestId('data-prep').getByLabel(label ?? '')).toHaveValue('Frau Bauer');
-});
-
-test('a source can be left undecided, and says so', async ({ page }) => {
-  await page.getByTestId('fleet-menu-toggle').click();
-  await page.getByRole('button', { name: /Libraries/ }).click();
-  const manager = page.getByTestId('library-manager');
-  await manager.getByRole('button', { name: 'Data', exact: true }).click();
-
-  await manager.getByTestId('lib-new-name').fill('Kampagnen-Kalender');
-  await manager.getByRole('button', { name: 'Add', exact: true }).click();
-
-  // Where it will live is undecided while the need is not.
-  const source = manager.getByTestId('data-source');
-  await expect(source.locator('option').first()).toHaveText('Not assigned yet');
-  await source.selectOption('');
-  await expect(source).toHaveValue('');
-
-  // The row still renders a dot rather than nothing at all.
-  await expect(manager.locator('.lib-entry.editing .tdot').first()).toBeVisible();
-
-  // It survives a reload, so "undecided" is a stored answer.
-  await page.waitForTimeout(600);
-  await page.reload();
-  await page.getByTestId('fleet-menu-toggle').click();
-  await page.getByRole('button', { name: /Libraries/ }).click();
-  await page.getByTestId('library-manager').getByRole('button', { name: 'Data', exact: true }).click();
-  await page
-    .getByTestId('library-manager')
-    .getByRole('button', { name: 'Edit Kampagnen-Kalender' })
-    .click();
-  await expect(page.getByTestId('library-manager').getByTestId('data-source')).toHaveValue('');
-});
-
-test('the data library filters by state and by source, composing with the department', async ({
-  page,
-}) => {
-  await page.getByTestId('fleet-menu-toggle').click();
-  await page.getByRole('button', { name: /Libraries/ }).click();
-  const manager = page.getByTestId('library-manager');
-  await manager.getByRole('button', { name: 'Data', exact: true }).click();
-
-  const all = await manager.locator('.lib-entry').count();
-  expect(all).toBeGreaterThan(2);
-
-  // The chips carry counts, so the answer is visible before the click.
-  await expect(manager.getByTestId('data-status-all')).toContainText(String(all));
-
-  // Filtering by state keeps only that state.
-  await manager.getByTestId('data-status-live').click();
-  const ready = await manager.locator('.lib-entry').count();
-  expect(ready).toBeGreaterThan(0);
-  expect(ready).toBeLessThan(all);
-
-  // Source composes with it rather than replacing it.
-  await manager.getByTestId('data-source-filter').selectOption('is:dataverse');
-  const both = await manager.locator('.lib-entry').count();
-  expect(both).toBeLessThanOrEqual(ready);
-
-  // The department axis narrows it further still.
-  await manager.getByTestId('data-provider-filter').selectOption('none');
-  await expect
-    .poll(async () => manager.locator('.lib-entry').count())
-    .toBeLessThanOrEqual(both);
-
-  // Back to everything.
-  await manager.getByTestId('data-status-all').click();
-  await manager.getByTestId('data-source-filter').selectOption('');
-  await page.getByRole('button', { name: 'Show data from every department again' }).click();
-  await expect(manager.locator('.lib-entry')).toHaveCount(all);
-});
-
-test('a department gets its own page, with the text to send them', async ({ page }) => {
+test('the briefing is offered once the filter says which department', async ({ page }) => {
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  const library = await openData(page);
 
-  // Give Marketing something to owe, and a person to ask.
-  await page.getByTestId('fleet-menu-toggle').click();
-  await page.getByRole('button', { name: /Libraries/ }).click();
-  const manager = page.getByTestId('library-manager');
-  await manager.getByRole('button', { name: 'Data', exact: true }).click();
-  await manager.getByRole('button', { name: 'Edit Brand guidelines' }).click();
-  await manager.getByTestId('data-provider').selectOption('Marketing');
-  await manager.getByTestId('data-contact').fill('A. Vogt');
-  await manager.getByTestId('data-contact').blur();
-  await manager.getByLabel('Requirement for Brand guidelines').fill('Aktuelle Fassung als PDF.');
-  await manager.getByLabel('Requirement for Brand guidelines').blur();
-  await page.getByRole('button', { name: 'Done' }).click();
+  // Nothing to send while the filter means everybody.
+  await expect(library.getByTestId('briefing-copy')).toHaveCount(0);
 
-  await page.getByTestId('fleet-menu-toggle').click();
-  await page.getByTestId('open-data-prep').click();
-  const prep = page.getByTestId('data-prep');
+  await openItem(page, 'Brand guidelines');
+  await library.getByTestId('data-provider').selectOption('by:Marketing');
+  await library.getByLabel('Requirement for Brand guidelines').fill('Aktuelle Fassung als PDF.');
+  await library.getByLabel('Requirement for Brand guidelines').blur();
 
-  // The whole fleet by default; one department on request.
-  await expect(prep.getByTestId('prep-department-page')).toHaveCount(0);
-  await prep.getByTestId('prep-department').selectOption('Marketing');
-
-  const dept = prep.getByTestId('prep-department-page');
-  await expect(dept).toHaveAttribute('data-owner', 'Marketing');
-  await expect(dept).toContainText('Ansprechpartner · A. Vogt');
-  await expect(dept).toContainText('Brand guidelines');
-  await expect(dept).toContainText('Aktuelle Fassung als PDF.');
-  await expect(prep.getByTestId('prep-department-readiness')).toBeVisible();
-
-  // Items are grouped by state, owed first.
-  await expect(prep.getByTestId('prep-state-group').first()).toHaveAttribute('data-state', 'building');
-
-  // Nothing from another department leaks in.
-  await expect(dept).not.toContainText('Personalhandbuch');
-
-  // The page can be sent to the person who will never open this app.
-  const copy = prep.getByTestId('prep-copy');
-  await expect(copy).toHaveText('Copy as e-mail');
+  await library.getByTestId('data-provider-filter').selectOption('by:Marketing');
+  const copy = library.getByTestId('briefing-copy');
+  await expect(copy).toContainText('Marketing');
   await copy.click();
   await expect(copy).toHaveText('Copied');
 
@@ -898,108 +951,36 @@ test('a department gets its own page, with the text to send them', async ({ page
   expect(text).toContain('Aktuelle Fassung als PDF.');
 });
 
-test('the state filter narrows a department page too', async ({ page }) => {
-  await page.getByTestId('fleet-menu-toggle').click();
-  await page.getByRole('button', { name: /Libraries/ }).click();
-  const manager = page.getByTestId('library-manager');
-  await manager.getByRole('button', { name: 'Data', exact: true }).click();
-  await manager.getByRole('button', { name: 'Edit Brand guidelines' }).click();
-  await manager.getByTestId('data-provider').selectOption('Marketing');
-  await page.getByRole('button', { name: 'Done' }).click();
+test('the Source list is editable, and a source in use cannot be removed', async ({ page }) => {
+  const library = await openData(page);
+  await library.getByTestId('source-kinds-open').click();
+  const dialog = page.getByTestId('source-kinds');
 
-  await page.getByTestId('fleet-menu-toggle').click();
-  await page.getByTestId('open-data-prep').click();
-  const prep = page.getByTestId('data-prep');
-  await prep.getByTestId('prep-department').selectOption('Marketing');
+  // The five the app ships with are listed but not editable.
+  await expect(dialog.getByTestId('source-kind')).toHaveCount(5);
+  await expect(dialog.getByTestId('source-kind-name')).toHaveCount(0);
 
-  await expect(prep.getByTestId('prep-item')).toHaveCount(1);
-  // Brand guidelines is Being prepared in the demo fleet, so asking for Existing
-  // empties the page rather than showing the wrong row.
-  // The filter belongs to the view, and narrows whichever pane is open.
-  await page.getByTestId('data-status-live').click();
-  await expect(prep.getByTestId('prep-item')).toHaveCount(0);
-  await page.getByTestId('data-status-building').click();
-  await expect(prep.getByTestId('prep-item')).toHaveCount(1);
+  await dialog.getByTestId('source-kind-new').fill('SAP-Belege');
+  await dialog.getByTestId('source-kind-add').click();
+  await expect(dialog.getByTestId('source-kind')).toHaveCount(6);
+
+  // A name already offered is refused rather than silently duplicated.
+  await dialog.getByTestId('source-kind-new').fill('SharePoint');
+  await dialog.getByTestId('source-kind-add').click();
+  await expect(dialog.getByTestId('source-kinds-error')).toContainText('already a source');
+
+  await dialog.getByRole('button', { name: 'Done' }).click();
+
+  // It is on offer, and using it blocks its removal.
+  await library.getByTestId('library-row').first().click();
+  await library.getByTestId('data-source').selectOption({ label: 'SAP-Belege' });
+  await library.getByTestId('source-kinds-open').click();
+  const again = page.getByTestId('source-kinds');
+  await again.getByTestId('source-kind-delete').click();
+  await expect(again.getByTestId('source-kinds-error')).toContainText('still use this source');
 });
 
-test('Data is a third view beside 2D and 3D, with two panes', async ({ page }) => {
-  await expect(page.getByTestId('view-data')).toBeVisible();
-  await page.getByTestId('view-data').click();
-
-  await expect(page.getByTestId('view-switch')).toHaveAttribute('data-view', 'data');
-  await expect(page.getByTestId('data-view')).toBeVisible();
-  // The board layer goes dark - it stays mounted so its pan and zoom survive the
-  // trip - and the chrome that only makes sense over a board goes with it.
-  await expect(page.getByTestId('viewlayer-data')).toHaveAttribute('data-live', 'true');
-  await expect(page.getByTestId('viewlayer-2d')).toHaveAttribute('data-live', 'false');
-  await expect(page.getByTestId('filter-bar')).toHaveCount(0);
-  await expect(page.getByTestId('auto-arrange')).toHaveCount(0);
-
-  // Tree by default: the data as wholes and parts, with a detail pane.
-  await expect(page.getByTestId('data-view')).toHaveAttribute('data-mode', 'tree');
-  await expect(page.getByTestId('data-tree')).toBeVisible();
-  await expect(page.getByTestId('data-detail')).toBeVisible();
-  const rows = await page.getByTestId('data-row').count();
-  expect(rows).toBeGreaterThan(2);
-
-  // Picking a row moves the detail pane to it.
-  await page.getByTestId('data-row').nth(2).click();
-  await expect(page.getByTestId('data-detail')).toContainText('Needed by');
-
-  // Then a department page.
-  await page.getByTestId('data-mode-department').click();
-  await expect(page.getByTestId('data-prep')).toBeVisible();
-  await expect(page.getByTestId('prep-department')).toBeVisible();
-
-  // And back to the board, which still has its own chrome.
-  await page.getByTestId('view-2d').click();
-  await expect(page.getByTestId('filter-bar')).toBeVisible();
-  await expect(page.getByTestId('agent-card').first()).toBeVisible();
-});
-
-test('the tree filter narrows the rows and never strands the detail pane', async ({ page }) => {
-  await page.getByTestId('view-data').click();
-  const all = await page.getByTestId('data-row').count();
-
-  // Select something that is still owed, then ask for what already exists: the
-  // detail pane must move rather than keep showing a row that is no longer listed.
-  await page.getByTestId('data-status-planned').click();
-  await page.getByTestId('data-row').first().click();
-  const owed = await page.getByTestId('data-rename').inputValue();
-
-  await page.getByTestId('data-status-live').click();
-  const ready = await page.getByTestId('data-row').count();
-  expect(ready).toBeLessThan(all);
-  await expect(page.getByTestId('data-rename')).not.toHaveValue(owed);
-
-  await page.getByTestId('data-status-all').click();
-  await expect(page.getByTestId('data-row')).toHaveCount(all);
-});
-
-
-test('the fleet menu opens the Data view rather than a dialog over the board', async ({ page }) => {
-  await page.getByTestId('fleet-menu-toggle').click();
-  await page.getByTestId('open-data-prep').click();
-
-  await expect(page.getByTestId('view-switch')).toHaveAttribute('data-view', 'data');
-  await expect(page.getByTestId('data-view')).toHaveAttribute('data-mode', 'department');
-  await expect(page.getByTestId('data-prep')).toBeVisible();
-  // No scrim: it is a view, so the board is not sitting behind it.
-  await expect(page.locator('.dialog-scrim')).toHaveCount(0);
-});
-
-test('clicking an agent from the Data view leaves for the board', async ({ page }) => {
-  await page.getByTestId('view-data').click();
-  await page.getByTestId('data-row').first().click();
-
-  const users = page.getByTestId('data-detail').locator('.ubn');
-  await expect(users.first()).toBeVisible();
-  const name = await users.first().textContent();
-  await users.first().click();
-
-  await expect(page.getByTestId('view-switch')).toHaveAttribute('data-view', '2d');
-  await expect(page.getByTestId('breadcrumb-here')).toHaveText(name ?? '');
-});
+/* ---------- Reading the agent-data folder ---------- */
 
 /**
  * The directory picker is a native dialog Playwright cannot drive, so the handle
@@ -1035,351 +1016,65 @@ test('a folder of documents becomes the data library', async ({ page }) => {
   await stubFolder(page);
   await page.goto('/');
   await expect(page.getByTestId('board')).toBeVisible();
-  await page.getByTestId('view-data').click();
+  const library = await openData(page);
 
-  const before = await page.getByTestId('data-row').count();
-  await page.getByTestId('folder-import').click();
+  const before = await library.getByTestId('library-row').count();
+  await library.getByTestId('folder-import').click();
 
   // A preview first: the folder cannot answer every question.
   const preview = page.getByTestId('import-preview');
-  await expect(preview).toBeVisible();
   await expect(preview).toContainText('Import UPLOAD');
   await expect(preview.getByTestId('import-box')).toHaveCount(4);
-  // 01 Kern goes to every agent; 02 Vertrieb is a judgement the importer refuses.
   await expect(preview.getByTestId('import-box').first()).toContainText('ohne Ausnahme');
   await expect(preview).toContainText('Only sales-adjacent agents');
-  // Only .docx is taken, which keeps the Markdown working copies out.
   await expect(preview.getByTestId('import-skipped')).toContainText('1 non-');
 
   await preview.getByTestId('import-apply').click();
   await expect(preview).toHaveCount(0);
 
   // Four boxes and four documents, nested under their folders.
-  await expect(page.getByTestId('data-row')).toHaveCount(before + 8);
-  await expect(page.locator('[data-testid="data-row"][data-depth="2"]').first()).toBeVisible();
-  await expect(page.getByTestId('folder-import-note')).toContainText('Imported 4 documents');
+  await expect(library.getByTestId('library-row')).toHaveCount(before + 8);
+  await expect(library.locator('[data-testid="library-row"][data-depth="2"]').first()).toBeVisible();
 
   // A document knows where it lives, and reads as existing but not yet linked.
-  await page.getByTestId('data-row').filter({ hasText: 'Rollen im Bauprojekt' }).click();
-  const detail = page.getByTestId('data-detail');
-  await expect(detail.getByLabel(/Reference for/)).toHaveValue(
+  await openItem(page, 'Rollen im Bauprojekt');
+  await expect(library.getByLabel(/Reference for/)).toHaveValue(
     '03 Fachkontext/Objektvertrieb/Objektvertrieb Rollen im Bauprojekt.docx',
   );
-  await expect(detail).toContainText('Existing');
-
-  // The box was linked, so every agent has the Kern documents through it.
-  await page.getByTestId('data-row').filter({ hasText: '01 Kern' }).first().click();
-  await expect(detail.locator('.ubn').first()).toBeVisible();
+  await expect(library.getByTestId('library-detail')).toContainText('Existing');
 
   // And it is one edit, so it undoes in one step.
   await page.keyboard.press('Control+z');
-  await expect(page.getByTestId('data-row')).toHaveCount(before);
+  await expect(library.getByTestId('library-row')).toHaveCount(before);
 });
 
 test('importing the same folder twice refreshes rather than doubles it', async ({ page }) => {
   await stubFolder(page);
   await page.goto('/');
   await expect(page.getByTestId('board')).toBeVisible();
-  await page.getByTestId('view-data').click();
+  const library = await openData(page);
 
-  await page.getByTestId('folder-import').click();
+  await library.getByTestId('folder-import').click();
   await page.getByTestId('import-apply').click();
-  const once = await page.getByTestId('data-row').count();
+  const once = await library.getByTestId('library-row').count();
 
-  await page.getByTestId('folder-import').click();
+  await library.getByTestId('folder-import').click();
   await page.getByTestId('import-apply').click();
-  await expect(page.getByTestId('data-row')).toHaveCount(once);
+  await expect(library.getByTestId('library-row')).toHaveCount(once);
 });
 
-test('data can be added, renamed and deleted from the Data view', async ({ page }) => {
-  await page.getByTestId('view-data').click();
-  const before = await page.getByTestId('data-row').count();
+test('a fresh install opens the Solarlux Vision fleet, not the demo', async ({ browser }) => {
+  const context = await browser.newContext();
+  const fresh = await context.newPage();
+  await fresh.addInitScript(() => {
+    indexedDB.deleteDatabase('agent-fleet-studio');
+  });
+  await fresh.goto('/');
 
-  // Add: a new item is what you have realised you need, so it starts owed with
-  // nothing decided about where it will live.
-  await page.getByTestId('data-new-name').fill('Kampagnen-Kalender');
-  await page.getByTestId('data-add').click();
-  await expect(page.getByTestId('data-row')).toHaveCount(before + 1);
+  await expect(fresh.getByTestId('breadcrumb')).toContainText('Solarlux Vision');
+  // Fifteen agents, and the shared deck builder drawn under both its parents.
+  await expect(fresh.getByTestId('agent-card')).toHaveCount(16);
+  await expect(fresh.getByTestId('agent-card').filter({ hasText: 'Controlling' })).toHaveCount(1);
 
-  // It opens on the new item, ready to describe.
-  const detail = page.getByTestId('data-detail');
-  await expect(detail.getByTestId('data-rename')).toHaveValue('Kampagnen-Kalender');
-  await expect(detail).toContainText('To be provided');
-  await expect(detail).toContainText('not assigned');
-  await expect(detail.getByTestId('data-source')).toHaveValue('');
-
-  // Rename: the heading is the field, so there is only one place to do it.
-  await detail.getByTestId('data-rename').fill('Kampagnen-Kalender 2027');
-  await detail.getByTestId('data-rename').press('Enter');
-  await expect(
-    page.getByTestId('data-row').filter({ hasText: 'Kampagnen-Kalender 2027' }),
-  ).toHaveCount(1);
-
-  // An empty name is refused rather than accepted and lost.
-  await detail.getByTestId('data-rename').fill('   ');
-  await detail.getByTestId('data-rename').blur();
-  await expect(detail.getByTestId('data-rename')).toHaveValue('Kampagnen-Kalender 2027');
-
-  // Delete takes two clicks; the first is not the dangerous one.
-  await detail.getByTestId('data-delete').click();
-  await detail.getByTestId('data-delete-confirm').click();
-  await expect(page.getByTestId('data-row')).toHaveCount(before);
-  await expect(
-    page.getByTestId('data-row').filter({ hasText: 'Kampagnen-Kalender 2027' }),
-  ).toHaveCount(0);
-
-  // And it was one edit, so it comes back in one step.
-  await page.keyboard.press('Control+z');
-  await expect(page.getByTestId('data-row')).toHaveCount(before + 1);
-});
-
-test('adding inside an item nests it, and a full box refuses to be deleted', async ({ page }) => {
-  await page.getByTestId('view-data').click();
-
-  await page.getByTestId('data-new-name').fill('Produktdaten');
-  await page.getByTestId('data-add').click();
-  const detail = page.getByTestId('data-detail');
-
-  // "Add inside" needs no name: it makes a child of what is open and selects it.
-  await detail.getByTestId('data-add-inside').click();
-  await expect(detail.getByTestId('data-rename')).toHaveValue('New data');
-  await detail.getByTestId('data-rename').fill('Bilder');
-  await detail.getByTestId('data-rename').press('Enter');
-  await expect(page.locator('[data-testid="data-row"][data-depth="1"]')).toHaveCount(1);
-
-  // The box now holds something, so deleting it would orphan that: refused, with
-  // the name of what is in the way.
-  await page.getByTestId('data-row').filter({ hasText: 'Produktdaten' }).click();
-  await detail.getByTestId('data-delete').click();
-  await detail.getByTestId('data-delete-confirm').click();
-  await expect(page.getByTestId('data-problem')).toContainText('still contains');
-  await expect(page.getByTestId('data-problem')).toContainText('Bilder');
-
-  // Emptying it first makes the box deletable.
-  await page.getByTestId('data-row').filter({ hasText: 'Bilder' }).click();
-  await detail.getByTestId('data-delete').click();
-  await detail.getByTestId('data-delete-confirm').click();
-  await page.getByTestId('data-row').filter({ hasText: 'Produktdaten' }).click();
-  await detail.getByTestId('data-delete').click();
-  await detail.getByTestId('data-delete-confirm').click();
-  await expect(page.getByTestId('data-row').filter({ hasText: 'Produktdaten' })).toHaveCount(0);
-});
-
-test('data an agent depends on cannot be deleted out from under it', async ({ page }) => {
-  await page.getByTestId('view-data').click();
-
-  // Brand guidelines is linked to Marketing in the demo fleet.
-  await page.getByTestId('data-row').filter({ hasText: 'Brand guidelines' }).click();
-  const detail = page.getByTestId('data-detail');
-  await expect(detail.locator('.ubn').first()).toBeVisible();
-
-  await detail.getByTestId('data-delete').click();
-  await detail.getByTestId('data-delete-confirm').click();
-
-  await expect(page.getByTestId('data-problem')).toBeVisible();
-  await expect(page.getByTestId('data-row').filter({ hasText: 'Brand guidelines' })).toHaveCount(1);
-});
-
-test('clicking an obligation opens the whole editor in place', async ({ page }) => {
-  await page.getByTestId('fleet-menu-toggle').click();
-  await page.getByTestId('open-data-prep').click();
-  const prep = page.getByTestId('data-prep');
-
-  const row = prep.getByTestId('prep-item').first();
-  await expect(row).not.toHaveClass(/editing/);
-  // Closed, the row shows the compact pair and no editor.
-  await expect(row.getByTestId('prep-owner')).toBeVisible();
-  await expect(row.getByTestId('data-editor')).toHaveCount(0);
-
-  await row.getByTestId('prep-open').click();
-  await expect(row).toHaveClass(/editing/);
-
-  // Open, the full editor is there - status, source, requirement, notes.
-  await expect(row.getByTestId('data-editor')).toBeVisible();
-  await expect(row.getByTestId('data-source')).toBeVisible();
-  await expect(row.getByTestId('prep-rename')).toBeVisible();
-  // ...and the compact pair steps aside rather than competing with it.
-  await expect(row.getByTestId('prep-owner')).toHaveCount(0);
-
-  // The status can be changed without leaving the department's list.
-  const name = await row.getByTestId('prep-rename').inputValue();
-  await row.getByLabel(`Status of ${name}`).selectOption('building');
-  await expect(row).toContainText('Being prepared');
-
-  // Renaming works from here too.
-  await row.getByTestId('prep-rename').fill(`${name} 2027`);
-  await row.getByTestId('prep-rename').press('Enter');
-  await expect(prep.getByTestId('prep-open').first()).toHaveText(`${name} 2027`);
-
-  // Clicking again folds it back.
-  await row.getByTestId('prep-open').click();
-  await expect(row).not.toHaveClass(/editing/);
-  await expect(row.getByTestId('prep-owner')).toBeVisible();
-});
-
-test('the missing-requirement prompt opens the editor rather than leaving the list', async ({
-  page,
-}) => {
-  await page.getByTestId('fleet-menu-toggle').click();
-  await page.getByTestId('open-data-prep').click();
-  const prep = page.getByTestId('data-prep');
-
-  const prompt = prep.getByTestId('prep-item').filter({ hasText: 'No requirement written yet' });
-  await prompt.first().getByText('No requirement written yet').click();
-  // The prompt is gone once the editor is open, so the row is found by its state.
-  const row = prep.locator('[data-testid="prep-item"].editing');
-
-  // Same pane, and the field to write it in is right there.
-  await expect(prep).toBeVisible();
-  await expect(row.getByTestId('data-editor')).toBeVisible();
-  const name = await row.getByTestId('prep-rename').inputValue();
-  const requirement = row.getByLabel(`Requirement for ${name}`);
-  await requirement.fill('Aktuelle Fassung als PDF, Stand im Text.');
-  await requirement.blur();
-
-  // Folded again, the requirement reads on the row where the prompt used to be.
-  await row.getByTestId('prep-open').click();
-  await expect(prep.getByTestId('prep-item').filter({ hasText: name })).toContainText(
-    'Aktuelle Fassung als PDF',
-  );
-});
-
-test('the Source list is editable, and a source in use cannot be removed', async ({ page }) => {
-  await page.getByTestId('view-data').click();
-  await page.getByTestId('source-kinds-open').click();
-  const dialog = page.getByTestId('source-kinds');
-
-  // The five the app ships with are listed but not editable.
-  await expect(dialog.getByTestId('source-kind')).toHaveCount(5);
-  await expect(dialog.locator('[data-testid="source-kind"][data-built-in="true"]')).toHaveCount(5);
-  await expect(dialog.getByTestId('source-kind-name')).toHaveCount(0);
-
-  // Add one of your own.
-  await dialog.getByTestId('source-kind-new').fill('SAP-Belege');
-  await dialog.getByTestId('source-kind-add').click();
-  await expect(dialog.getByTestId('source-kind')).toHaveCount(6);
-  const mine = dialog.locator('[data-testid="source-kind"][data-built-in="false"]');
-  await expect(mine).toHaveCount(1);
-  await expect(mine.getByTestId('source-kind-name')).toHaveValue('SAP-Belege');
-  await expect(mine).toContainText('unused');
-
-  // A name already offered is refused rather than silently duplicated.
-  await dialog.getByTestId('source-kind-new').fill('SharePoint');
-  await dialog.getByTestId('source-kind-add').click();
-  await expect(dialog.getByTestId('source-kinds-error')).toContainText('already a source');
-  await expect(dialog.getByTestId('source-kind')).toHaveCount(6);
-
-  // Rename it, then close and use it on a data item.
-  await mine.getByTestId('source-kind-name').fill('SAP');
-  await mine.getByTestId('source-kind-name').press('Enter');
-  await dialog.getByRole('button', { name: 'Done' }).click();
-
-  const source = page.getByTestId('data-detail').getByTestId('data-source');
-  await expect(source.locator('option')).toContainText(['SAP']);
-  await source.selectOption({ label: 'SAP' });
-  await expect(page.getByTestId('data-detail')).toContainText('SAP');
-
-  // Now it is in use, so removing it is refused and says what is in the way.
-  await page.getByTestId('source-kinds-open').click();
-  const again = page.getByTestId('source-kinds');
-  await expect(again.locator('[data-testid="source-kind"][data-built-in="false"]')).toContainText(
-    '1 item',
-  );
-  await again.getByTestId('source-kind-delete').click();
-  await expect(again.getByTestId('source-kinds-error')).toContainText('still use this source');
-  await expect(again.getByTestId('source-kind')).toHaveCount(6);
-});
-
-test('a data item can be marked linked whatever state it is in', async ({ page }) => {
-  await page.getByTestId('view-data').click();
-
-  // Add something owed - the state where the checkbox used to be hidden.
-  await page.getByTestId('data-new-name').fill('Kampagnen-Kalender');
-  await page.getByTestId('data-add').click();
-  const detail = page.getByTestId('data-detail');
-  await expect(detail).toContainText('To be provided');
-
-  const linked = detail.getByTestId('data-linked');
-  await expect(linked).toBeVisible();
-  await expect(linked).not.toBeChecked();
-  await linked.check();
-  await expect(linked).toBeChecked();
-
-  // And it survives a reload, so it is stored rather than a UI flourish.
-  await page.waitForTimeout(600);
-  await page.reload();
-  await page.getByTestId('view-data').click();
-  await page.getByTestId('data-row').filter({ hasText: 'Kampagnen-Kalender' }).click();
-  await expect(page.getByTestId('data-detail').getByTestId('data-linked')).toBeChecked();
-});
-
-test('a data item carries a description, which the editor can read and change', async ({ page }) => {
-  await page.getByTestId('view-data').click();
-  await page.getByTestId('data-row').first().click();
-
-  const description = page.getByTestId('data-detail').getByTestId('data-description');
-  await expect(description).toBeVisible();
-  await description.fill('Richtlinien, Prozesse und Struktur, für alle Agenten.');
-  await description.blur();
-
-  await page.waitForTimeout(600);
-  await page.reload();
-  await page.getByTestId('view-data').click();
-  await page.getByTestId('data-row').first().click();
-  await expect(page.getByTestId('data-detail').getByTestId('data-description')).toHaveValue(
-    'Richtlinien, Prozesse und Struktur, für alle Agenten.',
-  );
-});
-
-test('a department missing from the list can be added from the dropdown', async ({ page }) => {
-  await page.getByTestId('view-data').click();
-  await page.getByTestId('data-row').first().click();
-  const detail = page.getByTestId('data-detail');
-
-  // Einkauf is not a department in the demo fleet, so it is not on offer.
-  const provider = detail.getByTestId('data-provider');
-  await expect(provider.locator('option')).not.toContainText(['Einkauf']);
-
-  // Adding one from here creates the department and assigns it in one step.
-  await provider.selectOption('add');
-  await detail.getByTestId('provider-add-name').fill('Einkauf');
-  await detail.getByTestId('provider-add-save').click();
-
-  await expect(provider).toHaveValue('by:Einkauf');
-  await expect(provider.locator('option')).toContainText(['Einkauf']);
-
-  // The list is the org chart, so it really is a department on the board now.
-  await page.getByTestId('view-2d').click();
-  await expect(cards(page, 'Einkauf').first()).toBeVisible();
-  await cards(page, 'Einkauf').first().click();
-  await expect(page.getByTestId('inspector')).toContainText('Department');
-  await expect(page.getByTestId('inspector')).toContainText('Reports to');
-
-  // Two facts, so two undo steps: the assignment, then the department itself.
-  // Undoing "this data is Marketing’s" must not quietly delete a department.
-  await page.keyboard.press('Control+z');
-  await expect(cards(page, 'Einkauf').first()).toBeVisible();
-  await page.keyboard.press('Control+z');
-  await expect(cards(page, 'Einkauf')).toHaveCount(0);
-});
-
-test('the department pane can add a department too, from the same control', async ({ page }) => {
-  await page.getByTestId('fleet-menu-toggle').click();
-  await page.getByTestId('open-data-prep').click();
-  const row = page.getByTestId('data-prep').getByTestId('prep-item').first();
-
-  await row.getByTestId('prep-owner').selectOption('add');
-  await row.getByTestId('provider-add-name').fill('Recht');
-  await row.getByTestId('provider-add-save').click();
-
-  await expect(row.getByTestId('prep-owner')).toHaveValue('by:Recht');
-  await expect(page.locator('[data-testid="prep-group"][data-owner="Recht"]')).toHaveCount(1);
-});
-
-test('the Data view has two panes, and Coverage is gone', async ({ page }) => {
-  await page.getByTestId('view-data').click();
-  await expect(page.getByTestId('data-mode-tree')).toBeVisible();
-  await expect(page.getByTestId('data-mode-department')).toBeVisible();
-  await expect(page.getByTestId('data-mode-coverage')).toHaveCount(0);
-  await expect(page.getByTestId('data-coverage')).toHaveCount(0);
+  await context.close();
 });

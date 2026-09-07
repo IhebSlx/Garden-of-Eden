@@ -13,13 +13,13 @@ import type { Status } from '../model/schemas.js';
 
 /**
  * The three views. 2D and 3D render the same fleet and morph between each other
- * (SPEC §8.2); Data is a different question entirely - what the fleet needs from
- * the organisation - so it swaps in without a morph.
+ * (SPEC §8.2); the Library is a different question entirely - what the fleet is
+ * made of and who owes it - so it swaps in without a morph.
  */
-export type ViewMode = '2d' | '3d' | 'data';
+export type ViewMode = '2d' | '3d' | 'library';
 
-/** Which question the Data view is answering. */
-export type DataMode = 'tree' | 'department';
+/** Which library the Library view is showing. */
+export type LibraryTab = 'data' | 'tools' | 'skills';
 
 /** The three groups of library items an agent carries, expandable in both views. */
 export type DetailSection = 'skills' | 'tools' | 'data';
@@ -34,10 +34,8 @@ export type DetailKey = string | null;
 
 export type UiState = {
   view: ViewMode;
-  /** Which pane the Data view is showing. */
-  dataMode: DataMode;
-  /** The department whose page is open, when `dataMode` is 'department'. */
-  dataDepartment: string | null;
+  /** Which library the Library view is showing. */
+  libraryTab: LibraryTab;
   /** Non-null while the 2D-3D morph is playing (SPEC 8.2). */
   morph: Morph | null;
   focusId: string | null;
@@ -52,10 +50,6 @@ export type UiState = {
   openDetail: DetailKey;
   /** Timestamp a focus was applied, so the cascade can stagger from it. */
   focusStartedAt: number;
-  /** SPEC 8.7: the library manager (list, edit, see usage). */
-  libraryOpen: boolean;
-  openLibrary: () => void;
-  closeLibrary: () => void;
   /** The agent / skill / tool catalog, which lives outside any fleet. */
   catalogOpen: boolean;
   openCatalog: () => void;
@@ -83,9 +77,9 @@ export type UiState = {
 
   setView: (view: ViewMode) => void;
   toggleView: () => void;
-  setDataMode: (mode: DataMode) => void;
-  /** Open the Data view on one department's page in a single step. */
-  openDepartmentData: (department: string | null) => void;
+  setLibraryTab: (tab: LibraryTab) => void;
+  /** Open the Library view on one of its tabs in a single step. */
+  openLibrary: (tab?: LibraryTab) => void;
   /** Called by the view switch when the morph animation is done. */
   endMorph: () => void;
   focus: (agentId: string | null) => void;
@@ -111,8 +105,7 @@ const now = (): number => (typeof performance === 'undefined' ? Date.now() : per
 
 export const useUiStore = create<UiState>()((set, get) => ({
   view: '2d',
-  dataMode: 'tree',
-  dataDepartment: null,
+  libraryTab: 'data',
   morph: null,
   focusId: null,
   selectedId: null,
@@ -122,7 +115,6 @@ export const useUiStore = create<UiState>()((set, get) => ({
   showDetails: false,
   openDetail: null,
   focusStartedAt: 0,
-  libraryOpen: false,
   shortcutsOpen: false,
   catalogOpen: false,
   fitRequest: 0,
@@ -130,8 +122,6 @@ export const useUiStore = create<UiState>()((set, get) => ({
   burst: null,
   openSections: {},
 
-  openLibrary: () => set({ libraryOpen: true }),
-  closeLibrary: () => set({ libraryOpen: false }),
   openCatalog: () => set({ catalogOpen: true }),
   closeCatalog: () => set({ catalogOpen: false }),
   openShortcuts: () => set({ shortcutsOpen: true }),
@@ -143,15 +133,15 @@ export const useUiStore = create<UiState>()((set, get) => ({
     const current = get().view;
     if (view === current) return;
     // Only 2D and 3D morph into each other; they are two renderings of one graph.
-    // The Data view shows something else, so it cuts rather than flattens.
-    const morphs = view !== 'data' && current !== 'data';
+    // The Library shows something else, so it cuts rather than flattens.
+    const morphs = view !== 'library' && current !== 'library';
     set({ view, morph: morphs ? { from: current, to: view, at: now() } : null });
   },
   toggleView: () => get().setView(get().view === '3d' ? '2d' : '3d'),
 
-  setDataMode: (dataMode) => set({ dataMode }),
-  openDepartmentData: (dataDepartment) =>
-    set({ view: 'data', dataMode: 'department', dataDepartment, morph: null }),
+  setLibraryTab: (libraryTab) => set({ libraryTab }),
+  openLibrary: (tab) =>
+    set({ view: 'library', libraryTab: tab ?? get().libraryTab, morph: null }),
   endMorph: () => set({ morph: null }),
 
   focus: (agentId) => set({ focusId: agentId, focusStartedAt: now() }),

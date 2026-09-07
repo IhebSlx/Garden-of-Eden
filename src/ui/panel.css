@@ -509,24 +509,13 @@
   line-height: 1.35;
 }
 
-/* ---------- library manager (SPEC 8.7) ---------- */
 
-.library-dialog {
-  width: min(720px, 94vw);
-}
 .lib-tabs {
   display: flex;
   gap: 4px;
   margin-bottom: 10px;
 }
-/* The three axes the data list can be asked for, above the list itself. */
-.lib-filters {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 14px;
-  margin: 0 0 9px;
-}
+
 .lib-chips {
   display: flex;
   flex-wrap: wrap;

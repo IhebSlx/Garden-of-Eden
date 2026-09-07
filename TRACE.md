@@ -990,3 +990,38 @@ department somebody may now want.
 **The coverage guard scans instead of listing.** `fieldCoverage.test.ts` kept a hand-written list of
 editor files, which went stale the moment `owner` moved into `ProviderSelect` — the guard caught its
 own change. It now reads every `.tsx` under `src/`, so a new editor file cannot fall outside it.
+
+**DEVIATION 25 — one Library view, three tabs.** The Data view and the Libraries dialog were two
+places doing one job: both listed library items, both filtered, and the filter had already been
+duplicated once between them. `Library` now sits beside `2D` and `3D` with three tabs — **Data**,
+**Tools**, **Skills** — each a list beside an editor, each with add, rename and delete, and each
+filtering by the axes its own content actually has.
+
+Data filters by state, source and department. Tools filter by name and type — a tool is not owed by
+anybody and has no state, so offering it a status chip would be three dead controls. Skills filter
+by name alone, for the same reason. `LibraryList`, `ItemHeader` and `UsedBy` are shared, so the
+three cannot drift into three slightly different lists.
+
+Removed with it: the **By department** pane, and the Libraries dialog. The briefing survives as a
+button in the Data tab that appears once the "Provided by" filter names a department — the filter
+already knows who it is for, and an overview nobody sends is a dashboard. `.library-dialog` and
+`.lib-filters` lost their last users and were deleted rather than left as dead CSS.
+
+**Two bugs the rewrite exposed.** Adding a tool always failed: `ToolSchema` requires a description
+("SPEC §4: every tool explains itself"), and the pane was creating one with an empty string, so the
+schema refused it silently. The add row asks for the description rather than inventing placeholder
+copy to get past the check. And `ToolEditor` drew its own header with a ✕, which in a pane that
+already has `ItemHeader` was a duplicate title and a button that closed nothing; the head is now
+rendered only where a host actually supplies `onClose`.
+
+| Item | Status | Test(s) |
+|---|---|---|
+| Library is a third view with three filtrable tabs | ✅ | e2e › "Library is a third view, with three filtrable tabs" |
+| Board-only chrome hides, and the board layer stays mounted | ✅ | e2e (same) |
+| Each tab counts what it holds | ✅ | e2e › "each tab counts what it holds" |
+| The fleet menu opens the view, not a dialog | ✅ | e2e › "the fleet menu opens the Library rather than a dialog over the board" |
+| Skills: add, rename, edit, search, delete | ✅ | e2e › "a skill can be added, renamed, edited and deleted" |
+| Tools: add needs a description, and the type filters | ✅ | e2e › "a tool can be added, typed and deleted, and its type filters the list" |
+| An item in use cannot be deleted, in any tab | ✅ | e2e › "a tool in use cannot be deleted…"; "a library item in use cannot be deleted…"; "data an agent depends on cannot be deleted out from under it" |
+| Data keeps every behaviour it had | ✅ | e2e › the nine Data tests, from nesting and filters to the folder import |
+| The briefing follows the department filter | ✅ | e2e › "the briefing is offered once the filter says which department" |

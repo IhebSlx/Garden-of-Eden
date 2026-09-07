@@ -19,7 +19,8 @@ const STEP_KINDS: WorkflowStepKind[] = ['trigger', 'action', 'condition'];
 type Props = {
   tool: Tool;
   onChange: (patch: Partial<Omit<Tool, 'id'>>) => void;
-  onClose: () => void;
+  /** Absent where the host has its own header: no dead close button. */
+  onClose?: () => void;
   error: string | null;
 };
 
@@ -76,13 +77,17 @@ export function ToolEditor({ tool, onChange, onClose, error }: Props): React.JSX
 
   return (
     <div className="tool-editor" data-testid="tool-editor">
-      <div className="tool-editor-head">
-        <span className="tdot" style={{ background: TOOL_TYPE_COLOR[tool.type] }} />
-        <strong>{tool.name}</strong>
-        <button type="button" onClick={onClose} aria-label="Close tool editor">
-          ✕
-        </button>
-      </div>
+      {/* A host with its own header does not want a second one, and a ✕ that
+          closes nothing is worse than no ✕ at all. */}
+      {onClose !== undefined && (
+        <div className="tool-editor-head">
+          <span className="tdot" style={{ background: TOOL_TYPE_COLOR[tool.type] }} />
+          <strong>{tool.name}</strong>
+          <button type="button" onClick={onClose} aria-label="Close tool editor">
+            ✕
+          </button>
+        </div>
+      )}
 
       <label className="dialog-field">
         <span>Description</span>

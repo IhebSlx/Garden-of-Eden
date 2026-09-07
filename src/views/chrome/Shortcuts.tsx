@@ -39,10 +39,6 @@ export function Shortcuts(): null {
           ui.closeShortcuts();
           return;
         }
-        if (ui.libraryOpen) {
-          ui.closeLibrary();
-          return;
-        }
         const link = useLinkDraft.getState();
         if (link.pending !== null || link.picking !== null) {
           link.cancel();

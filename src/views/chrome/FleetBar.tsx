@@ -43,7 +43,6 @@ export function FleetBar(): React.JSX.Element {
   const importFleet = useFleetStore((s) => s.importFleetObject);
   const resetForFleet = useUiStore((s) => s.resetForFleet);
   const openLibrary = useUiStore((s) => s.openLibrary);
-  const openDepartmentData = useUiStore((s) => s.openDepartmentData);
   const openCatalog = useUiStore((s) => s.openCatalog);
 
   const pastCount = useStore(useFleetStore.temporal, (s) => s.pastStates.length);
@@ -203,31 +202,17 @@ export function FleetBar(): React.JSX.Element {
               <button
                 type="button"
                 className="fleetmenu-row"
+                data-testid="open-library"
                 onClick={() => {
-                  openLibrary();
+                  openLibrary('data');
                   setMenuOpen(false);
                 }}
               >
-                Libraries…
-                <small>
-                  {fleet.skills.length + fleet.tools.length + fleet.dataSources.length} items
-                </small>
-              </button>
-              <button
-                type="button"
-                className="fleetmenu-row"
-                data-testid="open-data-prep"
-                onClick={() => {
-                  // Data prep is a pane of the Data view now, not a dialog over the board.
-                  openDepartmentData(null);
-                  setMenuOpen(false);
-                }}
-              >
-                Data prep…
+                Library…
                 <small>
                   {outstandingSources === 0
-                    ? 'everything ready'
-                    : `${outstandingSources} still to prepare`}
+                    ? `${fleet.skills.length + fleet.tools.length + fleet.dataSources.length} items, everything ready`
+                    : `${outstandingSources} still to provide`}
                 </small>
               </button>
               <button type="button" className="fleetmenu-row" onClick={() => download(fleet)}>

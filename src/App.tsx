@@ -14,7 +14,6 @@ import { ShortcutsHelp } from './views/chrome/ShortcutsHelp.js';
 import { TopBar } from './views/chrome/TopBar.js';
 import { Inspector } from './panel/Inspector.js';
 import { EdgeInspector } from './panel/EdgeInspector.js';
-import { LibraryManager } from './panel/LibraryManager.js';
 import { CatalogManager } from './panel/CatalogManager.js';
 import { LinkKindDialog } from './views/dialogs/LinkKindDialog.js';
 import { hydrateFleetStore, selectActiveFleet, useFleetStore } from './store/fleetStore.js';
@@ -134,15 +133,14 @@ export function App(): React.JSX.Element {
       {fleet ? <ViewSwitch /> : <EmptyState />}
       <TopBar />
       <FleetBar />
-      {view !== 'data' && <FilterBar />}
-      {view !== 'data' && <SearchBox />}
-      {view !== 'data' && <Breadcrumb />}
+      {view !== 'library' && <FilterBar />}
+      {view !== 'library' && <SearchBox />}
+      {view !== 'library' && <Breadcrumb />}
       <Inspector />
       <EdgeInspector />
       <LinkKindDialog />
-      <LibraryManager />
       <CatalogManager />
-      {view !== 'data' && <Hint />}
+      {view !== 'library' && <Hint />}
       <ShortcutsHelp />
       <Shortcuts />
 
