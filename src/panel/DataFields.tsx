@@ -6,14 +6,13 @@
  * that department's Ansprechpartner, what it sits inside, what finished looks
  * like, its `ref` and its notes.
  */
-import { DATA_SOURCE_LABELS, DATA_SOURCE_STATUS_LABELS } from '../model/schemas.js';
-import type { DataSourceType, Status } from '../model/schemas.js';
+import { DATA_SOURCE_STATUS_LABELS } from '../model/schemas.js';
+import type { Status } from '../model/schemas.js';
 import { dataDescendants, departmentNamed, flattenData, providerOptions } from '../model/selectors.js';
 import { selectActiveFleet, useFleetStore } from '../store/fleetStore.js';
-import { STATUS_COLOR } from '../ui/palette.js';
+import { allSourceKinds, STATUS_COLOR } from '../ui/palette.js';
 import { NotesField } from './NotesField.js';
 
-const DATA_TYPES: DataSourceType[] = ['dataverse', 'sharepoint', 'md', 'file', 'department'];
 const STATUSES: Status[] = ['live', 'building', 'planned'];
 
 export function DataFields({
@@ -31,6 +30,7 @@ export function DataFields({
   const department = departmentNamed(fleet, source.owner);
   return (
     <div className="lib-fields" data-testid="data-editor">
+      <p className="field-group">Where it comes from</p>
       <div className="lib-field-row">
         <label className="dialog-field">
           <span>Source</span>
@@ -40,15 +40,15 @@ export function DataFields({
             data-testid="data-source"
             onChange={(event) =>
               updateDataSource(id, {
-                type: event.target.value === '' ? undefined : (event.target.value as DataSourceType),
+                type: event.target.value === '' ? undefined : event.target.value,
               })
             }
           >
             {/* Where data will live is often undecided while the need is not. */}
             <option value="">Not assigned yet</option>
-            {DATA_TYPES.map((type) => (
-              <option key={type} value={type}>
-                {DATA_SOURCE_LABELS[type]}
+            {allSourceKinds(fleet).map((kind) => (
+              <option key={kind.id} value={kind.id}>
+                {kind.name}
               </option>
             ))}
           </select>
@@ -71,18 +71,20 @@ export function DataFields({
       </div>
 
       {/* SPEC §4: `linked` is only meaningful once the source is Ready. */}
-      {source.status === 'live' && (
-        <label className="lib-check">
-          <input
-            type="checkbox"
-            checked={source.linked ?? false}
-            data-testid="data-linked"
-            onChange={(event) => updateDataSource(id, { linked: event.target.checked })}
-          />
-          <span>Linked — the agent can actually read it</span>
-        </label>
-      )}
+      <label className="lib-check">
+        <input
+          type="checkbox"
+          checked={source.linked ?? false}
+          data-testid="data-linked"
+          onChange={(event) => updateDataSource(id, { linked: event.target.checked })}
+        />
+        <span>
+          Linked — the agent can actually read it
+          {source.status !== 'live' && <em> (normally only once it exists)</em>}
+        </span>
+      </label>
 
+      <p className="field-group">Who provides it</p>
       <div className="lib-field-row">
         <label className="dialog-field">
           <span>Provided by</span>
@@ -129,6 +131,7 @@ export function DataFields({
         </p>
       )}
 
+      <p className="field-group">Where it sits</p>
       <label className="dialog-field">
         <span>Inside</span>
         <select
@@ -154,6 +157,19 @@ export function DataFields({
               </option>
             ))}
         </select>
+      </label>
+
+      <p className="field-group">What it is, and what finished looks like</p>
+      <label className="dialog-field">
+        <span>What this is</span>
+        <textarea
+          rows={2}
+          defaultValue={source.description ?? ''}
+          aria-label={`Description of ${source.name}`}
+          placeholder="One line on what this holds, for whoever reads the library"
+          data-testid="data-description"
+          onBlur={(event) => updateDataSource(id, { description: event.target.value })}
+        />
       </label>
 
       <label className="dialog-field">

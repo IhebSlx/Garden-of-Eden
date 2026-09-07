@@ -329,11 +329,11 @@ describe('filtering the data by state, source and department at once', () => {
       ...base,
       dataSources: base.dataSources.map((d) => (d.id === 'preise' ? { ...d, type: undefined } : d)),
     };
-    const undecided = { ...ANY_DATA, source: 'unassigned' as const };
+    const undecided = { ...ANY_DATA, source: { kind: 'unassigned' as const } };
     expect(fleet.dataSources.filter((d) => dataItemMatches(d, undecided)).map((d) => d.id)).toEqual([
       'preise',
     ]);
-    const dataverse = { ...ANY_DATA, source: 'dataverse' as const };
+    const dataverse = { ...ANY_DATA, source: { kind: 'is' as const, id: 'dataverse' } };
     expect(fleet.dataSources.filter((d) => dataItemMatches(d, dataverse)).map((d) => d.id)).toEqual([
       'crm',
     ]);

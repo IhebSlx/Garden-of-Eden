@@ -893,3 +893,67 @@ is where the question was asked.
 | Status and name change without leaving the list | ✅ | e2e (same) |
 | Clicking again folds it back | ✅ | e2e (same) |
 | The missing-requirement prompt expands rather than navigates | ✅ | e2e › "the missing-requirement prompt opens the editor rather than leaving the list" |
+
+**A field-coverage guard, because the gaps were being found by hand.** `linked` was hidden behind
+`status === 'live'`, and `DataSource.description` had no editor anywhere — both noticed only by
+someone staring at a screen. A list of fields is knowable, so `fieldCoverage.test.ts` now walks
+every Zod shape in the document and fails unless each field is either written by an editor or
+listed as exempt **with a reason**. Adding a field without wiring it up fails the suite by name.
+The guard was checked by temporarily adding a field: it reported `DataSource.retentionPolicy`
+immediately.
+
+| Item | Status | Test(s) |
+|---|---|---|
+| Every schema field has an editor or a reasoned exemption | ✅ | `fieldCoverage.test.ts` › "covers every field" |
+| No exemption outlives the field it excused | ✅ | › "exempts nothing that no longer exists" |
+| Every exemption states a reason | ✅ | › "gives a reason for every exemption" |
+| The guard can actually fail | ✅ | › "would notice a field nobody had wired up" |
+
+**Two gaps it closed.** `linked` is always editable: a control that appears and disappears reads as
+unavailable rather than optional, so it is shown with a quiet note that it is normally false until
+the data exists. `description` gets a field of its own — "What this is", distinct from the
+requirement ("what finished looks like") and from notes ("open questions") — so text the Copilot
+importer writes can be read and corrected.
+
+| Item | Status | Test(s) |
+|---|---|---|
+| Linked is settable in any state, and persists | ✅ | e2e › "a data item can be marked linked whatever state it is in" |
+| A description can be read and changed | ✅ | e2e › "a data item carries a description, which the editor can read and change" |
+
+**DEVIATION 24 — a source kind is the fleet's, not the app's.** `DataSourceType` stops being a
+closed enum. Where data comes from is the user's world: SAP-Belege, Objektportal and a Dynamics CRM
+were all being squeezed into "Dataverse" or "SharePoint", and a mislabelled source reads as a
+decision somebody took.
+
+The built-in five remain the app's — SPEC §6 fixes their dot colours, so they can be left unused
+but not renamed or recoloured — and a fleet declares its own beside them in `sourceKinds`, each
+with a name and a colour from §6's palette. The check that a `type` names something real moved
+from Zod to `integrity.ts`, which also rejects a fleet kind shadowing a built-in. `sourceKinds` is
+optional rather than defaulted so no existing document or fleet literal has to change, and a
+dangling type paints the neutral slate rather than nothing at all.
+
+The query's source axis became a union (`any` / `unassigned` / `is`) for the same reason the
+provider axis is one: with user-declared ids, any sentinel string could also be a real id.
+
+| Item | Status | Test(s) |
+|---|---|---|
+| The five built-ins are offered first | ✅ | `sourceKinds.test.ts` › "offers the built-in five before a fleet adds anything" |
+| A fleet kind sits beside them with its own colour | ✅ | › "puts a fleet kind beside them, with its own colour" |
+| A nameless or duplicate kind is refused | ✅ | › "refuses a nameless kind, and a duplicate of any name already offered" |
+| Rename and recolour a fleet kind | ✅ | › "renames and recolours a fleet kind"; "will not rename a fleet kind onto a name already in use" |
+| Built-ins cannot be renamed or removed | ✅ | › "leaves the built-in five alone: SPEC 6 fixes their colours" |
+| A kind in use cannot be removed, and names what blocks it | ✅ | › "refuses to remove a kind data still points at, and names what is in the way" |
+| It is undoable like any other edit | ✅ | › "is undoable, like any other edit to the document" |
+| Integrity holds the line the enum used to | ✅ | › "rejects data pointing at a kind that does not exist"; "rejects a fleet kind that shadows a built-in" |
+| A dangling kind still paints a dot | ✅ | › "paints a deleted kind neutrally rather than not at all" |
+| An older document needs no migration | ✅ | › "parses without them and reports none" |
+| The whole flow in the UI | ✅ | e2e › "the Source list is editable, and a source in use cannot be removed" |
+
+**Three duplications the pass removed.** The Libraries dialog carried its own copy of the filter
+row — it now uses the shared `DataFilters`. The Source dropdown existed in four places with four
+hardcoded lists; all four read `allSourceKinds` now. And the catalog's source select gained the
+"Not assigned yet" option it was missing.
+
+**Nine fields in one column is a scroll, not a form.** The data editor is grouped under what each
+group answers: where it comes from, who provides it, where it sits, what it is and what finished
+looks like.

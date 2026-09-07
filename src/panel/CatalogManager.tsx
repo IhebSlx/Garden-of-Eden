@@ -17,9 +17,10 @@ import { selectActiveFleet, useFleetStore } from '../store/fleetStore.js';
 import { useUiStore } from '../store/uiStore.js';
 import { describeCatalogAgent } from '../model/catalog.js';
 import type { CatalogAgent } from '../model/catalog.js';
-import type { DataSourceType, LibraryKind, Status } from '../model/schemas.js';
+import type { LibraryKind, Status } from '../model/schemas.js';
 import { DATA_SOURCE_STATUS_LABELS } from '../model/schemas.js';
 import {
+  allSourceKinds,
   dataDotColor,
   KIND_COLOR,
   KIND_LABEL,
@@ -39,7 +40,6 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'dataSource', label: 'Data' },
 ];
 
-const DATA_TYPES: DataSourceType[] = ['md', 'dataverse', 'sharepoint', 'file'];
 const STATUSES: Status[] = ['live', 'building', 'planned'];
 
 /** "1 skill" / "7 skills" — these counts are the first thing read after an import. */
@@ -646,13 +646,19 @@ export function CatalogManager(): React.JSX.Element | null {
           <label className="dialog-field">
             <span>Type</span>
             <select
-              value={source.type}
+              value={source.type ?? ''}
               aria-label={`Type of ${source.name}`}
-              onChange={(event) => store.updateDataSource(id, { type: event.target.value as DataSourceType })}
+              onChange={(event) =>
+                store.updateDataSource(id, {
+                  type: event.target.value === '' ? undefined : event.target.value,
+                })
+              }
             >
-              {DATA_TYPES.map((type) => (
-                <option key={type} value={type}>
-                  {type}
+              {/* Undecided is a real answer here too. */}
+              <option value="">Not assigned yet</option>
+              {allSourceKinds(undefined).map((kind) => (
+                <option key={kind.id} value={kind.id}>
+                  {kind.name}
                 </option>
               ))}
             </select>

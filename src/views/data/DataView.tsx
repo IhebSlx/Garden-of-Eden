@@ -24,6 +24,7 @@ import { DataCoverage } from './DataCoverage.js';
 import { DataDepartments } from './DataDepartments.js';
 import { DataFilters } from './DataFilters.js';
 import { FolderImport } from './FolderImport.js';
+import { SourceKinds } from './SourceKinds.js';
 import { DataTree } from './DataTree.js';
 
 const MODES: { mode: DataMode; label: string }[] = [
@@ -71,6 +72,7 @@ export function DataView(): React.JSX.Element | null {
               ? 'Nothing outstanding'
               : `${owed} of ${fleet.dataSources.length} still to provide`}
           </span>
+          <SourceKinds />
           <FolderImport />
           <button type="button" className="chrome-btn" onClick={openLibrary} data-testid="data-view-edit">
             Libraries…

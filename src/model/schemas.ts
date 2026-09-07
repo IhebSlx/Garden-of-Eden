@@ -34,8 +34,8 @@ export const STATUS_LABELS: Record<Status, string> = {
  * same three-state enum underneath, so the filter bar and every status control keep
  * working — only the words change, and only for data.
  */
-/** How a source reads in the UI. Kept beside the enum so the two cannot drift. */
-export const DATA_SOURCE_LABELS: Record<DataSourceType, string> = {
+/** How a built-in source reads in the UI. Kept beside the enum so they cannot drift. */
+export const DATA_SOURCE_LABELS: Record<BuiltInSourceKind, string> = {
   dataverse: 'Dataverse',
   sharepoint: 'SharePoint',
   md: 'Markdown',
@@ -49,7 +49,13 @@ export const DATA_SOURCE_LABELS: Record<DataSourceType, string> = {
  * a blank reads as an oversight instead of an open question.
  */
 export function sourceLabel(type: DataSourceType | undefined): string {
-  return type === undefined ? 'not assigned' : DATA_SOURCE_LABELS[type];
+  if (type === undefined) return 'not assigned';
+  return isBuiltInSource(type) ? DATA_SOURCE_LABELS[type] : type;
+}
+
+/** Whether a source id is one of the five the app ships with. */
+export function isBuiltInSource(type: string): type is BuiltInSourceKind {
+  return (BUILT_IN_SOURCE_KINDS as readonly string[]).includes(type);
 }
 
 export const DATA_SOURCE_STATUS_LABELS: Record<Status, string> = {
@@ -154,8 +160,44 @@ export type Tool = z.infer<typeof ToolSchema>;
  * long before it lives in Dataverse. Without it, data a team still owes has to be
  * mislabelled as a file or as a SharePoint site it is not in yet.
  */
-export const DataSourceTypeSchema = z.enum(['md', 'dataverse', 'sharepoint', 'file', 'department']);
-export type DataSourceType = z.infer<typeof DataSourceTypeSchema>;
+/**
+ * DEVIATION: a source is no longer a closed enum.
+ *
+ * Where data comes from is the user's world, not the app's. Five built-in kinds
+ * could not hold SAP-Belege, Objektportal or a Dynamics CRM without one of them
+ * being mislabelled, and mislabelled data reads as a decision somebody took.
+ *
+ * The five stay as BUILT-IN kinds so SPEC §6's normative dot colours still apply
+ * and no document has to be migrated. A fleet may declare its own kinds beside
+ * them in `sourceKinds`; `integrity.ts` checks that a `type` names one of the two.
+ */
+export const BUILT_IN_SOURCE_KINDS = ['md', 'dataverse', 'sharepoint', 'file', 'department'] as const;
+export const DataSourceTypeSchema = z.enum(BUILT_IN_SOURCE_KINDS);
+export type BuiltInSourceKind = z.infer<typeof DataSourceTypeSchema>;
+
+/** A source kind: built-in, or one this fleet added. */
+export type DataSourceType = string;
+
+/** Colours a user-declared kind may pick, from SPEC §6's palette. */
+export const SOURCE_KIND_COLORS = [
+  '#c9b6ff',
+  '#3ce8b0',
+  '#38e1ff',
+  '#8ea2d6',
+  '#f6b954',
+  '#818cf8',
+  '#4ade80',
+  '#fbbf24',
+] as const;
+
+export const SourceKindSchema = z.object({
+  /** Stable id, referenced by `DataSource.type`. */
+  id: z.string().min(1),
+  name: z.string().min(1),
+  /** Dot colour. Free-form so a fleet is never blocked by the palette list. */
+  color: z.string().min(1),
+});
+export type SourceKind = z.infer<typeof SourceKindSchema>;
 
 export const DataSourceSchema = z.object({
   id: id(),
@@ -168,7 +210,7 @@ export const DataSourceSchema = z.object({
    * a decision that was never taken. Absent means "not assigned yet", and the UI
    * shows it as an open question rather than as a blank.
    */
-  type: DataSourceTypeSchema.optional(),
+  type: z.string().min(1).optional(),
   status: StatusSchema,
   /**
    * SPEC §4: "only meaningful when status === 'live'" — meaningfulness, not a constraint,
@@ -291,6 +333,11 @@ export const FleetSchema = z.object({
   skills: z.array(SkillSchema),
   tools: z.array(ToolSchema),
   dataSources: z.array(DataSourceSchema),
+  /**
+   * Source kinds this fleet added beside the built-in five. Defaulted, so a
+   * document written before they existed still parses without a migration.
+   */
+  sourceKinds: z.array(SourceKindSchema).optional(),
 });
 export type Fleet = z.infer<typeof FleetSchema>;
 

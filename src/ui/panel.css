@@ -976,3 +976,24 @@
   outline: none;
   border-color: rgb(124 140 255 / 0.7);
 }
+
+/* Nine fields in one column is a scroll, not a form: name what each group answers. */
+.lib-fields .field-group {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 14px 0 8px;
+  font-size: 9.5px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #6f7fb4;
+}
+.lib-fields .field-group::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgb(124 140 255 / 0.14);
+}
+.lib-fields .field-group:first-child {
+  margin-top: 2px;
+}

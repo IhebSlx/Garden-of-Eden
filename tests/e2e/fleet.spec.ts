@@ -831,7 +831,7 @@ test('the data library filters by state and by source, composing with the depart
   expect(ready).toBeLessThan(all);
 
   // Source composes with it rather than replacing it.
-  await manager.getByTestId('data-source-filter').selectOption('dataverse');
+  await manager.getByTestId('data-source-filter').selectOption('is:dataverse');
   const both = await manager.locator('.lib-entry').count();
   expect(both).toBeLessThanOrEqual(ready);
 
@@ -1267,5 +1267,92 @@ test('the missing-requirement prompt opens the editor rather than leaving the li
   await row.getByTestId('prep-open').click();
   await expect(prep.getByTestId('prep-item').filter({ hasText: name })).toContainText(
     'Aktuelle Fassung als PDF',
+  );
+});
+
+test('the Source list is editable, and a source in use cannot be removed', async ({ page }) => {
+  await page.getByTestId('view-data').click();
+  await page.getByTestId('source-kinds-open').click();
+  const dialog = page.getByTestId('source-kinds');
+
+  // The five the app ships with are listed but not editable.
+  await expect(dialog.getByTestId('source-kind')).toHaveCount(5);
+  await expect(dialog.locator('[data-testid="source-kind"][data-built-in="true"]')).toHaveCount(5);
+  await expect(dialog.getByTestId('source-kind-name')).toHaveCount(0);
+
+  // Add one of your own.
+  await dialog.getByTestId('source-kind-new').fill('SAP-Belege');
+  await dialog.getByTestId('source-kind-add').click();
+  await expect(dialog.getByTestId('source-kind')).toHaveCount(6);
+  const mine = dialog.locator('[data-testid="source-kind"][data-built-in="false"]');
+  await expect(mine).toHaveCount(1);
+  await expect(mine.getByTestId('source-kind-name')).toHaveValue('SAP-Belege');
+  await expect(mine).toContainText('unused');
+
+  // A name already offered is refused rather than silently duplicated.
+  await dialog.getByTestId('source-kind-new').fill('SharePoint');
+  await dialog.getByTestId('source-kind-add').click();
+  await expect(dialog.getByTestId('source-kinds-error')).toContainText('already a source');
+  await expect(dialog.getByTestId('source-kind')).toHaveCount(6);
+
+  // Rename it, then close and use it on a data item.
+  await mine.getByTestId('source-kind-name').fill('SAP');
+  await mine.getByTestId('source-kind-name').press('Enter');
+  await dialog.getByRole('button', { name: 'Done' }).click();
+
+  const source = page.getByTestId('data-detail').getByTestId('data-source');
+  await expect(source.locator('option')).toContainText(['SAP']);
+  await source.selectOption({ label: 'SAP' });
+  await expect(page.getByTestId('data-detail')).toContainText('SAP');
+
+  // Now it is in use, so removing it is refused and says what is in the way.
+  await page.getByTestId('source-kinds-open').click();
+  const again = page.getByTestId('source-kinds');
+  await expect(again.locator('[data-testid="source-kind"][data-built-in="false"]')).toContainText(
+    '1 item',
+  );
+  await again.getByTestId('source-kind-delete').click();
+  await expect(again.getByTestId('source-kinds-error')).toContainText('still use this source');
+  await expect(again.getByTestId('source-kind')).toHaveCount(6);
+});
+
+test('a data item can be marked linked whatever state it is in', async ({ page }) => {
+  await page.getByTestId('view-data').click();
+
+  // Add something owed - the state where the checkbox used to be hidden.
+  await page.getByTestId('data-new-name').fill('Kampagnen-Kalender');
+  await page.getByTestId('data-add').click();
+  const detail = page.getByTestId('data-detail');
+  await expect(detail).toContainText('To be provided');
+
+  const linked = detail.getByTestId('data-linked');
+  await expect(linked).toBeVisible();
+  await expect(linked).not.toBeChecked();
+  await linked.check();
+  await expect(linked).toBeChecked();
+
+  // And it survives a reload, so it is stored rather than a UI flourish.
+  await page.waitForTimeout(600);
+  await page.reload();
+  await page.getByTestId('view-data').click();
+  await page.getByTestId('data-row').filter({ hasText: 'Kampagnen-Kalender' }).click();
+  await expect(page.getByTestId('data-detail').getByTestId('data-linked')).toBeChecked();
+});
+
+test('a data item carries a description, which the editor can read and change', async ({ page }) => {
+  await page.getByTestId('view-data').click();
+  await page.getByTestId('data-row').first().click();
+
+  const description = page.getByTestId('data-detail').getByTestId('data-description');
+  await expect(description).toBeVisible();
+  await description.fill('Richtlinien, Prozesse und Struktur, für alle Agenten.');
+  await description.blur();
+
+  await page.waitForTimeout(600);
+  await page.reload();
+  await page.getByTestId('view-data').click();
+  await page.getByTestId('data-row').first().click();
+  await expect(page.getByTestId('data-detail').getByTestId('data-description')).toHaveValue(
+    'Richtlinien, Prozesse und Struktur, für alle Agenten.',
   );
 });

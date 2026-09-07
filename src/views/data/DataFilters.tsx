@@ -5,13 +5,11 @@
  * different filters for the same library. The counts on the state chips respect
  * the other two axes, so a chip reading "3" means three under what is already set.
  */
-import { DATA_SOURCE_LABELS, DATA_SOURCE_STATUS_LABELS } from '../../model/schemas.js';
-import type { DataSourceType, Fleet, Status } from '../../model/schemas.js';
+import { DATA_SOURCE_STATUS_LABELS } from '../../model/schemas.js';
+import type { Fleet, Status } from '../../model/schemas.js';
 import { dataItemMatches, providerOptions } from '../../model/selectors.js';
 import type { DataQuery } from '../../model/selectors.js';
-import { STATUS_COLOR } from '../../ui/palette.js';
-
-const DATA_TYPES: DataSourceType[] = ['dataverse', 'sharepoint', 'md', 'file', 'department'];
+import { allSourceKinds, STATUS_COLOR } from '../../ui/palette.js';
 
 /** Chips read in the app order, the same as the board's own filter bar. */
 const STATUSES: Status[] = ['live', 'building', 'planned'];
@@ -28,8 +26,16 @@ const providerFromValue = (value: string): DataQuery['provider'] =>
       ? { kind: 'none' }
       : { kind: 'provider', name: value.slice('by:'.length) };
 
+// Prefixed like the provider axis, so a kind called "unassigned" stays a kind.
+const sourceValue = (source: DataQuery['source']): string =>
+  source.kind === 'any' ? '' : source.kind === 'unassigned' ? 'none' : `is:${source.id}`;
+
 const sourceFromValue = (value: string): DataQuery['source'] =>
-  value === '' ? null : value === 'unassigned' ? 'unassigned' : (value as DataSourceType);
+  value === ''
+    ? { kind: 'any' }
+    : value === 'none'
+      ? { kind: 'unassigned' }
+      : { kind: 'is', id: value.slice('is:'.length) };
 
 export function DataFilters({
   fleet,
@@ -72,16 +78,16 @@ export function DataFilters({
         <select
           id={`${idPrefix}-source-filter`}
           data-testid="data-source-filter"
-          value={query.source ?? ''}
+          value={sourceValue(query.source)}
           onChange={(event) => onChange({ ...query, source: sourceFromValue(event.target.value) })}
         >
           <option value="">Any source</option>
-          {DATA_TYPES.map((type) => (
-            <option key={type} value={type}>
-              {DATA_SOURCE_LABELS[type]}
+          {allSourceKinds(fleet).map((kind) => (
+            <option key={kind.id} value={`is:${kind.id}`}>
+              {kind.name}
             </option>
           ))}
-          <option value="unassigned">Not assigned yet</option>
+          <option value="none">Not assigned yet</option>
         </select>
       </div>
 

@@ -168,8 +168,14 @@ describe('DataSourceSchema', () => {
     expect(DataSourceSchema.safeParse({ ...valid, status: 'planned', linked: true }).success).toBe(true);
   });
 
-  it('rejects an unknown source type', () => {
-    expect(DataSourceSchema.safeParse({ ...valid, type: 'notion' }).success).toBe(false);
+  it('accepts any source id, because a fleet declares its own kinds', () => {
+    // The check that a type names something real moved from Zod to integrity: a
+    // closed enum could not hold SAP-Belege or Objektportal.
+    expect(DataSourceSchema.safeParse({ ...valid, type: 'skd_sap' }).success).toBe(true);
+  });
+
+  it('still refuses an empty source id, which is what "undefined" is for', () => {
+    expect(DataSourceSchema.safeParse({ ...valid, type: '' }).success).toBe(false);
   });
 });
 

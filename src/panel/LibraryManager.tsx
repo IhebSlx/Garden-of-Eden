@@ -18,17 +18,15 @@ import { useUiStore } from '../store/uiStore.js';
 import {
   agentsUsing,
   dataMatchesQuery,
-  dataItemMatches,
   flattenData,
-  providerOptions,
 } from '../model/selectors.js';
-import { DATA_SOURCE_LABELS, DATA_SOURCE_STATUS_LABELS } from '../model/schemas.js';
 import { ANY_DATA } from '../model/selectors.js';
 import type { DataQuery } from '../model/selectors.js';
-import type { DataSourceType, LibraryKind, Status } from '../model/schemas.js';
-import { dataDotColor, SKILL_COLOR, STATUS_COLOR, TOOL_TYPE_COLOR } from '../ui/palette.js';
+import type { LibraryKind } from '../model/schemas.js';
+import { dataDotColor, SKILL_COLOR, TOOL_TYPE_COLOR } from '../ui/palette.js';
 import { ToolEditor } from './ToolEditor.js';
 import { DataFields } from './DataFields.js';
+import { DataFilters } from '../views/data/DataFilters.js';
 import { NotesField } from './NotesField.js';
 
 const TABS: { kind: LibraryKind; label: string }[] = [
@@ -37,29 +35,10 @@ const TABS: { kind: LibraryKind; label: string }[] = [
   { kind: 'dataSource', label: 'Data' },
 ];
 
-const DATA_TYPES: DataSourceType[] = ['dataverse', 'sharepoint', 'md', 'file', 'department'];
 
-const STATUSES: Status[] = ['live', 'building', 'planned'];
 
 /** How many users of an item a row names before it starts counting instead. */
 const USERS_SHOWN = 3;
-
-/** The provider axis as a <select> value, and back again. */
-const providerValue = (provider: DataQuery['provider']): string =>
-  provider.kind === 'all' ? '' : provider.kind === 'none' ? 'none' : `by:${provider.name}`;
-
-// Prefixed, so a department called "none" is still just a department.
-const providerFromValue = (value: string): DataQuery['provider'] =>
-  value === ''
-    ? { kind: 'all' }
-    : value === 'none'
-      ? { kind: 'none' }
-      : { kind: 'provider', name: value.slice('by:'.length) };
-
-/** The source axis as a <select> value, and back again. */
-const sourceValue = (source: DataQuery['source']): string => source ?? '';
-const sourceFromValue = (value: string): DataQuery['source'] =>
-  value === '' ? null : value === 'unassigned' ? 'unassigned' : (value as DataSourceType);
 
 export function LibraryManager(): React.JSX.Element | null {
   const open = useUiStore((s) => s.libraryOpen);
@@ -194,80 +173,9 @@ export function LibraryManager(): React.JSX.Element | null {
           ))}
         </div>
 
+        {/* The same control the Data view uses: two copies of a filter drift. */}
         {tab === 'dataSource' && (
-          <div className="lib-filters" data-testid="data-filter">
-            {/* Counts answer the question before the chip is clicked. They respect
-                the other two axes, so "3" means three under what is already set. */}
-            <div className="lib-chips">
-              {([null, ...STATUSES] as (Status | null)[]).map((status) => {
-                const count = fleet.dataSources.filter((source) =>
-                  dataItemMatches(source, { ...query, status }),
-                ).length;
-                return (
-                  <button
-                    key={status ?? 'all'}
-                    type="button"
-                    className={`chrome-btn ${query.status === status ? 'on' : ''}`}
-                    data-testid={`data-status-${status ?? 'all'}`}
-                    onClick={() => setQuery({ ...query, status })}
-                  >
-                    {status !== null && (
-                      <span className="fdot" style={{ background: STATUS_COLOR[status] }} />
-                    )}
-                    {status === null ? 'All' : DATA_SOURCE_STATUS_LABELS[status]} {count}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="lib-filter">
-              <label htmlFor="data-source-filter">Source</label>
-              <select
-                id="data-source-filter"
-                data-testid="data-source-filter"
-                value={sourceValue(query.source)}
-                onChange={(event) => setQuery({ ...query, source: sourceFromValue(event.target.value) })}
-              >
-                <option value="">Any source</option>
-                {DATA_TYPES.map((type) => (
-                  <option key={type} value={type}>
-                    {DATA_SOURCE_LABELS[type]}
-                  </option>
-                ))}
-                <option value="unassigned">Not assigned yet</option>
-              </select>
-            </div>
-
-            <div className="lib-filter">
-            <label htmlFor="data-provider-filter">Provided by</label>
-            <select
-              id="data-provider-filter"
-              data-testid="data-provider-filter"
-              value={providerValue(query.provider)}
-              onChange={(event) =>
-                setQuery({ ...query, provider: providerFromValue(event.target.value) })
-              }
-            >
-              <option value="">Every department</option>
-              <option value="none">Nobody yet</option>
-              {providerOptions(fleet).map((provider) => (
-                <option key={provider} value={`by:${provider}`}>
-                  {provider}
-                </option>
-              ))}
-            </select>
-              {query.provider.kind !== 'all' && (
-                <button
-                  type="button"
-                  className="lib-filter-clear"
-                  onClick={() => setQuery({ ...query, provider: { kind: 'all' } })}
-                  aria-label="Show data from every department again"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
-          </div>
+          <DataFilters fleet={fleet} query={query} onChange={setQuery} idPrefix="lib" />
         )}
 
         <div className="lib-list">

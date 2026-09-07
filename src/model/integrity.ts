@@ -8,7 +8,7 @@
  * layers at once via `FleetDocumentSchema`.
  */
 import type { z } from 'zod';
-import { FleetSchema } from './schemas.js';
+import { FleetSchema, isBuiltInSource } from './schemas.js';
 import type { Fleet } from './schemas.js';
 
 export type IntegrityCode =
@@ -21,7 +21,9 @@ export type IntegrityCode =
   | 'library-ref-missing'
   | 'data-parent-missing'
   | 'data-parent-self'
-  | 'data-parent-cycle';
+  | 'data-parent-cycle'
+  | 'source-kind-shadows-built-in'
+  | 'data-source-kind-missing';
 
 export type IntegrityIssue = {
   code: IntegrityCode;
@@ -189,6 +191,35 @@ function checkLibraryRefs(fleet: Fleet, issues: IntegrityIssue[]): void {
  * items each inside the next. Every renderer walks this tree, so a cycle would hang
  * the app rather than merely look wrong.
  */
+/**
+ * A source kind is no longer a closed enum (see `schemas.ts`), so the check that
+ * a `type` names something real moved from Zod to here: it must be one of the
+ * built-in five or one this fleet declares.
+ */
+function checkSourceKinds(fleet: Fleet, issues: IntegrityIssue[]): void {
+  const declared = new Set((fleet.sourceKinds ?? []).map((kind) => kind.id));
+
+  (fleet.sourceKinds ?? []).forEach((kind, index) => {
+    if (isBuiltInSource(kind.id)) {
+      issues.push({
+        code: 'source-kind-shadows-built-in',
+        path: ['sourceKinds', index, 'id'],
+        message: `"${kind.id}" is a built-in source and cannot be redeclared.`,
+      });
+    }
+  });
+
+  fleet.dataSources.forEach((source, index) => {
+    if (source.type === undefined) return;
+    if (isBuiltInSource(source.type) || declared.has(source.type)) return;
+    issues.push({
+      code: 'data-source-kind-missing',
+      path: ['dataSources', index, 'type'],
+      message: `"${source.name}" names a source "${source.type}" this fleet does not have.`,
+    });
+  });
+}
+
 function checkDataNesting(fleet: Fleet, issues: IntegrityIssue[]): void {
   const byId = new Map(fleet.dataSources.map((source) => [source.id, source]));
 
@@ -241,6 +272,7 @@ export function checkFleetIntegrity(fleet: Fleet): IntegrityIssue[] {
   checkHierarchyCycles(fleet, issues);
   checkLibraryRefs(fleet, issues);
   checkDataNesting(fleet, issues);
+  checkSourceKinds(fleet, issues);
   return issues;
 }
 

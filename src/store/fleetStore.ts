@@ -33,6 +33,7 @@ import type {
 } from '../model/schemas.js';
 import { formatZodError, migrateFleetDocument } from '../model/migrations.js';
 import { applyFolderImport } from '../model/folderImport.js';
+import { allSourceKinds } from '../ui/palette.js';
 import type { ImportPlan } from '../model/folderImport.js';
 import { agentsUsing, dataDescendants, descendantIds, isShared, parentsOf } from '../model/selectors.js';
 import { fleetFromTemplate } from '../model/templates.js';
@@ -147,6 +148,10 @@ export type FleetStoreState = {
   addDataSource: (input: Omit<DataSource, 'id'>) => CreateResult;
   /** SPEC 8.7: read a folder of documents into the data library, undoably. */
   importDataFolder: (plan: ImportPlan) => ActionResult;
+  /** Source kinds this fleet adds beside the built-in five. */
+  addSourceKind: (name: string, color: string) => CreateResult;
+  updateSourceKind: (kindId: string, patch: { name?: string; color?: string }) => ActionResult;
+  deleteSourceKind: (kindId: string) => ActionResult;
   updateDataSource: (dataSourceId: string, patch: Partial<Omit<DataSource, 'id'>>) => ActionResult;
   deleteDataSource: (dataSourceId: string) => ActionResult;
   attachLibraryItem: (agentId: string, kind: LibraryKind, itemId: string) => ActionResult;
@@ -649,6 +654,64 @@ export const useFleetStore = create<FleetStoreState>()(
         deleteTool: (toolId) => deleteLibraryItem('tool', toolId),
 
         importDataFolder: (plan) => mutateActive((fleet) => applyFolderImport(fleet, plan)),
+
+        addSourceKind: (name, color) => {
+          const fleet = activeFleet();
+          if (!fleet) return fail('No active fleet.');
+          const trimmed = name.trim();
+          if (trimmed === '') return fail('A source needs a name.');
+          if (allSourceKinds(fleet).some((k) => k.name.trim().toLowerCase() === trimmed.toLowerCase())) {
+            return fail(`There is already a source called "${trimmed}".`);
+          }
+          const kind = { id: newId(ID_PREFIX.sourceKind), name: trimmed, color };
+          const result = mutateActive((current) => ({
+            ...current,
+            sourceKinds: [...(current.sourceKinds ?? []), kind],
+          }));
+          return result.ok ? { ok: true, id: kind.id } : result;
+        },
+
+        updateSourceKind: (kindId, patch) =>
+          mutateActive((fleet) => {
+            const kinds = fleet.sourceKinds ?? [];
+            const kind = kinds.find((k) => k.id === kindId);
+            // The five built-ins are the app's, not the fleet's: SPEC 6 fixes their
+            // colours, so they can be left unused but not renamed or recoloured.
+            if (!kind) return fail('That source is built in and cannot be changed.');
+            const name = (patch.name ?? kind.name).trim();
+            if (name === '') return fail('A source needs a name.');
+            if (
+              allSourceKinds(fleet).some(
+                (other) => other.id !== kindId && other.name.trim().toLowerCase() === name.toLowerCase(),
+              )
+            ) {
+              return fail(`There is already a source called "${name}".`);
+            }
+            return {
+              ...fleet,
+              sourceKinds: kinds.map((k) =>
+                k.id === kindId ? { ...k, name, color: patch.color ?? k.color } : k,
+              ),
+            };
+          }),
+
+        deleteSourceKind: (kindId) => {
+          const fleet = activeFleet();
+          if (!fleet) return fail('No active fleet.');
+          // Deleting a kind in use would leave data pointing at nothing, which
+          // integrity rejects; say which items are in the way instead.
+          const used = fleet.dataSources.filter((d) => d.type === kindId);
+          if (used.length > 0) {
+            return fail(
+              `${used.length} data item(s) still use this source. Change those first.`,
+              used.map((d) => d.name),
+            );
+          }
+          return mutateActive((current) => ({
+            ...current,
+            sourceKinds: (current.sourceKinds ?? []).filter((k) => k.id !== kindId),
+          }));
+        },
 
         addDataSource: (input) => {
           const parsed = DataSourceSchema.safeParse({ ...input, id: newId(ID_PREFIX.dataSource) });

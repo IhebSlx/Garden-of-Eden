@@ -601,16 +601,23 @@ export function dataProviders(fleet: Fleet): string[] {
  * be left open:
  *   provider - 'all', 'none' (nobody has been asked yet), or one department
  *   status   - null for any, else Existing / Being prepared / To be provided
- *   source   - null for any, 'unassigned' for undecided, else one system
+ *   source   - 'any', 'unassigned' for undecided, or one kind by id
+ *
+ * The source axis is a union rather than a nullable string because a source kind
+ * is now user-declared: any sentinel string could in principle also be a kind id.
  */
 export type DataQuery = {
   provider: { kind: 'all' } | { kind: 'none' } | { kind: 'provider'; name: string };
   status: Status | null;
-  source: DataSourceType | 'unassigned' | null;
+  source: { kind: 'any' } | { kind: 'unassigned' } | { kind: 'is'; id: DataSourceType };
 };
 
 /** Every axis left open: the whole library. */
-export const ANY_DATA: DataQuery = { provider: { kind: 'all' }, status: null, source: null };
+export const ANY_DATA: DataQuery = {
+  provider: { kind: 'all' },
+  status: null,
+  source: { kind: 'any' },
+};
 
 /** Whether this item, on its own, answers every axis of the query. */
 export function dataItemMatches(source: DataSource, query: DataQuery): boolean {
@@ -625,11 +632,11 @@ export function dataItemMatches(source: DataSource, query: DataQuery): boolean {
   const statusOk = query.status === null || source.status === query.status;
 
   const sourceOk =
-    query.source === null
+    query.source.kind === 'any'
       ? true
-      : query.source === 'unassigned'
+      : query.source.kind === 'unassigned'
         ? source.type === undefined
-        : source.type === query.source;
+        : source.type === query.source.id;
 
   return providerOk && statusOk && sourceOk;
 }

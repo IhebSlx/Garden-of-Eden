@@ -4,7 +4,16 @@
  * `tokens.css` holds the same values for the CSS side - both come from the
  * prototype's `CSS_COLOR` / `SCOL` / `TCOL` / `DCOL` tables.
  */
-import type { AgentKind, DataSourceType, Status, ToolType } from '../model/schemas.js';
+import { BUILT_IN_SOURCE_KINDS, DATA_SOURCE_LABELS } from '../model/schemas.js';
+import type {
+  AgentKind,
+  BuiltInSourceKind,
+  DataSourceType,
+  Fleet,
+  SourceKind,
+  Status,
+  ToolType,
+} from '../model/schemas.js';
 
 export const KIND_COLOR: Record<AgentKind, string> = {
   orchestrator: '#8b5cf6',
@@ -41,7 +50,7 @@ export const TOOL_TYPE_LABEL: Record<ToolType, string> = {
  */
 export const DATA_TYPE_UNSET_COLOR = '#6b7a9e';
 
-export const DATA_TYPE_COLOR: Record<DataSourceType, string> = {
+export const DATA_TYPE_COLOR: Record<BuiltInSourceKind, string> = {
   md: '#c9b6ff',
   dataverse: '#3ce8b0',
   sharepoint: '#38e1ff',
@@ -52,12 +61,38 @@ export const DATA_TYPE_COLOR: Record<DataSourceType, string> = {
 };
 
 /**
- * The dot for a data item's source, undecided included. Every renderer goes through
- * this rather than indexing DATA_TYPE_COLOR, so an unassigned source can never fall
- * through as `undefined` and paint nothing.
+ * Every source kind on offer: the five built in, then whatever this fleet added.
+ * Built-ins keep SPEC §6's normative colours; a fleet kind carries its own.
  */
-export function dataDotColor(type: DataSourceType | undefined): string {
-  return type === undefined ? DATA_TYPE_UNSET_COLOR : DATA_TYPE_COLOR[type];
+export function allSourceKinds(fleet: Fleet | undefined): SourceKind[] {
+  const built = BUILT_IN_SOURCE_KINDS.map((id) => ({
+    id,
+    name: DATA_SOURCE_LABELS[id],
+    color: DATA_TYPE_COLOR[id],
+  }));
+  return [...built, ...(fleet?.sourceKinds ?? [])];
+}
+
+/** The kind a `type` names, or null when it names nothing (or nothing at all). */
+export function sourceKindOf(fleet: Fleet | undefined, type: DataSourceType | undefined): SourceKind | null {
+  if (type === undefined) return null;
+  return allSourceKinds(fleet).find((kind) => kind.id === type) ?? null;
+}
+
+/**
+ * The dot for a data item's source, undecided included. Every renderer goes through
+ * this rather than indexing a map, so an unassigned source - or one naming a kind
+ * that has since been deleted - can never fall through as `undefined` and paint
+ * nothing.
+ */
+export function dataDotColor(type: DataSourceType | undefined, fleet?: Fleet): string {
+  return sourceKindOf(fleet, type)?.color ?? DATA_TYPE_UNSET_COLOR;
+}
+
+/** What a source is called, this fleet's own kinds included. */
+export function dataSourceName(type: DataSourceType | undefined, fleet?: Fleet): string {
+  if (type === undefined) return 'not assigned';
+  return sourceKindOf(fleet, type)?.name ?? type;
 }
 
 /** Panel kind chip text (`KIND_LABEL`). */
