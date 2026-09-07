@@ -875,3 +875,21 @@ is open, which is also why it is in the detail pane rather than beside the tree'
 | A box holding items refuses, and names them | ✅ | e2e (same) |
 | Emptying a box makes it deletable | ✅ | e2e (same) |
 | Data an agent depends on cannot be deleted | ✅ | e2e › "data an agent depends on cannot be deleted out from under it" |
+
+**Clicking an obligation opens the editor in place.** The department pane could set who provides an
+item and who to ask, but a status, a source or a requirement meant leaving the list for Libraries —
+the wrong shape for working through one department's homework. A row now expands into the same
+`DataFields` editor the tree uses, plus a Name field.
+
+While a row is open its compact "Provided by" pair is hidden: the editor carries those two fields
+itself, and two sets of the same control on one row is a trap. The "No requirement written yet"
+prompt expands the row instead of closing the pane and opening Libraries, so the field to answer it
+is where the question was asked.
+
+| Item | Status | Test(s) |
+|---|---|---|
+| A row expands into the full editor | ✅ | e2e › "clicking an obligation opens the whole editor in place" |
+| The compact pair steps aside while it is open | ✅ | e2e (same) |
+| Status and name change without leaving the list | ✅ | e2e (same) |
+| Clicking again folds it back | ✅ | e2e (same) |
+| The missing-requirement prompt expands rather than navigates | ✅ | e2e › "the missing-requirement prompt opens the editor rather than leaving the list" |

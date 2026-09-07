@@ -1205,3 +1205,67 @@ test('data an agent depends on cannot be deleted out from under it', async ({ pa
   await expect(page.getByTestId('data-problem')).toBeVisible();
   await expect(page.getByTestId('data-row').filter({ hasText: 'Brand guidelines' })).toHaveCount(1);
 });
+
+test('clicking an obligation opens the whole editor in place', async ({ page }) => {
+  await page.getByTestId('fleet-menu-toggle').click();
+  await page.getByTestId('open-data-prep').click();
+  const prep = page.getByTestId('data-prep');
+
+  const row = prep.getByTestId('prep-item').first();
+  await expect(row).not.toHaveClass(/editing/);
+  // Closed, the row shows the compact pair and no editor.
+  await expect(row.getByTestId('prep-owner')).toBeVisible();
+  await expect(row.getByTestId('data-editor')).toHaveCount(0);
+
+  await row.getByTestId('prep-open').click();
+  await expect(row).toHaveClass(/editing/);
+
+  // Open, the full editor is there - status, source, requirement, notes.
+  await expect(row.getByTestId('data-editor')).toBeVisible();
+  await expect(row.getByTestId('data-source')).toBeVisible();
+  await expect(row.getByTestId('prep-rename')).toBeVisible();
+  // ...and the compact pair steps aside rather than competing with it.
+  await expect(row.getByTestId('prep-owner')).toHaveCount(0);
+
+  // The status can be changed without leaving the department's list.
+  const name = await row.getByTestId('prep-rename').inputValue();
+  await row.getByLabel(`Status of ${name}`).selectOption('building');
+  await expect(row).toContainText('Being prepared');
+
+  // Renaming works from here too.
+  await row.getByTestId('prep-rename').fill(`${name} 2027`);
+  await row.getByTestId('prep-rename').press('Enter');
+  await expect(prep.getByTestId('prep-open').first()).toHaveText(`${name} 2027`);
+
+  // Clicking again folds it back.
+  await row.getByTestId('prep-open').click();
+  await expect(row).not.toHaveClass(/editing/);
+  await expect(row.getByTestId('prep-owner')).toBeVisible();
+});
+
+test('the missing-requirement prompt opens the editor rather than leaving the list', async ({
+  page,
+}) => {
+  await page.getByTestId('fleet-menu-toggle').click();
+  await page.getByTestId('open-data-prep').click();
+  const prep = page.getByTestId('data-prep');
+
+  const prompt = prep.getByTestId('prep-item').filter({ hasText: 'No requirement written yet' });
+  await prompt.first().getByText('No requirement written yet').click();
+  // The prompt is gone once the editor is open, so the row is found by its state.
+  const row = prep.locator('[data-testid="prep-item"].editing');
+
+  // Same pane, and the field to write it in is right there.
+  await expect(prep).toBeVisible();
+  await expect(row.getByTestId('data-editor')).toBeVisible();
+  const name = await row.getByTestId('prep-rename').inputValue();
+  const requirement = row.getByLabel(`Requirement for ${name}`);
+  await requirement.fill('Aktuelle Fassung als PDF, Stand im Text.');
+  await requirement.blur();
+
+  // Folded again, the requirement reads on the row where the prompt used to be.
+  await row.getByTestId('prep-open').click();
+  await expect(prep.getByTestId('prep-item').filter({ hasText: name })).toContainText(
+    'Aktuelle Fassung als PDF',
+  );
+});

@@ -784,3 +784,36 @@
   font-size: 11.5px;
   color: #b9c8ef;
 }
+
+/* ---------- Clicking an obligation opens the editor in place ---------- */
+
+.prep-item-name {
+  all: unset;
+  cursor: pointer;
+  flex: 1;
+  font-size: 12px;
+  font-weight: 500;
+  color: #f2f5ff;
+  border-radius: 6px;
+  padding: 1px 4px;
+  margin-left: -4px;
+}
+.prep-item-name:hover {
+  background: rgb(90 110 200 / 0.14);
+}
+.prep-item-name:focus-visible {
+  outline: 2px solid var(--color-department);
+  outline-offset: 1px;
+}
+.prep-caret {
+  font-size: 9px;
+  color: #6f7fb4;
+}
+.prep-items li.editing {
+  box-shadow: inset 0 0 0 1px rgb(56 225 255 / 0.28);
+}
+.prep-editor {
+  margin: 10px 0 0 13px;
+  padding-top: 10px;
+  border-top: 1px solid rgb(124 140 255 / 0.14);
+}

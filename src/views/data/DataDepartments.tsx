@@ -7,9 +7,15 @@
  * how many agents they are holding up, their items owed-first, and the briefing as
  * plain text to send them. An overview nobody sends is a dashboard.
  *
+ * Clicking a row opens the same editor the tree uses, in place: working through a
+ * department's list and having to leave it to fix a status was the wrong shape.
+ * While a row is open its compact "Provided by" pair is hidden, because the editor
+ * carries those two fields itself and two sets of the same control is a trap.
+ *
  * DEVIATION: beyond SPEC §5. SPEC §1 calls the board a roadmap and §5.6 gives every
  * component a status, but nothing in the spec says who turns Planned into Live.
  */
+import { useState } from 'react';
 import { DATA_SOURCE_STATUS_LABELS } from '../../model/schemas.js';
 import type { DataSource, Fleet, Status } from '../../model/schemas.js';
 import {
@@ -21,6 +27,7 @@ import {
   providerOptions,
 } from '../../model/selectors.js';
 import type { DataQuery, OwnerWorkload } from '../../model/selectors.js';
+import { DataFields } from '../../panel/DataFields.js';
 import { selectActiveFleet, useFleetStore } from '../../store/fleetStore.js';
 import { useUiStore } from '../../store/uiStore.js';
 import { dataDotColor, STATUS_COLOR } from '../../ui/palette.js';
@@ -109,30 +116,82 @@ function Obligation({
   waitingAgents,
   options,
   showContact,
+  open,
+  onToggle,
   onJump,
-  onWriteRequirement,
 }: {
   source: DataSource;
   waitingAgents: { id: string; name: string }[];
   options: string[];
   showContact: boolean;
+  open: boolean;
+  onToggle: () => void;
   onJump: (agentId: string) => void;
-  onWriteRequirement: () => void;
 }): React.JSX.Element {
+  const updateDataSource = useFleetStore((s) => s.updateDataSource);
+  const [error, setError] = useState<string | null>(null);
+
   return (
-    <li data-testid="prep-item">
+    <li data-testid="prep-item" className={open ? 'editing' : undefined}>
       <div className="prep-item-head">
         <span className="tdot" style={{ background: dataDotColor(source.type) }} />
-        <b>{source.name}</b>
+        <button
+          type="button"
+          className="prep-item-name"
+          aria-expanded={open}
+          data-testid="prep-open"
+          onClick={onToggle}
+        >
+          {source.name}
+        </button>
         <StatusTag status={source.status} />
+        <span className="prep-caret" aria-hidden="true">
+          {open ? '▴' : '▾'}
+        </span>
       </div>
 
-      <Assignment source={source} options={options} showContact={showContact} />
+      {/* The editor carries Provided by and Ansprechpartner itself, so the compact
+          pair steps aside rather than competing with it. */}
+      {!open && <Assignment source={source} options={options} showContact={showContact} />}
 
-      {source.requirement !== undefined && source.requirement !== '' ? (
+      {open ? (
+        <div className="prep-editor">
+          <label className="dialog-field">
+            <span>Name</span>
+            <input
+              defaultValue={source.name}
+              aria-label={`Rename ${source.name}`}
+              data-testid="prep-rename"
+              onBlur={(event) => {
+                const next = event.target.value.trim();
+                if (next === '' || next === source.name) {
+                  event.target.value = source.name;
+                  return;
+                }
+                const result = updateDataSource(source.id, { name: next });
+                if (!result.ok) {
+                  event.target.value = source.name;
+                  setError(result.reason);
+                }
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') event.currentTarget.blur();
+              }}
+            />
+          </label>
+
+          {error !== null && (
+            <p className="dialog-error" role="status" data-testid="prep-error">
+              {error}
+            </p>
+          )}
+
+          <DataFields id={source.id} onError={setError} />
+        </div>
+      ) : source.requirement !== undefined && source.requirement !== '' ? (
         <p className="prep-req">{source.requirement}</p>
       ) : (
-        <button type="button" className="prep-missing" onClick={onWriteRequirement}>
+        <button type="button" className="prep-missing" onClick={onToggle}>
           No requirement written yet — say what finished looks like
         </button>
       )}
@@ -162,7 +221,6 @@ export function DataDepartments({
   const openDepartmentData = useUiStore((s) => s.openDepartmentData);
   const activate = useUiStore((s) => s.activate);
   const setView = useUiStore((s) => s.setView);
-  const openLibrary = useUiStore((s) => s.openLibrary);
   const copied = useUiStore((s) => s.briefingCopied);
   const setCopied = useUiStore((s) => s.setBriefingCopied);
 
@@ -171,11 +229,13 @@ export function DataDepartments({
   const keep = (source: DataSource): boolean =>
     dataItemMatches(source, { ...query, provider: { kind: 'all' } });
 
+  const [openId, setOpenId] = useState<string | null>(null);
+  const toggle = (id: string): void => setOpenId((current) => (current === id ? null : id));
+
   const jump = (agentId: string): void => {
     activate(agentId);
     setView('2d');
   };
-  const writeRequirement = (): void => openLibrary();
 
   const work = only === null ? null : departmentWorkload(fleet, only);
 
@@ -247,8 +307,9 @@ export function DataDepartments({
                         waitingAgents={waitingAgents}
                         options={options}
                         showContact={false}
+                        open={openId === source.id}
+                        onToggle={() => toggle(source.id)}
                         onJump={jump}
-                        onWriteRequirement={writeRequirement}
                       />
                     ))}
                   </ul>
@@ -287,8 +348,9 @@ export function DataDepartments({
           groups={dataObligations(fleet)}
           options={options}
           keep={keep}
+          openId={openId}
+          onToggle={toggle}
           onJump={jump}
-          onWriteRequirement={writeRequirement}
         />
       )}
     </div>
@@ -299,14 +361,16 @@ function EveryDepartment({
   groups,
   options,
   keep,
+  openId,
+  onToggle,
   onJump,
-  onWriteRequirement,
 }: {
   groups: OwnerWorkload[];
   options: string[];
   keep: (source: DataSource) => boolean;
+  openId: string | null;
+  onToggle: (id: string) => void;
   onJump: (agentId: string) => void;
-  onWriteRequirement: () => void;
 }): React.JSX.Element {
   const outstanding = groups.reduce((total, group) => total + group.outstanding, 0);
 
@@ -358,8 +422,9 @@ function EveryDepartment({
                     waitingAgents={waitingAgents}
                     options={options}
                     showContact
+                    open={openId === source.id}
+                    onToggle={() => onToggle(source.id)}
                     onJump={onJump}
-                    onWriteRequirement={onWriteRequirement}
                   />
                 ))}
               </ul>
