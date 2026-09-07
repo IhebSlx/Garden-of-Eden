@@ -957,3 +957,36 @@ hardcoded lists; all four read `allSourceKinds` now. And the catalog's source se
 **Nine fields in one column is a scroll, not a form.** The data editor is grouped under what each
 group answers: where it comes from, who provides it, where it sits, what it is and what finished
 looks like.
+
+**Coverage removed.** The agent × box grid went, and `coverageMatrix` with it rather than being
+left as dead code. The Data view is Tree and By department, and the filter is no longer conditional
+on which pane is open.
+
+| Item | Status | Test(s) |
+|---|---|---|
+| Two panes, and no Coverage anywhere | ✅ | e2e › "the Data view has two panes, and Coverage is gone" |
+
+**A department can be added from the dropdown that would not otherwise offer it.** "Provided by" is
+the org chart, which is what lets the department page, the Ansprechpartner and the briefing key off
+one thing. The consequence was that a department missing from the board could not be chosen at all
+and the only way to add one was to leave for the 2D view.
+
+`+ Add a department…` now adds a real department agent under the orchestrator and assigns it in the
+same step. The list is still the org chart; you no longer have to go somewhere else to extend it.
+One shared `ProviderSelect` serves the data editor and the department pane's compact row, each
+naming its own control, so the two cannot offer different ways to answer the same question — and
+the wording is one wording now ("Nobody yet") rather than two.
+
+Two facts means two undo steps: undoing "this data is Marketing's" must not quietly delete a
+department somebody may now want.
+
+| Item | Status | Test(s) |
+|---|---|---|
+| A missing department can be added and assigned in one action | ✅ | e2e › "a department missing from the list can be added from the dropdown" |
+| It really becomes a department on the board | ✅ | e2e (same) — the card, its kind and its parent |
+| Two facts, two undo steps | ✅ | e2e (same) |
+| The department pane offers the same control | ✅ | e2e › "the department pane can add a department too, from the same control" |
+
+**The coverage guard scans instead of listing.** `fieldCoverage.test.ts` kept a hand-written list of
+editor files, which went stale the moment `owner` moved into `ProviderSelect` — the guard caught its
+own change. It now reads every `.tsx` under `src/`, so a new editor file cannot fall outside it.

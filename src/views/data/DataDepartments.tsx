@@ -28,7 +28,8 @@ import {
 } from '../../model/selectors.js';
 import type { DataQuery, OwnerWorkload } from '../../model/selectors.js';
 import { DataFields } from '../../panel/DataFields.js';
-import { selectActiveFleet, useFleetStore } from '../../store/fleetStore.js';
+import { ProviderSelect } from '../../panel/ProviderSelect.js';
+import { useFleetStore } from '../../store/fleetStore.js';
 import { useUiStore } from '../../store/uiStore.js';
 import { dataDotColor, STATUS_COLOR } from '../../ui/palette.js';
 
@@ -56,36 +57,34 @@ function StatusTag({ status }: { status: Status }): React.JSX.Element {
  * offerable, or it can never be asked for anything.
  */
 function Assignment({
+  fleet,
   source,
-  options,
   showContact,
+  onProblem,
 }: {
+  fleet: Fleet;
   source: DataSource;
-  options: string[];
   /** False on a department page, whose header already names the person once. */
   showContact: boolean;
+  onProblem: (reason: string | null) => void;
 }): React.JSX.Element {
-  const fleet = useFleetStore(selectActiveFleet);
   const updateDataSource = useFleetStore((s) => s.updateDataSource);
   const updateAgent = useFleetStore((s) => s.updateAgent);
-  const department = fleet === undefined ? null : departmentNamed(fleet, source.owner);
+  const department = departmentNamed(fleet, source.owner);
   return (
     <div className="prep-assign">
       <label>
         <span>Provided by</span>
-        <select
+        {/* Same control as the editor: a department missing from the board can be
+            added from here rather than by leaving for the 2D view. */}
+        <ProviderSelect
+          fleet={fleet}
           value={source.owner ?? ''}
-          data-testid="prep-owner"
-          aria-label={`Which department provides ${source.name}`}
-          onChange={(event) => updateDataSource(source.id, { owner: event.target.value })}
-        >
-          <option value="">Unassigned</option>
-          {options.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
+          label={source.name}
+          onPick={(owner) => updateDataSource(source.id, { owner })}
+          onProblem={onProblem}
+          testId="prep-owner"
+        />
       </label>
 
       {/* A department is not someone you can chase, so the name comes next - and it
@@ -112,17 +111,17 @@ function Assignment({
 }
 
 function Obligation({
+  fleet,
   source,
   waitingAgents,
-  options,
   showContact,
   open,
   onToggle,
   onJump,
 }: {
+  fleet: Fleet;
   source: DataSource;
   waitingAgents: { id: string; name: string }[];
-  options: string[];
   showContact: boolean;
   open: boolean;
   onToggle: () => void;
@@ -152,7 +151,14 @@ function Obligation({
 
       {/* The editor carries Provided by and Ansprechpartner itself, so the compact
           pair steps aside rather than competing with it. */}
-      {!open && <Assignment source={source} options={options} showContact={showContact} />}
+      {!open && (
+        <Assignment
+          fleet={fleet}
+          source={source}
+          showContact={showContact}
+          onProblem={setError}
+        />
+      )}
 
       {open ? (
         <div className="prep-editor">
@@ -303,9 +309,9 @@ export function DataDepartments({
                     {rows.map(({ source, waitingAgents }) => (
                       <Obligation
                         key={source.id}
+                        fleet={fleet}
                         source={source}
                         waitingAgents={waitingAgents}
-                        options={options}
                         showContact={false}
                         open={openId === source.id}
                         onToggle={() => toggle(source.id)}
@@ -345,8 +351,8 @@ export function DataDepartments({
         )
       ) : (
         <EveryDepartment
+          fleet={fleet}
           groups={dataObligations(fleet)}
-          options={options}
           keep={keep}
           openId={openId}
           onToggle={toggle}
@@ -358,15 +364,15 @@ export function DataDepartments({
 }
 
 function EveryDepartment({
+  fleet,
   groups,
-  options,
   keep,
   openId,
   onToggle,
   onJump,
 }: {
+  fleet: Fleet;
   groups: OwnerWorkload[];
-  options: string[];
   keep: (source: DataSource) => boolean;
   openId: string | null;
   onToggle: (id: string) => void;
@@ -418,9 +424,9 @@ function EveryDepartment({
                 {rows.map(({ source, waitingAgents }) => (
                   <Obligation
                     key={source.id}
+                    fleet={fleet}
                     source={source}
                     waitingAgents={waitingAgents}
-                    options={options}
                     showContact
                     open={openId === source.id}
                     onToggle={() => onToggle(source.id)}

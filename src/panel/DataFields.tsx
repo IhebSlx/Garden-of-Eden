@@ -8,10 +8,11 @@
  */
 import { DATA_SOURCE_STATUS_LABELS } from '../model/schemas.js';
 import type { Status } from '../model/schemas.js';
-import { dataDescendants, departmentNamed, flattenData, providerOptions } from '../model/selectors.js';
+import { dataDescendants, departmentNamed, flattenData } from '../model/selectors.js';
 import { selectActiveFleet, useFleetStore } from '../store/fleetStore.js';
 import { allSourceKinds, STATUS_COLOR } from '../ui/palette.js';
 import { NotesField } from './NotesField.js';
+import { ProviderSelect } from './ProviderSelect.js';
 
 const STATUSES: Status[] = ['live', 'building', 'planned'];
 
@@ -88,19 +89,16 @@ export function DataFields({
       <div className="lib-field-row">
         <label className="dialog-field">
           <span>Provided by</span>
-          <select
+          <ProviderSelect
+            fleet={fleet}
             value={source.owner ?? ''}
-            aria-label={`Which department provides ${source.name}`}
-            data-testid="data-provider"
-            onChange={(event) => updateDataSource(id, { owner: event.target.value })}
-          >
-            <option value="">Nobody yet</option>
-            {providerOptions(fleet).map((provider) => (
-              <option key={provider} value={provider}>
-                {provider}
-              </option>
-            ))}
-          </select>
+            label={source.name}
+            onPick={(owner) => updateDataSource(id, { owner })}
+            onProblem={(reason) => {
+              if (reason !== null) onError(reason);
+            }}
+            testId="data-provider"
+          />
         </label>
 
         {/* One person per department, not one per item it provides: this edits the

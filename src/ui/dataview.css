@@ -461,3 +461,25 @@ input.kind-name:focus-visible {
   outline: none;
   border-color: rgb(124 140 255 / 0.7);
 }
+
+/* Adding a department from the dropdown that would not otherwise offer it. */
+.provider-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+}
+.provider-add input {
+  font: inherit;
+  font-size: 11.5px;
+  color: #e6ecff;
+  background: rgb(12 18 44 / 0.9);
+  border: 1px solid rgb(124 140 255 / 0.35);
+  border-radius: 7px;
+  padding: 3px 8px;
+  min-width: 150px;
+}
+.provider-add input:focus-visible {
+  outline: none;
+  border-color: rgb(124 140 255 / 0.75);
+}

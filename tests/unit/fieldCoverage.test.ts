@@ -11,7 +11,8 @@
  * had to justify is very different from a field nobody thought about.
  */
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   AgentSchema,
   DataSourceSchema,
@@ -24,21 +25,20 @@ import {
   WorkflowStepSchema,
 } from '../../src/model/schemas.js';
 
-/** Every source file that can write to the document. */
-const EDITORS = [
-  'src/panel/DataFields.tsx',
-  'src/panel/Inspector.tsx',
-  'src/panel/EdgeInspector.tsx',
-  'src/panel/LibraryManager.tsx',
-  'src/panel/CatalogManager.tsx',
-  'src/panel/ToolEditor.tsx',
-  'src/panel/NotesField.tsx',
-  'src/views/data/DataTree.tsx',
-  'src/views/data/DataDepartments.tsx',
-  'src/views/data/SourceKinds.tsx',
-  'src/views/chrome/FleetBar.tsx',
-  'src/views/board2d/AgentNode.tsx',
-].map((path) => readFileSync(path, 'utf8'));
+/**
+ * Every component that could write to the document. Scanned rather than listed:
+ * a hand-kept list goes stale the moment an editor moves to a new file, which is
+ * exactly what happened when `owner` moved into ProviderSelect.
+ */
+function componentsUnder(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) return componentsUnder(path);
+    return entry.name.endsWith('.tsx') ? [readFileSync(path, 'utf8')] : [];
+  });
+}
+
+const EDITORS = componentsUnder('src');
 
 /**
  * Fields no editor should offer, each with the reason it is not an oversight.

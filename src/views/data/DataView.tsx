@@ -8,7 +8,6 @@
  *
  * Three panes over one filter:
  *   Tree       - the data as it is: wholes, parts, and the detail of one item
- *   Coverage   - every agent against every box, so a gap cannot hide
  *   Department - what one department owes, and the text to send them
  *
  * DEVIATION: beyond SPEC §5, which describes two views. The data behind a fleet is
@@ -20,7 +19,6 @@ import type { DataQuery } from '../../model/selectors.js';
 import { selectActiveFleet, useFleetStore } from '../../store/fleetStore.js';
 import { useUiStore } from '../../store/uiStore.js';
 import type { DataMode } from '../../store/uiStore.js';
-import { DataCoverage } from './DataCoverage.js';
 import { DataDepartments } from './DataDepartments.js';
 import { DataFilters } from './DataFilters.js';
 import { FolderImport } from './FolderImport.js';
@@ -29,7 +27,6 @@ import { DataTree } from './DataTree.js';
 
 const MODES: { mode: DataMode; label: string }[] = [
   { mode: 'tree', label: 'Tree' },
-  { mode: 'coverage', label: 'Coverage' },
   { mode: 'department', label: 'By department' },
 ];
 
@@ -80,15 +77,10 @@ export function DataView(): React.JSX.Element | null {
         </div>
       </header>
 
-      {/* Coverage is a picture of the whole fleet, so filtering rows out of it
-          would make it lie about what is covered. */}
-      {mode !== 'coverage' && (
-        <DataFilters fleet={fleet} query={query} onChange={setQuery} idPrefix="dataview" />
-      )}
+      <DataFilters fleet={fleet} query={query} onChange={setQuery} idPrefix="dataview" />
 
       <div className="dataview-body">
         {mode === 'tree' && <DataTree fleet={fleet} query={query} />}
-        {mode === 'coverage' && <DataCoverage fleet={fleet} />}
         {mode === 'department' && <DataDepartments fleet={fleet} query={query} />}
       </div>
     </div>

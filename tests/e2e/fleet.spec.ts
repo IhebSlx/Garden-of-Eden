@@ -759,7 +759,9 @@ test('a department can be assigned to a data item from Data prep', async ({ page
   await expect(owner).toHaveValue('');
 
   // Every department is offered, including ones that owe nothing yet.
-  await expect(owner.locator('option')).toContainText(['Unassigned', 'Marketing']);
+  // One wording everywhere now that the control is shared: "Nobody yet".
+  await expect(owner).toContainText('Nobody yet');
+  await expect(owner).toContainText('Marketing');
 
   await owner.selectOption('Marketing');
   // The item leaves Unassigned for a group of its own, and can name a contact.
@@ -920,7 +922,7 @@ test('the state filter narrows a department page too', async ({ page }) => {
   await expect(prep.getByTestId('prep-item')).toHaveCount(1);
 });
 
-test('Data is a third view beside 2D and 3D, with three panes', async ({ page }) => {
+test('Data is a third view beside 2D and 3D, with two panes', async ({ page }) => {
   await expect(page.getByTestId('view-data')).toBeVisible();
   await page.getByTestId('view-data').click();
 
@@ -944,13 +946,7 @@ test('Data is a third view beside 2D and 3D, with three panes', async ({ page })
   await page.getByTestId('data-row').nth(2).click();
   await expect(page.getByTestId('data-detail')).toContainText('Needed by');
 
-  // Coverage, then a department page.
-  await page.getByTestId('data-mode-coverage').click();
-  await expect(page.getByTestId('data-coverage')).toBeVisible();
-  expect(await page.getByTestId('cov-agent').count()).toBeGreaterThan(2);
-  // Coverage is a picture of the whole fleet, so it carries no row filter.
-  await expect(page.getByTestId('data-filter')).toHaveCount(0);
-
+  // Then a department page.
   await page.getByTestId('data-mode-department').click();
   await expect(page.getByTestId('data-prep')).toBeVisible();
   await expect(page.getByTestId('prep-department')).toBeVisible();
@@ -980,28 +976,6 @@ test('the tree filter narrows the rows and never strands the detail pane', async
   await expect(page.getByTestId('data-row')).toHaveCount(all);
 });
 
-test('the coverage grid names the provider and jumps to a department page', async ({ page }) => {
-  // Give a top-level item a provider so the footer has a name to show.
-  await page.getByTestId('fleet-menu-toggle').click();
-  await page.getByRole('button', { name: /Libraries/ }).click();
-  const manager = page.getByTestId('library-manager');
-  await manager.getByRole('button', { name: 'Data', exact: true }).click();
-  await manager.getByRole('button', { name: 'Edit Brand guidelines' }).click();
-  await manager.getByTestId('data-provider').selectOption('Marketing');
-  await page.getByRole('button', { name: 'Done' }).click();
-
-  await page.getByTestId('view-data').click();
-  await page.getByTestId('data-mode-coverage').click();
-  const grid = page.getByTestId('data-coverage');
-  await expect(grid).toContainText('Provided by');
-  await expect(grid).toContainText('Marketing');
-
-  // The provider name is the way through to what they owe. It needs its own
-  // handle: a department is also an agent, so "Marketing" is in the grid twice.
-  await grid.getByTestId('cov-owner').filter({ hasText: 'Marketing' }).first().click();
-  await expect(page.getByTestId('data-view')).toHaveAttribute('data-mode', 'department');
-  await expect(page.getByTestId('prep-department-page')).toHaveAttribute('data-owner', 'Marketing');
-});
 
 test('the fleet menu opens the Data view rather than a dialog over the board', async ({ page }) => {
   await page.getByTestId('fleet-menu-toggle').click();
@@ -1355,4 +1329,57 @@ test('a data item carries a description, which the editor can read and change', 
   await expect(page.getByTestId('data-detail').getByTestId('data-description')).toHaveValue(
     'Richtlinien, Prozesse und Struktur, für alle Agenten.',
   );
+});
+
+test('a department missing from the list can be added from the dropdown', async ({ page }) => {
+  await page.getByTestId('view-data').click();
+  await page.getByTestId('data-row').first().click();
+  const detail = page.getByTestId('data-detail');
+
+  // Einkauf is not a department in the demo fleet, so it is not on offer.
+  const provider = detail.getByTestId('data-provider');
+  await expect(provider.locator('option')).not.toContainText(['Einkauf']);
+
+  // Adding one from here creates the department and assigns it in one step.
+  await provider.selectOption('add');
+  await detail.getByTestId('provider-add-name').fill('Einkauf');
+  await detail.getByTestId('provider-add-save').click();
+
+  await expect(provider).toHaveValue('by:Einkauf');
+  await expect(provider.locator('option')).toContainText(['Einkauf']);
+
+  // The list is the org chart, so it really is a department on the board now.
+  await page.getByTestId('view-2d').click();
+  await expect(cards(page, 'Einkauf').first()).toBeVisible();
+  await cards(page, 'Einkauf').first().click();
+  await expect(page.getByTestId('inspector')).toContainText('Department');
+  await expect(page.getByTestId('inspector')).toContainText('Reports to');
+
+  // Two facts, so two undo steps: the assignment, then the department itself.
+  // Undoing "this data is Marketing’s" must not quietly delete a department.
+  await page.keyboard.press('Control+z');
+  await expect(cards(page, 'Einkauf').first()).toBeVisible();
+  await page.keyboard.press('Control+z');
+  await expect(cards(page, 'Einkauf')).toHaveCount(0);
+});
+
+test('the department pane can add a department too, from the same control', async ({ page }) => {
+  await page.getByTestId('fleet-menu-toggle').click();
+  await page.getByTestId('open-data-prep').click();
+  const row = page.getByTestId('data-prep').getByTestId('prep-item').first();
+
+  await row.getByTestId('prep-owner').selectOption('add');
+  await row.getByTestId('provider-add-name').fill('Recht');
+  await row.getByTestId('provider-add-save').click();
+
+  await expect(row.getByTestId('prep-owner')).toHaveValue('by:Recht');
+  await expect(page.locator('[data-testid="prep-group"][data-owner="Recht"]')).toHaveCount(1);
+});
+
+test('the Data view has two panes, and Coverage is gone', async ({ page }) => {
+  await page.getByTestId('view-data').click();
+  await expect(page.getByTestId('data-mode-tree')).toBeVisible();
+  await expect(page.getByTestId('data-mode-department')).toBeVisible();
+  await expect(page.getByTestId('data-mode-coverage')).toHaveCount(0);
+  await expect(page.getByTestId('data-coverage')).toHaveCount(0);
 });

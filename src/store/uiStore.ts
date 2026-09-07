@@ -19,7 +19,7 @@ import type { Status } from '../model/schemas.js';
 export type ViewMode = '2d' | '3d' | 'data';
 
 /** Which question the Data view is answering. */
-export type DataMode = 'tree' | 'coverage' | 'department';
+export type DataMode = 'tree' | 'department';
 
 /** The three groups of library items an agent carries, expandable in both views. */
 export type DetailSection = 'skills' | 'tools' | 'data';
