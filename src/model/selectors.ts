@@ -419,6 +419,57 @@ export function departmentBriefing(fleet: Fleet, provider: string): string {
   return lines.join('\n');
 }
 
+/**
+ * One cell of the coverage matrix: whether this agent needs anything from this box
+ * of data and, if so, the worst state anything it needs is in.
+ *
+ * "Worst" is deliberate: an agent needing five items from Marketing where one is
+ * still owed cannot work, so the cell has to read as owed. Taking the best state
+ * would show green next to an agent that is blocked.
+ */
+export type CoverageCell = { needed: boolean; worst: Status | null };
+
+export type CoverageMatrix = {
+  /** Agents in fleet order, one row each. */
+  agents: Agent[];
+  /** Top-level data, one column each. */
+  boxes: DataSource[];
+  /** `cells[agentIndex][boxIndex]`. */
+  cells: CoverageCell[][];
+};
+
+/** Worst first, so a single owed item colours the whole cell. */
+const WORST_FIRST: Status[] = ['planned', 'building', 'live'];
+
+/**
+ * Every agent against every top-level box of data: the one screen that answers
+ * "can this agent actually work yet?" for the whole fleet at once.
+ *
+ * Columns are the top-level items only. A box brings its contents when it is
+ * linked (`dataForAgent`), so a column stands for everything inside it.
+ */
+export function coverageMatrix(fleet: Fleet): CoverageMatrix {
+  const boxes = dataRoots(fleet);
+  const withinBox = boxes.map((box) => {
+    const ids = new Set<string>([box.id]);
+    for (const child of dataDescendants(fleet, box.id)) ids.add(child.id);
+    return ids;
+  });
+
+  const cells = fleet.agents.map((agent) => {
+    const has = dataForAgent(fleet, agent);
+    return withinBox.map((ids) => {
+      const relevant = has.filter((source) => ids.has(source.id));
+      if (relevant.length === 0) return { needed: false, worst: null };
+      const worst =
+        WORST_FIRST.find((state) => relevant.some((source) => source.status === state)) ?? null;
+      return { needed: true, worst };
+    });
+  });
+
+  return { agents: fleet.agents, boxes, cells };
+}
+
 /** Owner names already in use, for the editor's suggestion list. */
 export function knownOwners(fleet: Fleet): string[] {
   const seen = new Map<string, string>();

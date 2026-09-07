@@ -32,28 +32,45 @@ export function TopBar(): React.JSX.Element {
       >
         3D
       </button>
-      <span className="chrome-div" />
+      {/* A peer of the two graph views, not a dialog over them: what the fleet
+          needs from the organisation is its own question. */}
       <button
         type="button"
-        className="chrome-btn"
-        onClick={() => {
-          // SPEC 5.8: drop manual positions, re-run layout, refit.
-          clearAgentPositions();
-          requestFit();
-        }}
-        data-testid="auto-arrange"
+        className={`chrome-btn ${view === 'data' ? 'on' : ''}`}
+        onClick={() => setView('data')}
+        data-testid="view-data"
       >
-        Auto-arrange
+        Data
       </button>
-      <span className="chrome-div" />
-      <button
-        type="button"
-        className={`chrome-btn ${showDetails ? 'on' : ''}`}
-        onClick={toggleDetails}
-        data-testid="details-toggle"
-      >
-        Details
-      </button>
+
+      {/* Auto-arrange and Details act on the graph, so they are hidden where
+          there is no graph rather than sitting there doing nothing. */}
+      {view !== 'data' && (
+        <>
+          <span className="chrome-div" />
+          <button
+            type="button"
+            className="chrome-btn"
+            onClick={() => {
+              // SPEC 5.8: drop manual positions, re-run layout, refit.
+              clearAgentPositions();
+              requestFit();
+            }}
+            data-testid="auto-arrange"
+          >
+            Auto-arrange
+          </button>
+          <span className="chrome-div" />
+          <button
+            type="button"
+            className={`chrome-btn ${showDetails ? 'on' : ''}`}
+            onClick={toggleDetails}
+            data-testid="details-toggle"
+          >
+            Details
+          </button>
+        </>
+      )}
     </div>
   );
 }

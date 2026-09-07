@@ -10,6 +10,7 @@
  */
 import { Suspense, lazy, useEffect } from 'react';
 import { Board } from './board2d/Board.js';
+import { DataView } from './data/DataView.js';
 import { useUiStore } from '../store/uiStore.js';
 import { MORPH_MS } from '../ui/constants.js';
 import { usePrefersReducedMotion } from '../ui/usePrefersReducedMotion.js';
@@ -39,10 +40,16 @@ export function ViewSwitch(): React.JSX.Element {
   const show3d = view === '3d' || (morphing && morph.from === '3d');
   // The board only fades in once the flattening morph has landed.
   const board2dVisible = view === '2d' && !morphing;
+  const showData = view === 'data';
 
   return (
     <div className="viewswitch" data-testid="view-switch" data-view={view}>
-      <div className={`viewlayer ${board2dVisible ? 'on' : ''}`} aria-hidden={!board2dVisible}>
+      <div
+        className={`viewlayer ${board2dVisible ? 'on' : ''}`}
+        aria-hidden={!board2dVisible}
+        data-testid="viewlayer-2d"
+        data-live={board2dVisible}
+      >
         <Board />
       </div>
       <div className={`viewlayer ${show3d ? 'on' : ''}`} aria-hidden={!show3d}>
@@ -51,6 +58,14 @@ export function ViewSwitch(): React.JSX.Element {
             <Scene />
           </Suspense>
         )}
+      </div>
+      <div
+        className={`viewlayer ${showData ? 'on' : ''}`}
+        aria-hidden={!showData}
+        data-testid="viewlayer-data"
+        data-live={showData}
+      >
+        {showData && <DataView />}
       </div>
     </div>
   );

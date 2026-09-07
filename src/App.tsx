@@ -16,13 +16,13 @@ import { Inspector } from './panel/Inspector.js';
 import { EdgeInspector } from './panel/EdgeInspector.js';
 import { LibraryManager } from './panel/LibraryManager.js';
 import { CatalogManager } from './panel/CatalogManager.js';
-import { DataPrep } from './panel/DataPrep.js';
 import { LinkKindDialog } from './views/dialogs/LinkKindDialog.js';
 import { hydrateFleetStore, selectActiveFleet, useFleetStore } from './store/fleetStore.js';
 import { solarluxFleet } from './model/seed.js';
 import { solarluxVisionFleet } from './model/visionFleet.js';
 import { attachPersistence, createIndexedDbRepository } from './store/persistence.js';
 import { useCatalogStore } from './store/catalogStore.js';
+import { useUiStore } from './store/uiStore.js';
 
 type Bootstrap = {
   ready: boolean;
@@ -123,6 +123,7 @@ function EmptyState(): React.JSX.Element {
 export function App(): React.JSX.Element {
   const { ready, storageError, changedElsewhere, dismissStorageError } = useBootstrap();
   const fleet = useFleetStore(selectActiveFleet);
+  const view = useUiStore((s) => s.view);
 
   if (!ready) {
     return <main className="grid h-full place-items-center text-sm text-white/50">Loading fleet…</main>;
@@ -133,16 +134,15 @@ export function App(): React.JSX.Element {
       {fleet ? <ViewSwitch /> : <EmptyState />}
       <TopBar />
       <FleetBar />
-      <FilterBar />
-      <SearchBox />
-      <Breadcrumb />
+      {view !== 'data' && <FilterBar />}
+      {view !== 'data' && <SearchBox />}
+      {view !== 'data' && <Breadcrumb />}
       <Inspector />
       <EdgeInspector />
       <LinkKindDialog />
       <LibraryManager />
       <CatalogManager />
-      <DataPrep />
-      <Hint />
+      {view !== 'data' && <Hint />}
       <ShortcutsHelp />
       <Shortcuts />
 

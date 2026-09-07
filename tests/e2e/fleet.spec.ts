@@ -913,8 +913,116 @@ test('the state filter narrows a department page too', async ({ page }) => {
   await expect(prep.getByTestId('prep-item')).toHaveCount(1);
   // Brand guidelines is Being prepared in the demo fleet, so asking for Existing
   // empties the page rather than showing the wrong row.
-  await prep.getByTestId('prep-status-live').click();
+  // The filter belongs to the view, and narrows whichever pane is open.
+  await page.getByTestId('data-status-live').click();
   await expect(prep.getByTestId('prep-item')).toHaveCount(0);
-  await prep.getByTestId('prep-status-building').click();
+  await page.getByTestId('data-status-building').click();
   await expect(prep.getByTestId('prep-item')).toHaveCount(1);
+});
+
+test('Data is a third view beside 2D and 3D, with three panes', async ({ page }) => {
+  await expect(page.getByTestId('view-data')).toBeVisible();
+  await page.getByTestId('view-data').click();
+
+  await expect(page.getByTestId('view-switch')).toHaveAttribute('data-view', 'data');
+  await expect(page.getByTestId('data-view')).toBeVisible();
+  // The board layer goes dark - it stays mounted so its pan and zoom survive the
+  // trip - and the chrome that only makes sense over a board goes with it.
+  await expect(page.getByTestId('viewlayer-data')).toHaveAttribute('data-live', 'true');
+  await expect(page.getByTestId('viewlayer-2d')).toHaveAttribute('data-live', 'false');
+  await expect(page.getByTestId('filter-bar')).toHaveCount(0);
+  await expect(page.getByTestId('auto-arrange')).toHaveCount(0);
+
+  // Tree by default: the data as wholes and parts, with a detail pane.
+  await expect(page.getByTestId('data-view')).toHaveAttribute('data-mode', 'tree');
+  await expect(page.getByTestId('data-tree')).toBeVisible();
+  await expect(page.getByTestId('data-detail')).toBeVisible();
+  const rows = await page.getByTestId('data-row').count();
+  expect(rows).toBeGreaterThan(2);
+
+  // Picking a row moves the detail pane to it.
+  await page.getByTestId('data-row').nth(2).click();
+  await expect(page.getByTestId('data-detail')).toContainText('Needed by');
+
+  // Coverage, then a department page.
+  await page.getByTestId('data-mode-coverage').click();
+  await expect(page.getByTestId('data-coverage')).toBeVisible();
+  expect(await page.getByTestId('cov-agent').count()).toBeGreaterThan(2);
+  // Coverage is a picture of the whole fleet, so it carries no row filter.
+  await expect(page.getByTestId('data-filter')).toHaveCount(0);
+
+  await page.getByTestId('data-mode-department').click();
+  await expect(page.getByTestId('data-prep')).toBeVisible();
+  await expect(page.getByTestId('prep-department')).toBeVisible();
+
+  // And back to the board, which still has its own chrome.
+  await page.getByTestId('view-2d').click();
+  await expect(page.getByTestId('filter-bar')).toBeVisible();
+  await expect(page.getByTestId('agent-card').first()).toBeVisible();
+});
+
+test('the tree filter narrows the rows and never strands the detail pane', async ({ page }) => {
+  await page.getByTestId('view-data').click();
+  const all = await page.getByTestId('data-row').count();
+
+  // Select something that is still owed, then ask for what already exists: the
+  // detail pane must move rather than keep showing a row that is no longer listed.
+  await page.getByTestId('data-status-planned').click();
+  await page.getByTestId('data-row').first().click();
+  const owed = await page.getByTestId('data-detail').locator('h3').textContent();
+
+  await page.getByTestId('data-status-live').click();
+  const ready = await page.getByTestId('data-row').count();
+  expect(ready).toBeLessThan(all);
+  await expect(page.getByTestId('data-detail').locator('h3')).not.toHaveText(owed ?? '');
+
+  await page.getByTestId('data-status-all').click();
+  await expect(page.getByTestId('data-row')).toHaveCount(all);
+});
+
+test('the coverage grid names the provider and jumps to a department page', async ({ page }) => {
+  // Give a top-level item a provider so the footer has a name to show.
+  await page.getByTestId('fleet-menu-toggle').click();
+  await page.getByRole('button', { name: /Libraries/ }).click();
+  const manager = page.getByTestId('library-manager');
+  await manager.getByRole('button', { name: 'Data', exact: true }).click();
+  await manager.getByRole('button', { name: 'Edit Brand guidelines' }).click();
+  await manager.getByTestId('data-provider').selectOption('Marketing');
+  await page.getByRole('button', { name: 'Done' }).click();
+
+  await page.getByTestId('view-data').click();
+  await page.getByTestId('data-mode-coverage').click();
+  const grid = page.getByTestId('data-coverage');
+  await expect(grid).toContainText('Provided by');
+  await expect(grid).toContainText('Marketing');
+
+  // The provider name is the way through to what they owe. It needs its own
+  // handle: a department is also an agent, so "Marketing" is in the grid twice.
+  await grid.getByTestId('cov-owner').filter({ hasText: 'Marketing' }).first().click();
+  await expect(page.getByTestId('data-view')).toHaveAttribute('data-mode', 'department');
+  await expect(page.getByTestId('prep-department-page')).toHaveAttribute('data-owner', 'Marketing');
+});
+
+test('the fleet menu opens the Data view rather than a dialog over the board', async ({ page }) => {
+  await page.getByTestId('fleet-menu-toggle').click();
+  await page.getByTestId('open-data-prep').click();
+
+  await expect(page.getByTestId('view-switch')).toHaveAttribute('data-view', 'data');
+  await expect(page.getByTestId('data-view')).toHaveAttribute('data-mode', 'department');
+  await expect(page.getByTestId('data-prep')).toBeVisible();
+  // No scrim: it is a view, so the board is not sitting behind it.
+  await expect(page.locator('.dialog-scrim')).toHaveCount(0);
+});
+
+test('clicking an agent from the Data view leaves for the board', async ({ page }) => {
+  await page.getByTestId('view-data').click();
+  await page.getByTestId('data-row').first().click();
+
+  const users = page.getByTestId('data-detail').locator('.ubn');
+  await expect(users.first()).toBeVisible();
+  const name = await users.first().textContent();
+  await users.first().click();
+
+  await expect(page.getByTestId('view-switch')).toHaveAttribute('data-view', '2d');
+  await expect(page.getByTestId('breadcrumb-here')).toHaveText(name ?? '');
 });

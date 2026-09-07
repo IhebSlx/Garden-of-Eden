@@ -11,7 +11,15 @@
 import { create } from 'zustand';
 import type { Status } from '../model/schemas.js';
 
-export type ViewMode = '2d' | '3d';
+/**
+ * The three views. 2D and 3D render the same fleet and morph between each other
+ * (SPEC §8.2); Data is a different question entirely - what the fleet needs from
+ * the organisation - so it swaps in without a morph.
+ */
+export type ViewMode = '2d' | '3d' | 'data';
+
+/** Which question the Data view is answering. */
+export type DataMode = 'tree' | 'coverage' | 'department';
 
 /** The three groups of library items an agent carries, expandable in both views. */
 export type DetailSection = 'skills' | 'tools' | 'data';
@@ -26,6 +34,10 @@ export type DetailKey = string | null;
 
 export type UiState = {
   view: ViewMode;
+  /** Which pane the Data view is showing. */
+  dataMode: DataMode;
+  /** The department whose page is open, when `dataMode` is 'department'. */
+  dataDepartment: string | null;
   /** Non-null while the 2D-3D morph is playing (SPEC 8.2). */
   morph: Morph | null;
   focusId: string | null;
@@ -48,14 +60,13 @@ export type UiState = {
   catalogOpen: boolean;
   openCatalog: () => void;
   closeCatalog: () => void;
-  /** "Data prep": every data source grouped by whoever prepares it. */
-  dataPrepOpen: boolean;
-  openDataPrep: () => void;
-  closeDataPrep: () => void;
   /** The "?" keyboard-shortcut sheet. */
   shortcutsOpen: boolean;
   openShortcuts: () => void;
   closeShortcuts: () => void;
+  /** True just after a department briefing was copied, so the button can say so. */
+  briefingCopied: boolean;
+  setBriefingCopied: (copied: boolean) => void;
   /** Bumped by Auto-arrange and the fit control so the board refits. */
   fitRequest: number;
   requestFit: () => void;
@@ -72,6 +83,9 @@ export type UiState = {
 
   setView: (view: ViewMode) => void;
   toggleView: () => void;
+  setDataMode: (mode: DataMode) => void;
+  /** Open the Data view on one department's page in a single step. */
+  openDepartmentData: (department: string | null) => void;
   /** Called by the view switch when the morph animation is done. */
   endMorph: () => void;
   focus: (agentId: string | null) => void;
@@ -97,6 +111,8 @@ const now = (): number => (typeof performance === 'undefined' ? Date.now() : per
 
 export const useUiStore = create<UiState>()((set, get) => ({
   view: '2d',
+  dataMode: 'tree',
+  dataDepartment: null,
   morph: null,
   focusId: null,
   selectedId: null,
@@ -109,8 +125,8 @@ export const useUiStore = create<UiState>()((set, get) => ({
   libraryOpen: false,
   shortcutsOpen: false,
   catalogOpen: false,
-  dataPrepOpen: false,
   fitRequest: 0,
+  briefingCopied: false,
   burst: null,
   openSections: {},
 
@@ -118,18 +134,24 @@ export const useUiStore = create<UiState>()((set, get) => ({
   closeLibrary: () => set({ libraryOpen: false }),
   openCatalog: () => set({ catalogOpen: true }),
   closeCatalog: () => set({ catalogOpen: false }),
-  openDataPrep: () => set({ dataPrepOpen: true }),
-  closeDataPrep: () => set({ dataPrepOpen: false }),
   openShortcuts: () => set({ shortcutsOpen: true }),
   closeShortcuts: () => set({ shortcutsOpen: false }),
   requestFit: () => set((state) => ({ fitRequest: state.fitRequest + 1 })),
+  setBriefingCopied: (briefingCopied) => set({ briefingCopied }),
 
   setView: (view) => {
     const current = get().view;
     if (view === current) return;
-    set({ view, morph: { from: current, to: view, at: now() } });
+    // Only 2D and 3D morph into each other; they are two renderings of one graph.
+    // The Data view shows something else, so it cuts rather than flattens.
+    const morphs = view !== 'data' && current !== 'data';
+    set({ view, morph: morphs ? { from: current, to: view, at: now() } : null });
   },
-  toggleView: () => get().setView(get().view === '2d' ? '3d' : '2d'),
+  toggleView: () => get().setView(get().view === '3d' ? '2d' : '3d'),
+
+  setDataMode: (dataMode) => set({ dataMode }),
+  openDepartmentData: (dataDepartment) =>
+    set({ view: 'data', dataMode: 'department', dataDepartment, morph: null }),
   endMorph: () => set({ morph: null }),
 
   focus: (agentId) => set({ focusId: agentId, focusStartedAt: now() }),

@@ -4,6 +4,7 @@ import './ui/tokens.css';
 import './ui/board.css';
 import './ui/panel.css';
 import './ui/dialog.css';
+import './ui/dataview.css';
 import { App } from './App.js';
 import { ErrorBoundary } from './ui/ErrorBoundary.js';
 

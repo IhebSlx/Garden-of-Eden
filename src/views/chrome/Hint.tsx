@@ -13,7 +13,7 @@ export function Hint(): React.JSX.Element {
     <div className="hintstack">
       <Brand />
       <div className="tagline">shared agents repeat under each parent · ×N badge = same agent</div>
-      <div className="hintline-bottom">{view === '2d' ? HINT_2D : HINT_3D}</div>
+      <div className="hintline-bottom">{view === '3d' ? HINT_3D : HINT_2D}</div>
     </div>
   );
 }

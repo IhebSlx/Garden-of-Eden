@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { checkFleetIntegrity } from '../../src/model/integrity.js';
 import {
   contactForProvider,
+  coverageMatrix,
   dataObligations,
   departmentBriefing,
   departmentWorkload,
@@ -513,5 +514,55 @@ describe('the briefing a department actually receives', () => {
 
   it('is empty for a department with no work, rather than a header with nothing under it', () => {
     expect(departmentBriefing(withMarketing(), 'HR')).toBe('');
+  });
+});
+
+describe('coverage: every agent against every box', () => {
+  it('has a row per agent and a column per top-level box', () => {
+    const fleet = nested();
+    const { agents, boxes, cells } = coverageMatrix(fleet);
+    expect(agents).toHaveLength(fleet.agents.length);
+    // Produktdaten and CRM are top level; Bilder, Freigestellt and Preise are not.
+    expect(boxes.map((b) => b.id)).toEqual(['produkt', 'crm']);
+    expect(cells).toHaveLength(agents.length);
+    expect(cells[0]).toHaveLength(boxes.length);
+  });
+
+  it('marks a box needed when the agent is linked to anything inside it', () => {
+    const fleet = nested();
+    const { agents, cells } = coverageMatrix(fleet);
+    const row = agents.findIndex((a) => a.dataSourceIds.includes('produkt'));
+    expect(row).toBeGreaterThanOrEqual(0);
+    expect(cells[row]?.[0]?.needed).toBe(true);
+    // Nothing links to CRM, so that column is empty for everyone.
+    expect(cells.every((line) => line[1]?.needed === false)).toBe(true);
+  });
+
+  it('takes the WORST state, so one owed part blocks the whole cell', () => {
+    const base = nested();
+    // Produktdaten itself is Existing, but Bilder inside it is still owed.
+    const fleet: Fleet = {
+      ...base,
+      dataSources: base.dataSources.map((d) =>
+        d.id === 'produkt' ? { ...d, status: 'live' as const } : d,
+      ),
+    };
+    const { agents, cells } = coverageMatrix(fleet);
+    const row = agents.findIndex((a) => a.dataSourceIds.includes('produkt'));
+    expect(cells[row]?.[0]?.worst).toBe('planned');
+
+    const delivered: Fleet = {
+      ...fleet,
+      dataSources: fleet.dataSources.map((d) => ({ ...d, status: 'live' as const })),
+    };
+    expect(coverageMatrix(delivered).cells[row]?.[0]?.worst).toBe('live');
+  });
+
+  it('leaves a cell blank rather than green when nothing is needed', () => {
+    const fleet = nested();
+    const { cells } = coverageMatrix(fleet);
+    const idle = cells.flat().filter((cell) => !cell.needed);
+    expect(idle.length).toBeGreaterThan(0);
+    expect(idle.every((cell) => cell.worst === null)).toBe(true);
   });
 });

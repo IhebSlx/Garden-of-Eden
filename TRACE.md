@@ -748,3 +748,44 @@ not in this change.
 | It says so plainly when nothing is owed | ✅ | › "says so plainly when nothing is outstanding" |
 | The page and the copy button, end to end | ✅ | e2e › "a department gets its own page, with the text to send them" |
 | The state filter narrows the page too | ✅ | e2e › "the state filter narrows a department page too" |
+
+**DEVIATION 22 — Data is a third view, not a dialog.** SPEC §5 describes two views. The data behind
+a fleet is the thing this app is actually used to plan, and a 640px dialog could not hold it: the
+previous change put the filters inside Libraries and the department page inside a modal, which was
+a smaller thing than the design called for. `Data` now sits beside `2D` and `3D` with three panes
+over one filter.
+
+- **Tree** — the data as it is: wholes and parts, each row carrying its state and the department
+  that owes it, beside the full editor for whichever row is selected. Selecting a row that is then
+  filtered away moves the pane rather than stranding it on something no longer listed.
+- **Coverage** — every agent against every top-level box. A cell takes the **worst** state of
+  anything the agent needs from that box: an agent needing five items where one is owed cannot
+  work, so showing the best state would paint green beside a blocked agent. The footer names the
+  providing department and its Ansprechpartner, and the department name is the way through to
+  their page.
+- **By department** — the old Data prep, now a pane. "Every department" is the planning list;
+  picking one gives that department's page and the briefing to send them.
+
+2D and 3D still morph into each other (SPEC §8.2); Data cuts, because it is not another rendering
+of the same graph. The board layer stays mounted while Data is open so its pan and zoom survive
+the trip. Chrome that only answers questions about the graph — the status filter bar, search, the
+breadcrumb, the hint line, Auto-arrange and Details — is hidden rather than left sitting there
+doing nothing.
+
+The `.ub`/`.ubn` "used by" chips were consolidated on the way: four hosts carried near-identical
+copies and a fifth was about to be written, so there is now one base definition and hosts override
+only the spacing and type size.
+
+| Item | Status | Test(s) |
+|---|---|---|
+| Data is a peer of 2D and 3D, with three panes | ✅ | e2e › "Data is a third view beside 2D and 3D, with three panes" |
+| The board layer goes dark but stays mounted | ✅ | e2e (same) — `viewlayer-2d` `data-live=false` |
+| Board-only chrome is hidden | ✅ | e2e (same) — no filter bar, no Auto-arrange |
+| The tree filter narrows rows without stranding the pane | ✅ | e2e › "the tree filter narrows the rows and never strands the detail pane" |
+| Coverage has a row per agent and a column per box | ✅ | `dataNesting.test.ts` › "has a row per agent and a column per top-level box" |
+| A box counts when anything inside it is linked | ✅ | › "marks a box needed when the agent is linked to anything inside it" |
+| A cell takes the worst state | ✅ | › "takes the WORST state, so one owed part blocks the whole cell" |
+| An unneeded cell is blank, not green | ✅ | › "leaves a cell blank rather than green when nothing is needed" |
+| Coverage names the provider and leads to their page | ✅ | e2e › "the coverage grid names the provider and jumps to a department page" |
+| The fleet menu opens the view, not a dialog | ✅ | e2e › "the fleet menu opens the Data view rather than a dialog over the board" |
+| An agent clicked from the Data view opens on the board | ✅ | e2e › "clicking an agent from the Data view leaves for the board" |

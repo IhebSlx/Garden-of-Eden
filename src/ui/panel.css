@@ -270,27 +270,45 @@
   border-radius: 6px;
   border: 1px solid;
 }
-.tool-detail .ub {
-  margin-top: 9px;
-  font-size: 9.5px;
+/*
+ * "used by" chips - the agents that depend on a library item. One base
+ * definition: four hosts carried near-identical copies and a fifth was about to be
+ * written for the Data view. A host now overrides only what genuinely differs,
+ * which is the spacing around the row and the type size.
+ */
+.ub {
+  font-size: 10px;
   color: #6f7fb4;
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 5px;
   align-items: center;
 }
-.tool-detail .ubn {
+.ubn {
   all: unset;
   cursor: pointer;
-  font-size: 9.5px;
+  font-size: 10px;
   padding: 1px 8px;
   border-radius: 99px;
   background: rgb(90 110 200 / 0.16);
   border: 1px solid rgb(124 140 255 / 0.25);
   color: #cfe3ff;
 }
-.tool-detail .ubn:hover {
+.ubn:hover {
   border-color: var(--color-orchestrator);
+}
+.ubn:focus-visible {
+  outline: 2px solid var(--color-department);
+  outline-offset: 2px;
+}
+
+.tool-detail .ub {
+  margin-top: 9px;
+  font-size: 9.5px;
+  gap: 4px;
+}
+.tool-detail .ubn {
+  font-size: 9.5px;
 }
 
 /* Workflow mini-DAG (SPEC 8.6) - rows stack, branches sit side by side. */
@@ -633,17 +651,7 @@
   color: #4d5a8c;
 }
 .lib-users .ubn {
-  all: unset;
-  cursor: pointer;
   font-size: 9.5px;
-  padding: 1px 8px;
-  border-radius: 99px;
-  background: rgb(90 110 200 / 0.16);
-  border: 1px solid rgb(124 140 255 / 0.25);
-  color: #cfe3ff;
-}
-.lib-users .ubn:hover {
-  border-color: var(--color-orchestrator);
 }
 .lib-delete {
   all: unset;

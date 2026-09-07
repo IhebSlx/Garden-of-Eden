@@ -43,7 +43,7 @@ export function FleetBar(): React.JSX.Element {
   const importFleet = useFleetStore((s) => s.importFleetObject);
   const resetForFleet = useUiStore((s) => s.resetForFleet);
   const openLibrary = useUiStore((s) => s.openLibrary);
-  const openDataPrep = useUiStore((s) => s.openDataPrep);
+  const openDepartmentData = useUiStore((s) => s.openDepartmentData);
   const openCatalog = useUiStore((s) => s.openCatalog);
 
   const pastCount = useStore(useFleetStore.temporal, (s) => s.pastStates.length);
@@ -218,7 +218,8 @@ export function FleetBar(): React.JSX.Element {
                 className="fleetmenu-row"
                 data-testid="open-data-prep"
                 onClick={() => {
-                  openDataPrep();
+                  // Data prep is a pane of the Data view now, not a dialog over the board.
+                  openDepartmentData(null);
                   setMenuOpen(false);
                 }}
               >
