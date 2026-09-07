@@ -494,19 +494,44 @@
 /* ---------- library manager (SPEC 8.7) ---------- */
 
 .library-dialog {
-  width: min(640px, 94vw);
+  width: min(720px, 94vw);
 }
 .lib-tabs {
   display: flex;
   gap: 4px;
   margin-bottom: 10px;
 }
-/* "Provided by" scopes the data list itself, where the data is. */
+/* The three axes the data list can be asked for, above the list itself. */
+.lib-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin: 0 0 9px;
+}
+.lib-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  background: rgb(16 21 42 / 0.6);
+  border: 1px solid rgb(124 140 255 / 0.25);
+  border-radius: 14px;
+  padding: 3px;
+}
+/* The status dot inside a filter chip: the same reading as the board's chips. */
+.lib-chips .fdot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 5px;
+}
+
+/* "Provided by" and "Source" scope the data list itself, where the data is. */
 .lib-filter {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 0 0 8px;
   font-size: 11px;
   color: #9fb2e0;
 }

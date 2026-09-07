@@ -20,7 +20,7 @@ import type { CatalogAgent } from '../model/catalog.js';
 import type { DataSourceType, LibraryKind, Status } from '../model/schemas.js';
 import { DATA_SOURCE_STATUS_LABELS } from '../model/schemas.js';
 import {
-  DATA_TYPE_COLOR,
+  dataDotColor,
   KIND_COLOR,
   KIND_LABEL,
   SKILL_COLOR,
@@ -400,7 +400,7 @@ export function CatalogManager(): React.JSX.Element | null {
     const colourOf = (kind: LibraryKind, id: string): string => {
       if (kind === 'skill') return SKILL_COLOR;
       if (kind === 'tool') return TOOL_TYPE_COLOR[catalog.tools.find((t) => t.id === id)?.type ?? 'python'];
-      return DATA_TYPE_COLOR[catalog.dataSources.find((d) => d.id === id)?.type ?? 'md'];
+      return dataDotColor(catalog.dataSources.find((d) => d.id === id)?.type);
     };
 
     return (
@@ -488,7 +488,7 @@ export function CatalogManager(): React.JSX.Element | null {
         ? catalog.skills.map((s) => ({ id: s.id, name: s.name, dot: SKILL_COLOR }))
         : tab === 'tool'
           ? catalog.tools.map((t) => ({ id: t.id, name: t.name, dot: TOOL_TYPE_COLOR[t.type] }))
-          : catalog.dataSources.map((d) => ({ id: d.id, name: d.name, dot: DATA_TYPE_COLOR[d.type] }));
+          : catalog.dataSources.map((d) => ({ id: d.id, name: d.name, dot: dataDotColor(d.type) }));
 
     const usedBy = (id: string): CatalogAgent[] => {
       const field = tab === 'skill' ? 'skillIds' : tab === 'tool' ? 'toolIds' : 'dataSourceIds';

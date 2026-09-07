@@ -12,7 +12,16 @@
  * that want to address the (agent, parent) pair. Where no shared agent has children the
  * two are 1:1, so the spec's key survives as an alias.
  */
-import type { Agent, DataSource, Edge, Fleet, LibraryKind } from './schemas.js';
+import type {
+  Agent,
+  DataSource,
+  DataSourceType,
+  Edge,
+  Fleet,
+  LibraryKind,
+  Status,
+} from './schemas.js';
+import { sourceLabel } from './schemas.js';
 
 /** Stand-in parent id for root instances in the SPEC 4 `agentId@parentId` key form. */
 export const ROOT_PARENT = '__root__';
@@ -326,6 +335,90 @@ export function dataObligations(fleet: Fleet): OwnerWorkload[] {
   });
 }
 
+/**
+ * The state a department's work is in, for its own page: what it owes, who is held
+ * up by it, and the person to ask.
+ */
+export type DepartmentWorkload = {
+  owner: string;
+  contact: string | null;
+  obligations: DataObligation[];
+  /** Items that are not Existing yet. */
+  outstanding: number;
+  /** Agents that cannot work until this department delivers. */
+  blocking: Agent[];
+};
+
+/** One department's page, or null when nobody has recorded work for it. */
+export function departmentWorkload(fleet: Fleet, provider: string): DepartmentWorkload | null {
+  const wanted = provider.trim().toLowerCase();
+  if (wanted === '') return null;
+
+  const group = dataObligations(fleet).find(
+    (entry) => entry.owner !== null && entry.owner.trim().toLowerCase() === wanted,
+  );
+  if (!group || group.owner === null) return null;
+
+  // Only the outstanding items hold anybody up; delivered ones block nobody.
+  const blocking = new Map<string, Agent>();
+  for (const { source, waitingAgents } of group.obligations) {
+    if (source.status === 'live') continue;
+    for (const agent of waitingAgents) blocking.set(agent.id, agent);
+  }
+
+  return {
+    owner: group.owner,
+    contact: contactForProvider(fleet, group.owner),
+    obligations: [...group.obligations].sort(
+      (a, b) => BRIEFING_ORDER.indexOf(a.source.status) - BRIEFING_ORDER.indexOf(b.source.status),
+    ),
+    outstanding: group.outstanding,
+    blocking: [...blocking.values()],
+  };
+}
+
+/** Owed first: a page nobody has to scroll to find the ask. */
+const BRIEFING_ORDER: Status[] = ['planned', 'building', 'live'];
+
+/**
+ * A department's outstanding work as plain text, to paste into an e-mail.
+ *
+ * An overview nobody sends is a dashboard. This is the same information the page
+ * shows, in the one format that reaches a person who will never open this app.
+ */
+export function departmentBriefing(fleet: Fleet, provider: string): string {
+  const work = departmentWorkload(fleet, provider);
+  if (!work) return '';
+
+  const lines: string[] = [`Data needed from ${work.owner} for the AI agents`];
+  if (work.contact !== null) lines.push(`Ansprechpartner: ${work.contact}`);
+  lines.push('');
+
+  const owed = work.obligations.filter(({ source }) => source.status !== 'live');
+  if (owed.length === 0) {
+    lines.push('Everything asked for has been provided. Nothing outstanding.');
+  } else {
+    lines.push(`Still to provide (${owed.length} of ${work.obligations.length}):`);
+    lines.push('');
+    owed.forEach(({ source, waitingAgents }, index) => {
+      lines.push(`${index + 1}. ${source.name} — ${sourceLabel(source.type)}`);
+      const requirement = (source.requirement ?? '').trim();
+      lines.push(`   ${requirement === '' ? 'What finished looks like: still to be written.' : requirement}`);
+      if (waitingAgents.length > 0) {
+        lines.push(`   Needed by: ${waitingAgents.map((agent) => agent.name).join(', ')}`);
+      }
+      lines.push('');
+    });
+  }
+
+  const done = work.obligations.filter(({ source }) => source.status === 'live');
+  if (done.length > 0) {
+    lines.push(`Already provided: ${done.map(({ source }) => source.name).join(', ')}.`);
+  }
+
+  return lines.join('\n');
+}
+
 /** Owner names already in use, for the editor's suggestion list. */
 export function knownOwners(fleet: Fleet): string[] {
   const seen = new Map<string, string>();
@@ -452,14 +545,57 @@ export function dataProviders(fleet: Fleet): string[] {
   return [...seen.values()].sort((a, b) => a.localeCompare(b));
 }
 
-/** Does this data item, or anything inside it, come from `provider`? */
-export function dataMatchesProvider(fleet: Fleet, source: DataSource, provider: string): boolean {
-  const wanted = provider.trim().toLowerCase();
-  if ((source.owner ?? '').trim().toLowerCase() === wanted) return true;
-  // A parent counts when a part of it is owed, so context is never filtered away.
-  return dataDescendants(fleet, source.id).some(
-    (child) => (child.owner ?? '').trim().toLowerCase() === wanted,
-  );
+/**
+ * What the data list is being asked for. Three independent axes, each of which may
+ * be left open:
+ *   provider - 'all', 'none' (nobody has been asked yet), or one department
+ *   status   - null for any, else Existing / Being prepared / To be provided
+ *   source   - null for any, 'unassigned' for undecided, else one system
+ */
+export type DataQuery = {
+  provider: { kind: 'all' } | { kind: 'none' } | { kind: 'provider'; name: string };
+  status: Status | null;
+  source: DataSourceType | 'unassigned' | null;
+};
+
+/** Every axis left open: the whole library. */
+export const ANY_DATA: DataQuery = { provider: { kind: 'all' }, status: null, source: null };
+
+/** Whether this item, on its own, answers every axis of the query. */
+export function dataItemMatches(source: DataSource, query: DataQuery): boolean {
+  const owner = (source.owner ?? '').trim();
+  const providerOk =
+    query.provider.kind === 'all'
+      ? true
+      : query.provider.kind === 'none'
+        ? owner === ''
+        : owner.toLowerCase() === query.provider.name.trim().toLowerCase();
+
+  const statusOk = query.status === null || source.status === query.status;
+
+  const sourceOk =
+    query.source === null
+      ? true
+      : query.source === 'unassigned'
+        ? source.type === undefined
+        : source.type === query.source;
+
+  return providerOk && statusOk && sourceOk;
+}
+
+/**
+ * Whether a row belongs in a filtered list: this item, or anything inside it,
+ * answers the whole query. Keeping the box means a part is never stranded from the
+ * whole it belongs to.
+ *
+ * The WHOLE query, not each axis separately. A box holding one Existing item from
+ * Marketing and one owed item from Vertrieb must not survive "Marketing + owed":
+ * per-axis matching would keep the box and then drop both its contents, leaving an
+ * empty whole on screen.
+ */
+export function dataMatchesQuery(fleet: Fleet, source: DataSource, query: DataQuery): boolean {
+  if (dataItemMatches(source, query)) return true;
+  return dataDescendants(fleet, source.id).some((child) => dataItemMatches(child, query));
 }
 
 /**

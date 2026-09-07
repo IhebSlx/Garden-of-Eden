@@ -778,3 +778,143 @@ test('a department can be assigned to a data item from Data prep', async ({ page
   await page.getByRole('button', { name: /Data prep/ }).click();
   await expect(page.getByTestId('data-prep').getByLabel(label ?? '')).toHaveValue('Frau Bauer');
 });
+
+test('a source can be left undecided, and says so', async ({ page }) => {
+  await page.getByTestId('fleet-menu-toggle').click();
+  await page.getByRole('button', { name: /Libraries/ }).click();
+  const manager = page.getByTestId('library-manager');
+  await manager.getByRole('button', { name: 'Data', exact: true }).click();
+
+  await manager.getByTestId('lib-new-name').fill('Kampagnen-Kalender');
+  await manager.getByRole('button', { name: 'Add', exact: true }).click();
+
+  // Where it will live is undecided while the need is not.
+  const source = manager.getByTestId('data-source');
+  await expect(source.locator('option').first()).toHaveText('Not assigned yet');
+  await source.selectOption('');
+  await expect(source).toHaveValue('');
+
+  // The row still renders a dot rather than nothing at all.
+  await expect(manager.locator('.lib-entry.editing .tdot').first()).toBeVisible();
+
+  // It survives a reload, so "undecided" is a stored answer.
+  await page.waitForTimeout(600);
+  await page.reload();
+  await page.getByTestId('fleet-menu-toggle').click();
+  await page.getByRole('button', { name: /Libraries/ }).click();
+  await page.getByTestId('library-manager').getByRole('button', { name: 'Data', exact: true }).click();
+  await page
+    .getByTestId('library-manager')
+    .getByRole('button', { name: 'Edit Kampagnen-Kalender' })
+    .click();
+  await expect(page.getByTestId('library-manager').getByTestId('data-source')).toHaveValue('');
+});
+
+test('the data library filters by state and by source, composing with the department', async ({
+  page,
+}) => {
+  await page.getByTestId('fleet-menu-toggle').click();
+  await page.getByRole('button', { name: /Libraries/ }).click();
+  const manager = page.getByTestId('library-manager');
+  await manager.getByRole('button', { name: 'Data', exact: true }).click();
+
+  const all = await manager.locator('.lib-entry').count();
+  expect(all).toBeGreaterThan(2);
+
+  // The chips carry counts, so the answer is visible before the click.
+  await expect(manager.getByTestId('data-status-all')).toContainText(String(all));
+
+  // Filtering by state keeps only that state.
+  await manager.getByTestId('data-status-live').click();
+  const ready = await manager.locator('.lib-entry').count();
+  expect(ready).toBeGreaterThan(0);
+  expect(ready).toBeLessThan(all);
+
+  // Source composes with it rather than replacing it.
+  await manager.getByTestId('data-source-filter').selectOption('dataverse');
+  const both = await manager.locator('.lib-entry').count();
+  expect(both).toBeLessThanOrEqual(ready);
+
+  // The department axis narrows it further still.
+  await manager.getByTestId('data-provider-filter').selectOption('none');
+  await expect
+    .poll(async () => manager.locator('.lib-entry').count())
+    .toBeLessThanOrEqual(both);
+
+  // Back to everything.
+  await manager.getByTestId('data-status-all').click();
+  await manager.getByTestId('data-source-filter').selectOption('');
+  await page.getByRole('button', { name: 'Show data from every department again' }).click();
+  await expect(manager.locator('.lib-entry')).toHaveCount(all);
+});
+
+test('a department gets its own page, with the text to send them', async ({ page }) => {
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+
+  // Give Marketing something to owe, and a person to ask.
+  await page.getByTestId('fleet-menu-toggle').click();
+  await page.getByRole('button', { name: /Libraries/ }).click();
+  const manager = page.getByTestId('library-manager');
+  await manager.getByRole('button', { name: 'Data', exact: true }).click();
+  await manager.getByRole('button', { name: 'Edit Brand guidelines' }).click();
+  await manager.getByTestId('data-provider').selectOption('Marketing');
+  await manager.getByTestId('data-contact').fill('A. Vogt');
+  await manager.getByTestId('data-contact').blur();
+  await manager.getByLabel('Requirement for Brand guidelines').fill('Aktuelle Fassung als PDF.');
+  await manager.getByLabel('Requirement for Brand guidelines').blur();
+  await page.getByRole('button', { name: 'Done' }).click();
+
+  await page.getByTestId('fleet-menu-toggle').click();
+  await page.getByTestId('open-data-prep').click();
+  const prep = page.getByTestId('data-prep');
+
+  // The whole fleet by default; one department on request.
+  await expect(prep.getByTestId('prep-department-page')).toHaveCount(0);
+  await prep.getByTestId('prep-department').selectOption('Marketing');
+
+  const dept = prep.getByTestId('prep-department-page');
+  await expect(dept).toHaveAttribute('data-owner', 'Marketing');
+  await expect(dept).toContainText('Ansprechpartner · A. Vogt');
+  await expect(dept).toContainText('Brand guidelines');
+  await expect(dept).toContainText('Aktuelle Fassung als PDF.');
+  await expect(prep.getByTestId('prep-department-readiness')).toBeVisible();
+
+  // Items are grouped by state, owed first.
+  await expect(prep.getByTestId('prep-state-group').first()).toHaveAttribute('data-state', 'building');
+
+  // Nothing from another department leaks in.
+  await expect(dept).not.toContainText('Personalhandbuch');
+
+  // The page can be sent to the person who will never open this app.
+  const copy = prep.getByTestId('prep-copy');
+  await expect(copy).toHaveText('Copy as e-mail');
+  await copy.click();
+  await expect(copy).toHaveText('Copied');
+
+  const text = await page.evaluate(() => navigator.clipboard.readText());
+  expect(text).toContain('Data needed from Marketing');
+  expect(text).toContain('Aktuelle Fassung als PDF.');
+});
+
+test('the state filter narrows a department page too', async ({ page }) => {
+  await page.getByTestId('fleet-menu-toggle').click();
+  await page.getByRole('button', { name: /Libraries/ }).click();
+  const manager = page.getByTestId('library-manager');
+  await manager.getByRole('button', { name: 'Data', exact: true }).click();
+  await manager.getByRole('button', { name: 'Edit Brand guidelines' }).click();
+  await manager.getByTestId('data-provider').selectOption('Marketing');
+  await page.getByRole('button', { name: 'Done' }).click();
+
+  await page.getByTestId('fleet-menu-toggle').click();
+  await page.getByTestId('open-data-prep').click();
+  const prep = page.getByTestId('data-prep');
+  await prep.getByTestId('prep-department').selectOption('Marketing');
+
+  await expect(prep.getByTestId('prep-item')).toHaveCount(1);
+  // Brand guidelines is Being prepared in the demo fleet, so asking for Existing
+  // empties the page rather than showing the wrong row.
+  await prep.getByTestId('prep-status-live').click();
+  await expect(prep.getByTestId('prep-item')).toHaveCount(0);
+  await prep.getByTestId('prep-status-building').click();
+  await expect(prep.getByTestId('prep-item')).toHaveCount(1);
+});

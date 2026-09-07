@@ -8,15 +8,20 @@ import { checkFleetIntegrity } from '../../src/model/integrity.js';
 import {
   contactForProvider,
   dataObligations,
+  departmentBriefing,
+  departmentWorkload,
   dataChildren,
   dataDescendants,
   dataForAgent,
-  dataMatchesProvider,
+  ANY_DATA,
+  dataItemMatches,
+  dataMatchesQuery,
   dataProviders,
   providerOptions,
   dataRoots,
 } from '../../src/model/selectors.js';
-import { DataSourceSchema } from '../../src/model/schemas.js';
+import { DataSourceSchema, sourceLabel } from '../../src/model/schemas.js';
+import { DATA_TYPE_COLOR, DATA_TYPE_UNSET_COLOR, dataDotColor } from '../../src/ui/palette.js';
 import type { DataSource, Fleet } from '../../src/model/schemas.js';
 import { makeFleet } from '../fixtures/fleets.js';
 
@@ -175,10 +180,11 @@ describe('who provides what', () => {
     const fleet = nested();
     const produkt = fleet.dataSources[0];
     if (!produkt) throw new Error('missing');
+    const by = (name: string) => ({ ...ANY_DATA, provider: { kind: 'provider' as const, name } });
     // Produktdaten is Produktmanagement's, but Bilder inside it is Marketing's.
-    expect(dataMatchesProvider(fleet, produkt, 'Marketing')).toBe(true);
-    expect(dataMatchesProvider(fleet, produkt, 'Produktmanagement')).toBe(true);
-    expect(dataMatchesProvider(fleet, produkt, 'HR')).toBe(false);
+    expect(dataMatchesQuery(fleet, produkt, by('Marketing'))).toBe(true);
+    expect(dataMatchesQuery(fleet, produkt, by('Produktmanagement'))).toBe(true);
+    expect(dataMatchesQuery(fleet, produkt, by('HR'))).toBe(false);
   });
 
   it('keeps a box in view when a part of it is owed, so context is not filtered away', () => {
@@ -186,14 +192,16 @@ describe('who provides what', () => {
     const produkt = fleet.dataSources[0];
     const crm = fleet.dataSources[4];
     if (!produkt || !crm) throw new Error('missing');
+    const marketing = { ...ANY_DATA, provider: { kind: 'provider' as const, name: 'Marketing' } };
     // This is what the Data library's "Provided by" filter shows for Marketing.
-    expect(dataMatchesProvider(fleet, produkt, 'Marketing')).toBe(true);
-    expect(dataMatchesProvider(fleet, crm, 'Marketing')).toBe(false);
+    expect(dataMatchesQuery(fleet, produkt, marketing)).toBe(true);
+    expect(dataMatchesQuery(fleet, crm, marketing)).toBe(false);
   });
 
   it('finds nothing at all for a department that owes nothing', () => {
     const fleet = nested();
-    expect(fleet.dataSources.filter((d) => dataMatchesProvider(fleet, d, 'HR'))).toEqual([]);
+    const hr = { ...ANY_DATA, provider: { kind: 'provider' as const, name: 'HR' } };
+    expect(fleet.dataSources.filter((d) => dataMatchesQuery(fleet, d, hr))).toEqual([]);
   });
 });
 
@@ -262,5 +270,248 @@ describe('who a data item can be assigned to', () => {
     };
     const hits = providerOptions(withOverlap).filter((o) => o.toLowerCase() === department.name.toLowerCase());
     expect(hits).toHaveLength(1);
+  });
+});
+
+describe('a source may be undecided', () => {
+  it('accepts data with no source at all', () => {
+    const parsed = DataSourceSchema.safeParse({
+      id: 'kalender',
+      name: 'Kampagnen-Kalender',
+      status: 'planned',
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.type).toBeUndefined();
+  });
+
+  it('names it as an open question, not as a blank', () => {
+    expect(sourceLabel(undefined)).toBe('not assigned');
+    expect(sourceLabel('sharepoint')).toBe('SharePoint');
+  });
+
+  it('still paints a dot, so a row never renders colourless', () => {
+    expect(dataDotColor(undefined)).toBe(DATA_TYPE_UNSET_COLOR);
+    expect(dataDotColor('sharepoint')).toBe(DATA_TYPE_COLOR.sharepoint);
+  });
+
+  it('passes integrity with an undecided source', () => {
+    const base = nested();
+    const fleet: Fleet = {
+      ...base,
+      dataSources: base.dataSources.map((d, index) =>
+        index === 0 ? { ...d, type: undefined } : d,
+      ),
+    };
+    expect(checkFleetIntegrity(fleet)).toEqual([]);
+  });
+});
+
+describe('filtering the data by state, source and department at once', () => {
+  const by = (name: string) => ({ kind: 'provider' as const, name });
+
+  it('leaves the whole library when every axis is open', () => {
+    const fleet = nested();
+    expect(fleet.dataSources.every((d) => dataMatchesQuery(fleet, d, ANY_DATA))).toBe(true);
+  });
+
+  it('filters by state on its own', () => {
+    const fleet = nested();
+    const existing = { ...ANY_DATA, status: 'live' as const };
+    expect(fleet.dataSources.filter((d) => dataItemMatches(d, existing)).map((d) => d.id)).toEqual([
+      'crm',
+    ]);
+  });
+
+  it('filters by source, and finds the undecided ones', () => {
+    const base = nested();
+    const fleet: Fleet = {
+      ...base,
+      dataSources: base.dataSources.map((d) => (d.id === 'preise' ? { ...d, type: undefined } : d)),
+    };
+    const undecided = { ...ANY_DATA, source: 'unassigned' as const };
+    expect(fleet.dataSources.filter((d) => dataItemMatches(d, undecided)).map((d) => d.id)).toEqual([
+      'preise',
+    ]);
+    const dataverse = { ...ANY_DATA, source: 'dataverse' as const };
+    expect(fleet.dataSources.filter((d) => dataItemMatches(d, dataverse)).map((d) => d.id)).toEqual([
+      'crm',
+    ]);
+  });
+
+  it('finds what nobody has been asked for', () => {
+    const fleet = nested();
+    const nobody = { ...ANY_DATA, provider: { kind: 'none' as const } };
+    expect(fleet.dataSources.filter((d) => dataItemMatches(d, nobody)).map((d) => d.id)).toEqual([
+      'crm',
+    ]);
+  });
+
+  it('intersects the axes rather than adding them up', () => {
+    const fleet = nested();
+    // Marketing owes Bilder and Freigestellt, both still To be provided.
+    const owed = { ...ANY_DATA, provider: by('Marketing'), status: 'planned' as const };
+    expect(fleet.dataSources.filter((d) => dataItemMatches(d, owed)).map((d) => d.id)).toEqual([
+      'bilder',
+      'freigestellt',
+    ]);
+    // Nothing of Marketing's is Existing, so the same provider with a different
+    // state finds nobody.
+    const done = { ...ANY_DATA, provider: by('Marketing'), status: 'live' as const };
+    expect(fleet.dataSources.filter((d) => dataItemMatches(d, done))).toEqual([]);
+  });
+
+  it('never keeps a box whose parts each answer only half the query', () => {
+    const base = nested();
+    // Produktdaten holds Bilder (Marketing, owed) and Preise (Vertrieb, existing).
+    const fleet: Fleet = {
+      ...base,
+      dataSources: base.dataSources.map((d) => (d.id === 'preise' ? { ...d, status: 'live' } : d)),
+    };
+    const produkt = fleet.dataSources[0];
+    if (!produkt) throw new Error('missing');
+
+    // Marketing + Existing is answered by neither part, so the box goes too.
+    const query = { ...ANY_DATA, provider: by('Marketing'), status: 'live' as const };
+    expect(dataMatchesQuery(fleet, produkt, query)).toBe(false);
+
+    // Vertrieb + Existing is answered by Preise, so the box stays to hold it.
+    const held = { ...ANY_DATA, provider: by('Vertrieb'), status: 'live' as const };
+    expect(dataMatchesQuery(fleet, produkt, held)).toBe(true);
+  });
+
+  it('ignores casing and stray spaces in a department name', () => {
+    const fleet = nested();
+    const messy = { ...ANY_DATA, provider: by('  marKETing ') };
+    expect(dataItemMatches({ ...fleet.dataSources[1]! }, messy)).toBe(true);
+  });
+});
+
+describe("one department's own page", () => {
+  /** Marketing owes Bilder and Freigestellt; one agent is linked to the whole box. */
+  const withMarketing = (): Fleet => {
+    const base = nested();
+    const marketing = base.agents.find((a) => a.kind === 'department');
+    if (!marketing) throw new Error('no department in the fixture');
+    return {
+      ...base,
+      agents: base.agents.map((a) =>
+        a.id === marketing.id ? { ...a, name: 'Marketing', contact: 'A. Vogt' } : a,
+      ),
+      dataSources: base.dataSources.map((d) =>
+        d.id === 'bilder'
+          ? { ...d, owner: 'Marketing', requirement: 'Jedes Produktbild, 2000 px.' }
+          : d.id === 'freigestellt'
+            ? { ...d, owner: 'Marketing' }
+            : d,
+      ),
+    };
+  };
+
+  it('names the department, the person to ask and what they owe', () => {
+    const work = departmentWorkload(withMarketing(), 'Marketing');
+    expect(work).not.toBeNull();
+    expect(work?.owner).toBe('Marketing');
+    expect(work?.contact).toBe('A. Vogt');
+    expect(work?.obligations.map(({ source }) => source.id)).toEqual(['bilder', 'freigestellt']);
+    expect(work?.outstanding).toBe(2);
+  });
+
+  it('puts what is owed before what is done, so the ask is never buried', () => {
+    const base = withMarketing();
+    const fleet: Fleet = {
+      ...base,
+      dataSources: base.dataSources.map((d) =>
+        d.id === 'bilder' ? { ...d, status: 'live' as const } : d,
+      ),
+    };
+    const work = departmentWorkload(fleet, 'Marketing');
+    // freigestellt is still owed, so it comes first even though bilder is its parent.
+    expect(work?.obligations.map(({ source }) => source.id)).toEqual(['freigestellt', 'bilder']);
+  });
+
+  it('counts only the agents an outstanding item actually holds up', () => {
+    const work = departmentWorkload(withMarketing(), 'Marketing');
+    // The one agent linked to Produktdaten gets Bilder with it, and Bilder is owed.
+    expect(work?.blocking).toHaveLength(1);
+
+    const base = withMarketing();
+    const delivered: Fleet = {
+      ...base,
+      dataSources: base.dataSources.map((d) =>
+        d.owner === 'Marketing' ? { ...d, status: 'live' as const } : d,
+      ),
+    };
+    expect(departmentWorkload(delivered, 'Marketing')?.blocking).toEqual([]);
+  });
+
+  it('finds a department however the owner was capitalised', () => {
+    expect(departmentWorkload(withMarketing(), '  marKETing ')?.owner).toBe('Marketing');
+  });
+
+  it('has no page for a department nobody has asked for anything', () => {
+    expect(departmentWorkload(withMarketing(), 'HR')).toBeNull();
+    expect(departmentWorkload(withMarketing(), '')).toBeNull();
+  });
+});
+
+describe('the briefing a department actually receives', () => {
+  const withMarketing = (): Fleet => {
+    const base = nested();
+    const marketing = base.agents.find((a) => a.kind === 'department');
+    if (!marketing) throw new Error('no department in the fixture');
+    return {
+      ...base,
+      agents: base.agents.map((a) =>
+        a.id === marketing.id ? { ...a, name: 'Marketing', contact: 'A. Vogt' } : a,
+      ),
+      dataSources: base.dataSources.map((d) =>
+        d.id === 'bilder'
+          ? { ...d, owner: 'Marketing', requirement: 'Jedes Produktbild, 2000 px.' }
+          : d.id === 'freigestellt'
+            ? { ...d, owner: 'Marketing', type: undefined }
+            : d,
+      ),
+    };
+  };
+
+  it('leads with the department and the person to ask', () => {
+    const text = departmentBriefing(withMarketing(), 'Marketing');
+    expect(text).toContain('Data needed from Marketing');
+    expect(text).toContain('Ansprechpartner: A. Vogt');
+  });
+
+  it('carries the requirement, or says it is still missing', () => {
+    const text = departmentBriefing(withMarketing(), 'Marketing');
+    expect(text).toContain('Jedes Produktbild, 2000 px.');
+    expect(text).toContain('What finished looks like: still to be written.');
+  });
+
+  it('names the source, undecided included', () => {
+    const text = departmentBriefing(withMarketing(), 'Marketing');
+    expect(text).toContain('Bilder — A department');
+    expect(text).toContain('Freigestellt — not assigned');
+  });
+
+  it('never mentions another department\'s work', () => {
+    const text = departmentBriefing(withMarketing(), 'Marketing');
+    expect(text).not.toContain('Preise');
+    expect(text).not.toContain('CRM');
+  });
+
+  it('says so plainly when nothing is outstanding', () => {
+    const base = withMarketing();
+    const done: Fleet = {
+      ...base,
+      dataSources: base.dataSources.map((d) =>
+        d.owner === 'Marketing' ? { ...d, status: 'live' as const } : d,
+      ),
+    };
+    const text = departmentBriefing(done, 'Marketing');
+    expect(text).toContain('Everything asked for has been provided');
+    expect(text).toContain('Already provided: Bilder, Freigestellt.');
+  });
+
+  it('is empty for a department with no work, rather than a header with nothing under it', () => {
+    expect(departmentBriefing(withMarketing(), 'HR')).toBe('');
   });
 });

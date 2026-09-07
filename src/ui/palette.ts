@@ -34,6 +34,13 @@ export const TOOL_TYPE_LABEL: Record<ToolType, string> = {
   microsoft: 'microsoft tool',
 };
 
+/**
+ * A source nobody has assigned yet. The planned slate rather than a new token:
+ * "not decided" belongs to the same visual family as Planned, and SPEC §6's colour
+ * table is normative, so inventing a tenth colour would be a deviation.
+ */
+export const DATA_TYPE_UNSET_COLOR = '#6b7a9e';
+
 export const DATA_TYPE_COLOR: Record<DataSourceType, string> = {
   md: '#c9b6ff',
   dataverse: '#3ce8b0',
@@ -43,6 +50,15 @@ export const DATA_TYPE_COLOR: Record<DataSourceType, string> = {
   // The shared accent: a department is not a system, it is people who owe you something.
   department: '#f6b954',
 };
+
+/**
+ * The dot for a data item's source, undecided included. Every renderer goes through
+ * this rather than indexing DATA_TYPE_COLOR, so an unassigned source can never fall
+ * through as `undefined` and paint nothing.
+ */
+export function dataDotColor(type: DataSourceType | undefined): string {
+  return type === undefined ? DATA_TYPE_UNSET_COLOR : DATA_TYPE_COLOR[type];
+}
 
 /** Panel kind chip text (`KIND_LABEL`). */
 export const KIND_LABEL: Record<AgentKind, string> = {

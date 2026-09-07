@@ -675,3 +675,76 @@ with no department behind it says so plainly instead of silently having nobody t
 | An older document keeps its names | ✅ | `io.test.ts` › "the Ansprechpartner moved from the data item to the department" (5 tests) |
 | A provider with no department says so | ✅ | `dataNesting.test.ts` › "has no Ansprechpartner for a provider that is not a department here" |
 | A row names a few users and counts the rest | ✅ | e2e › "the data library filters by the department that has to provide it" (rows stay one line high) |
+
+**DEVIATION 19 — a source may be undecided.** `DataSource.type` becomes optional. Where a piece of
+data will live is often unsettled long after everyone agrees it is needed: "Kampagnen-Kalender" is
+real work owed by Marketing before anybody has said whether it becomes a SharePoint list or a
+Dataverse table. A required source made people pick a wrong one, which then reads as a decision
+that was taken. Absent means "not assigned yet" and is shown as an open question, not a blank.
+
+Every renderer now reads its dot through `dataDotColor`, which cannot return undefined, so an
+undecided source can never paint nothing. The neutral colour is the planned slate rather than a
+tenth token — "not decided" belongs to the same visual family as Planned, and SPEC §6's colour
+table is normative.
+
+| Item | Status | Test(s) |
+|---|---|---|
+| Data with no source is valid | ✅ | `dataNesting.test.ts` › "accepts data with no source at all" |
+| It reads as an open question | ✅ | › "names it as an open question, not as a blank" |
+| A row still paints a dot | ✅ | › "still paints a dot, so a row never renders colourless" |
+| Integrity accepts it | ✅ | › "passes integrity with an undecided source" |
+| A source can be taken back | ✅ | `fleetStore.test.ts` › "clears a source that was assigned by mistake" |
+| It round-trips a document | ✅ | › "survives an export and import with no source" |
+| Chosen and cleared in the UI | ✅ | e2e › "a source can be left undecided, and says so" |
+
+**DEVIATION 20 — three axes over the data, in the model.** `dataMatchesProvider` grows into
+`DataQuery`: provider (all / nobody yet / one department), status, and source (any / one system /
+undecided). The predicate lives in `selectors.ts` so the composition is unit-testable rather than
+buried in a component.
+
+The rule that matters: a row survives when **it or anything inside it answers the WHOLE query**,
+not when each axis is satisfied by some part. A box holding one Existing item from Marketing and
+one owed item from Vertrieb must not survive "Marketing + owed" — per-axis matching would keep the
+box and then drop both its contents, leaving an empty whole on screen.
+
+Chips carry counts, and the counts respect the other two axes, so a chip reading "3" means three
+under what is already set.
+
+| Item | Status | Test(s) |
+|---|---|---|
+| Every axis open is the whole library | ✅ | `dataNesting.test.ts` › "leaves the whole library when every axis is open" |
+| State, source and "nobody yet" each filter | ✅ | › "filters by state on its own"; "filters by source, and finds the undecided ones"; "finds what nobody has been asked for" |
+| The axes intersect | ✅ | › "intersects the axes rather than adding them up" |
+| A box is never kept for half-matching parts | ✅ | › "never keeps a box whose parts each answer only half the query" |
+| Casing and spaces do not split a department | ✅ | › "ignores casing and stray spaces in a department name" |
+| Composing, with counts, in the UI | ✅ | e2e › "the data library filters by state and by source, composing with the department" |
+
+**DEVIATION 21 — one department's own page.** Data prep gains a department picker. "Every
+department" is the planning view it always was; picking one turns it into that department's page:
+the name, their Ansprechpartner, how many agents they are holding up, "1 of 4 ready", their items
+grouped **owed-first**, and the briefing as plain text to paste into an e-mail.
+
+Two deliberate choices. The filter chips read in the app's order (Existing → Being prepared → To
+be provided, matching the board's filter bar) while the item groups read owed-first — chrome stays
+consistent, content leads with the ask. And the per-item Ansprechpartner field is hidden on a
+department page: the header already names the person once, and four copies of the same input is
+noise. `blocking` counts only agents held up by something *outstanding*; delivered data blocks
+nobody.
+
+DEVIATION from the mockup shown in planning: this ships as a mode of Data prep rather than a third
+top-level view. Same content, and it composes with the filters; the Tree and Coverage screens are
+not in this change.
+
+| Item | Status | Test(s) |
+|---|---|---|
+| The page names the department, the contact and the work | ✅ | `dataNesting.test.ts` › "names the department, the person to ask and what they owe" |
+| Owed before done | ✅ | › "puts what is owed before what is done, so the ask is never buried" |
+| Only outstanding work blocks an agent | ✅ | › "counts only the agents an outstanding item actually holds up" |
+| Found however the name was capitalised | ✅ | › "finds a department however the owner was capitalised" |
+| No page for a department nobody has asked | ✅ | › "has no page for a department nobody has asked for anything" |
+| The briefing leads with the ask and carries the requirement | ✅ | › "leads with the department and the person to ask"; "carries the requirement, or says it is still missing" |
+| It names the source, undecided included | ✅ | › "names the source, undecided included" |
+| It never leaks another department's work | ✅ | › "never mentions another department's work" |
+| It says so plainly when nothing is owed | ✅ | › "says so plainly when nothing is outstanding" |
+| The page and the copy button, end to end | ✅ | e2e › "a department gets its own page, with the text to send them" |
+| The state filter narrows the page too | ✅ | e2e › "the state filter narrows a department page too" |

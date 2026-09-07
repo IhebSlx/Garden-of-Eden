@@ -34,6 +34,24 @@ export const STATUS_LABELS: Record<Status, string> = {
  * same three-state enum underneath, so the filter bar and every status control keep
  * working — only the words change, and only for data.
  */
+/** How a source reads in the UI. Kept beside the enum so the two cannot drift. */
+export const DATA_SOURCE_LABELS: Record<DataSourceType, string> = {
+  dataverse: 'Dataverse',
+  sharepoint: 'SharePoint',
+  md: 'Markdown',
+  file: 'File',
+  department: 'A department',
+};
+
+/**
+ * The source of a data item, undecided included. "Not assigned" rather than an
+ * empty string: where data will live is a decision somebody still has to take, and
+ * a blank reads as an oversight instead of an open question.
+ */
+export function sourceLabel(type: DataSourceType | undefined): string {
+  return type === undefined ? 'not assigned' : DATA_SOURCE_LABELS[type];
+}
+
 export const DATA_SOURCE_STATUS_LABELS: Record<Status, string> = {
   live: 'Existing',
   building: 'Being prepared',
@@ -142,7 +160,15 @@ export type DataSourceType = z.infer<typeof DataSourceTypeSchema>;
 export const DataSourceSchema = z.object({
   id: id(),
   name: z.string().min(1),
-  type: DataSourceTypeSchema,
+  /**
+   * DEVIATION: optional. Where a piece of data will live is often undecided long
+   * after everyone agrees it is needed - "Kampagnen-Kalender" is real work owed by
+   * Marketing before anybody has said whether it becomes a SharePoint list or a
+   * Dataverse table. Forcing a source made people pick a wrong one, which reads as
+   * a decision that was never taken. Absent means "not assigned yet", and the UI
+   * shows it as an open question rather than as a blank.
+   */
+  type: DataSourceTypeSchema.optional(),
   status: StatusSchema,
   /**
    * SPEC §4: "only meaningful when status === 'live'" — meaningfulness, not a constraint,

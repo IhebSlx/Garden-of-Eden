@@ -16,7 +16,7 @@ import {
   undo,
   useFleetStore,
 } from '../../src/store/fleetStore.js';
-import { exportFleetToJson } from '../../src/store/io.js';
+import { exportFleetToJson, parseFleetJson } from '../../src/store/io.js';
 import { makeFleet } from '../fixtures/fleets.js';
 
 const store = () => useFleetStore.getState();
@@ -519,5 +519,32 @@ describe('data nesting through the store', () => {
     expect(dataOf(innerId)?.parentId).toBe(outerId);
     useFleetStore.temporal.getState().undo();
     expect(dataOf(innerId)?.parentId).toBeUndefined();
+  });
+});
+
+describe('the source of a data item can be taken back', () => {
+  it('clears a source that was assigned by mistake', () => {
+    store().createFleet('blank', 'Sources');
+    const added = store().addDataSource({ name: 'Kampagnen-Kalender', type: 'sharepoint', status: 'planned' });
+    if (!added.ok) throw new Error('setup failed');
+
+    const dataOf = () => selectActiveFleet(store())?.dataSources.find((d) => d.id === added.id);
+    expect(dataOf()?.type).toBe('sharepoint');
+
+    expect(store().updateDataSource(added.id, { type: undefined }).ok).toBe(true);
+    expect(dataOf()?.type).toBeUndefined();
+    expect(checkFleetIntegrity(selectActiveFleet(store())!)).toEqual([]);
+  });
+
+  it('survives an export and import with no source', () => {
+    store().createFleet('blank', 'Sources');
+    const added = store().addDataSource({ name: 'Kampagnen-Kalender', status: 'planned' });
+    if (!added.ok) throw new Error('setup failed');
+
+    const json = exportFleetToJson(selectActiveFleet(store())!);
+    expect(json).not.toContain('"type"');
+    const round = parseFleetJson(json);
+    expect(round.ok).toBe(true);
+    if (round.ok) expect(round.fleet.dataSources[0]?.type).toBeUndefined();
   });
 });

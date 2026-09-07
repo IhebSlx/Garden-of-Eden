@@ -20,7 +20,7 @@ import { BufferGeometry, Vector3 } from 'three';
 import type { Group, LineBasicMaterial, MeshBasicMaterial, SpriteMaterial, Texture } from 'three';
 import type { Agent, Fleet } from '../../model/schemas.js';
 import { dataForAgent } from '../../model/selectors.js';
-import { DATA_TYPE_COLOR, SKILL_COLOR, TOOL_TYPE_COLOR } from '../../ui/palette.js';
+import { dataDotColor, DATA_TYPE_UNSET_COLOR, SKILL_COLOR, TOOL_TYPE_COLOR } from '../../ui/palette.js';
 import { BLOSSOM, EASE_3D, FADE_3D, NODE_SIZE_3D } from '../../ui/constants.js';
 import { sectionKey, useUiStore } from '../../store/uiStore.js';
 import type { DetailSection } from '../../store/uiStore.js';
@@ -114,14 +114,14 @@ function SatellitesComponent({ fleet, agent, position, cameraRadiusRef, lit }: P
     // card's and neither view understates what the agent actually gets.
     const data: Member[] = dataForAgent(fleet, agent).map((d) => ({
       label: d.name,
-      color: DATA_TYPE_COLOR[d.type],
+      color: dataDotColor(d.type),
     }));
 
     return (
       [
         { section: 'skills' as const, members: skills, fallback: SKILL_COLOR },
         { section: 'tools' as const, members: tools, fallback: TOOL_TYPE_COLOR.workflow },
-        { section: 'data' as const, members: data, fallback: DATA_TYPE_COLOR.md },
+        { section: 'data' as const, members: data, fallback: DATA_TYPE_UNSET_COLOR },
       ] satisfies { section: DetailSection; members: Member[]; fallback: string }[]
     )
       .filter((entry) => entry.members.length > 0)

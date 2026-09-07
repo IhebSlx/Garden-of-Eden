@@ -19,9 +19,10 @@ import {
   peerIdsOf,
   sharedCount,
 } from '../model/selectors.js';
+import { sourceLabel } from '../model/schemas.js';
 import type { Agent, AgentKind, LibraryKind } from '../model/schemas.js';
 import {
-  DATA_TYPE_COLOR,
+  dataDotColor,
   KIND_COLOR,
   KIND_LABEL,
   SHARED_COLOR,
@@ -196,7 +197,7 @@ export function Inspector(): React.JSX.Element | null {
           // Contents of an already-linked box are here too - offering them again
           // would attach a part the agent already has by inheritance.
           .filter((d) => !dataSources.some((have) => have.id === d.id))
-          .map((d) => ({ id: d.id, label: d.name, hint: d.type, dotColor: DATA_TYPE_COLOR[d.type] })),
+          .map((d) => ({ id: d.id, label: d.name, hint: sourceLabel(d.type), dotColor: dataDotColor(d.type) })),
       };
     }
     return {
@@ -490,7 +491,7 @@ export function Inspector(): React.JSX.Element | null {
               }
             >
               <button type="button" onClick={() => toggleDetail(`data:${source.id}`)}>
-                <span className="tdot" style={{ background: DATA_TYPE_COLOR[source.type] }} />
+                <span className="tdot" style={{ background: dataDotColor(source.type) }} />
                 {source.name}
                 <span className="sdot" style={{ background: STATUS_COLOR[source.status] }} />
               </button>

@@ -7,8 +7,8 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import type { NodeProps, Node } from '@xyflow/react';
 import { STATUS_LABELS } from '../../model/schemas.js';
-import type { Agent, Status } from '../../model/schemas.js';
-import { DATA_TYPE_COLOR, KIND_COLOR, STATUS_COLOR, TOOL_TYPE_COLOR } from '../../ui/palette.js';
+import type { Agent, DataSourceType, Status } from '../../model/schemas.js';
+import { dataDotColor, KIND_COLOR, STATUS_COLOR, TOOL_TYPE_COLOR } from '../../ui/palette.js';
 import { useFleetStore } from '../../store/fleetStore.js';
 import { sectionKey, useUiStore } from '../../store/uiStore.js';
 import type { DetailSection } from '../../store/uiStore.js';
@@ -35,7 +35,7 @@ export type AgentNodeData = {
   };
   skillNames: string[];
   tools: { name: string; type: keyof typeof TOOL_TYPE_COLOR }[];
-  dataSources: { name: string; type: keyof typeof DATA_TYPE_COLOR; status: Status }[];
+  dataSources: { name: string; type: DataSourceType | undefined; status: Status }[];
 };
 
 /**
@@ -275,7 +275,7 @@ function AgentNodeComponent({ data }: NodeProps<AgentFlowNode>): React.JSX.Eleme
           <DetailSectionGroup agentId={agent.id} section="data" label="Data" count={dataSources.length}>
             {dataSources.map((source) => (
               <span className="ec" key={`d-${source.name}`}>
-                <span className="tdot" style={{ background: DATA_TYPE_COLOR[source.type] }} />
+                <span className="tdot" style={{ background: dataDotColor(source.type) }} />
                 {source.name}
                 <span className="sdot" style={{ background: STATUS_COLOR[source.status] }} />
               </span>

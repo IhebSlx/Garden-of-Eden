@@ -5,7 +5,8 @@
  */
 import { DATA_SOURCE_STATUS_LABELS } from '../model/schemas.js';
 import type { Agent, DataSource, Skill, Tool } from '../model/schemas.js';
-import { DATA_TYPE_COLOR, SKILL_COLOR, STATUS_COLOR, TOOL_TYPE_COLOR, TOOL_TYPE_LABEL } from '../ui/palette.js';
+import { dataDotColor, SKILL_COLOR, STATUS_COLOR, TOOL_TYPE_COLOR, TOOL_TYPE_LABEL } from '../ui/palette.js';
+import { sourceLabel } from '../model/schemas.js';
 import { layoutWorkflow } from './workflowLayout.js';
 
 type UsedBy = { agents: Agent[]; onJump: (agentId: string) => void };
@@ -208,7 +209,7 @@ export function DataSourceDetail({
   const linkColor = source.linked ? STATUS_COLOR.live : STATUS_COLOR.building;
   return (
     <>
-      <DetailHead name={source.name} tag={source.type} color={DATA_TYPE_COLOR[source.type]} />
+      <DetailHead name={source.name} tag={sourceLabel(source.type)} color={dataDotColor(source.type)} />
       <div className="tdesc">
         <span
           className="stag"

@@ -18,14 +18,17 @@ import { useUiStore } from '../store/uiStore.js';
 import {
   agentsUsing,
   dataDescendants,
-  dataMatchesProvider,
+  dataMatchesQuery,
+  dataItemMatches,
   departmentNamed,
   flattenData,
   providerOptions,
 } from '../model/selectors.js';
-import { DATA_SOURCE_STATUS_LABELS } from '../model/schemas.js';
+import { DATA_SOURCE_LABELS, DATA_SOURCE_STATUS_LABELS } from '../model/schemas.js';
+import { ANY_DATA } from '../model/selectors.js';
+import type { DataQuery } from '../model/selectors.js';
 import type { DataSourceType, LibraryKind, Status } from '../model/schemas.js';
-import { DATA_TYPE_COLOR, SKILL_COLOR, STATUS_COLOR, TOOL_TYPE_COLOR } from '../ui/palette.js';
+import { dataDotColor, SKILL_COLOR, STATUS_COLOR, TOOL_TYPE_COLOR } from '../ui/palette.js';
 import { ToolEditor } from './ToolEditor.js';
 import { NotesField } from './NotesField.js';
 
@@ -37,39 +40,27 @@ const TABS: { kind: LibraryKind; label: string }[] = [
 
 const DATA_TYPES: DataSourceType[] = ['dataverse', 'sharepoint', 'md', 'file', 'department'];
 
-/** The source reads as a label, not an enum key. */
-const SOURCE_LABEL: Record<DataSourceType, string> = {
-  dataverse: 'Dataverse',
-  sharepoint: 'SharePoint',
-  md: 'Markdown',
-  file: 'File',
-  department: 'A department',
-};
 const STATUSES: Status[] = ['live', 'building', 'planned'];
 
 /** How many users of an item a row names before it starts counting instead. */
 const USERS_SHOWN = 3;
 
-/**
- * What the Data tab is showing: everything, only what nobody has been asked for,
- * or one department. A union rather than a magic string, because any sentinel
- * string could in principle also be a department name.
- */
-type DataFilter = { kind: 'all' } | { kind: 'none' } | { kind: 'provider'; name: string };
-
-const ALL_DATA: DataFilter = { kind: 'all' };
-
-/** The filter as a <select> value, and back again. */
-const filterValue = (filter: DataFilter): string =>
-  filter.kind === 'all' ? '' : filter.kind === 'none' ? 'none' : `by:${filter.name}`;
+/** The provider axis as a <select> value, and back again. */
+const providerValue = (provider: DataQuery['provider']): string =>
+  provider.kind === 'all' ? '' : provider.kind === 'none' ? 'none' : `by:${provider.name}`;
 
 // Prefixed, so a department called "none" is still just a department.
-const filterFromValue = (value: string): DataFilter =>
+const providerFromValue = (value: string): DataQuery['provider'] =>
   value === ''
-    ? ALL_DATA
+    ? { kind: 'all' }
     : value === 'none'
       ? { kind: 'none' }
       : { kind: 'provider', name: value.slice('by:'.length) };
+
+/** The source axis as a <select> value, and back again. */
+const sourceValue = (source: DataQuery['source']): string => source ?? '';
+const sourceFromValue = (value: string): DataQuery['source'] =>
+  value === '' ? null : value === 'unassigned' ? 'unassigned' : (value as DataSourceType);
 
 export function LibraryManager(): React.JSX.Element | null {
   const open = useUiStore((s) => s.libraryOpen);
@@ -89,7 +80,7 @@ export function LibraryManager(): React.JSX.Element | null {
 
   const [tab, setTab] = useState<LibraryKind>('skill');
   /** Data tab only: show just what one department has to provide. */
-  const [dataFilter, setDataFilter] = useState<DataFilter>(ALL_DATA);
+  const [query, setQuery] = useState<DataQuery>(ANY_DATA);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -168,18 +159,11 @@ export function LibraryManager(): React.JSX.Element | null {
         : // Data nests, so it is listed as a tree: parents first, contents indented
           // under them. A flat list of leaves hides which whole they belong to.
           flattenData(fleet)
-            .filter(({ source }) => {
-              if (dataFilter.kind === 'all') return true;
-              // A whole is kept when a part of it is owed, or the part loses the box
-              // it belongs to and the tree stops making sense. An empty provider is
-              // exactly what "nobody yet" asks for, so one rule serves both.
-              const wanted = dataFilter.kind === 'none' ? '' : dataFilter.name;
-              return dataMatchesProvider(fleet, source, wanted);
-            })
+            .filter(({ source }) => dataMatchesQuery(fleet, source, query))
             .map(({ source, depth }) => ({
               id: source.id,
               name: source.name,
-              dot: DATA_TYPE_COLOR[source.type],
+              dot: dataDotColor(source.type),
               noted: hasNote(source.notes),
               depth,
             }));
@@ -212,13 +196,58 @@ export function LibraryManager(): React.JSX.Element | null {
         </div>
 
         {tab === 'dataSource' && (
-          <div className="lib-filter" data-testid="data-filter">
+          <div className="lib-filters" data-testid="data-filter">
+            {/* Counts answer the question before the chip is clicked. They respect
+                the other two axes, so "3" means three under what is already set. */}
+            <div className="lib-chips">
+              {([null, ...STATUSES] as (Status | null)[]).map((status) => {
+                const count = fleet.dataSources.filter((source) =>
+                  dataItemMatches(source, { ...query, status }),
+                ).length;
+                return (
+                  <button
+                    key={status ?? 'all'}
+                    type="button"
+                    className={`chrome-btn ${query.status === status ? 'on' : ''}`}
+                    data-testid={`data-status-${status ?? 'all'}`}
+                    onClick={() => setQuery({ ...query, status })}
+                  >
+                    {status !== null && (
+                      <span className="fdot" style={{ background: STATUS_COLOR[status] }} />
+                    )}
+                    {status === null ? 'All' : DATA_SOURCE_STATUS_LABELS[status]} {count}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="lib-filter">
+              <label htmlFor="data-source-filter">Source</label>
+              <select
+                id="data-source-filter"
+                data-testid="data-source-filter"
+                value={sourceValue(query.source)}
+                onChange={(event) => setQuery({ ...query, source: sourceFromValue(event.target.value) })}
+              >
+                <option value="">Any source</option>
+                {DATA_TYPES.map((type) => (
+                  <option key={type} value={type}>
+                    {DATA_SOURCE_LABELS[type]}
+                  </option>
+                ))}
+                <option value="unassigned">Not assigned yet</option>
+              </select>
+            </div>
+
+            <div className="lib-filter">
             <label htmlFor="data-provider-filter">Provided by</label>
             <select
               id="data-provider-filter"
               data-testid="data-provider-filter"
-              value={filterValue(dataFilter)}
-              onChange={(event) => setDataFilter(filterFromValue(event.target.value))}
+              value={providerValue(query.provider)}
+              onChange={(event) =>
+                setQuery({ ...query, provider: providerFromValue(event.target.value) })
+              }
             >
               <option value="">Every department</option>
               <option value="none">Nobody yet</option>
@@ -228,16 +257,17 @@ export function LibraryManager(): React.JSX.Element | null {
                 </option>
               ))}
             </select>
-            {dataFilter.kind !== 'all' && (
-              <button
-                type="button"
-                className="lib-filter-clear"
-                onClick={() => setDataFilter(ALL_DATA)}
-                aria-label="Show data from every department again"
-              >
-                ✕
-              </button>
-            )}
+              {query.provider.kind !== 'all' && (
+                <button
+                  type="button"
+                  className="lib-filter-clear"
+                  onClick={() => setQuery({ ...query, provider: { kind: 'all' } })}
+                  aria-label="Show data from every department again"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
           </div>
         )}
 
@@ -463,13 +493,20 @@ function DataFields({
         <label className="dialog-field">
           <span>Source</span>
           <select
-            value={source.type}
+            value={source.type ?? ''}
             aria-label={`Source of ${source.name}`}
-            onChange={(event) => updateDataSource(id, { type: event.target.value as DataSourceType })}
+            data-testid="data-source"
+            onChange={(event) =>
+              updateDataSource(id, {
+                type: event.target.value === '' ? undefined : (event.target.value as DataSourceType),
+              })
+            }
           >
+            {/* Where data will live is often undecided while the need is not. */}
+            <option value="">Not assigned yet</option>
             {DATA_TYPES.map((type) => (
               <option key={type} value={type}>
-                {SOURCE_LABEL[type]}
+                {DATA_SOURCE_LABELS[type]}
               </option>
             ))}
           </select>
