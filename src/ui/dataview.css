@@ -64,8 +64,39 @@
   overflow-y: auto;
   min-height: 0;
 }
+/* The tree scrolls; the add row stays put at the bottom of the pane. */
 .datatree {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.datatree-rows {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   padding: 7px 6px;
+}
+.datatree-add {
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+  border-top: 1px solid rgb(124 140 255 / 0.16);
+}
+.datatree-add input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 11.5px;
+  color: #e6ecff;
+  background: rgb(12 18 44 / 0.9);
+  border: 1px solid rgb(124 140 255 / 0.24);
+  border-radius: 7px;
+  padding: 4px 8px;
+}
+.datatree-add input:focus-visible {
+  outline: none;
+  border-color: rgb(124 140 255 / 0.7);
 }
 .datadetail {
   padding: 14px 16px;
@@ -298,4 +329,45 @@
   margin: 10px 0 0;
   font-size: 11px;
   color: #6f7fb4;
+}
+
+/* ---------- Renaming and removing, in the detail pane ---------- */
+
+.datadetail-title {
+  min-width: 0;
+  flex: 1;
+}
+/* The heading IS the name field: renaming should not need a second place. */
+.datadetail-name {
+  all: unset;
+  display: block;
+  width: 100%;
+  font-size: 17px;
+  font-weight: 500;
+  color: #f2f5ff;
+  border-radius: 6px;
+  padding: 1px 4px;
+  margin-left: -4px;
+}
+.datadetail-name:hover {
+  background: rgb(90 110 200 / 0.14);
+}
+.datadetail-name:focus-visible {
+  background: rgb(12 18 44 / 0.9);
+  box-shadow: inset 0 0 0 1px rgb(124 140 255 / 0.55);
+}
+.datadetail-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+/* Only the confirmed step is red; the first click is not the dangerous one. */
+.chrome-btn.danger {
+  color: #ffb4b4;
+  border-color: rgb(226 75 74 / 0.5);
+}
+.chrome-btn.danger:hover {
+  background: rgb(226 75 74 / 0.16);
 }

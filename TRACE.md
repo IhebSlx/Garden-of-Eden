@@ -842,3 +842,36 @@ now keyed by the item.
 | Nothing importable changes nothing | ✅ | › "does nothing to a fleet when the folder holds nothing importable" |
 | Preview, apply and undo, end to end | ✅ | e2e › "a folder of documents becomes the data library" |
 | The detail pane never shows a stale field | ✅ | e2e (same) — the reference reads the selected item's path |
+
+**Add, rename and delete, where the data is looked at.** The Data view could edit every field an
+item carries but could not create one, could not rename one — the name was not a field in the
+editor at all — and could not remove one. Those three lived only in the Libraries dialog, which is
+the wrong place now that the view is where the data is read.
+
+Three decisions worth recording.
+
+**A new item starts owed with nothing decided.** `status: 'planned'`, no source: you add something
+because you have realised you need it, not because you know where it will live. Both facts are
+then visible as questions rather than as defaults that look like answers.
+
+**The heading is the name field.** Renaming should not need a second place to do it, and a separate
+"Name" row above "Source" would have been one. An empty or unchanged name reverts rather than being
+accepted and lost.
+
+**Delete takes two clicks and the first is not the dangerous one.** Only the confirmed step is red.
+Both store guards surface verbatim — an item an agent depends on, and a box that still holds items,
+with the names of what is in the way. `+ Add inside` needs no name because the target is whatever
+is open, which is also why it is in the detail pane rather than beside the tree's Add button, where
+"inside" would have meant "inside whatever happens to be selected".
+
+| Item | Status | Test(s) |
+|---|---|---|
+| Add, and it opens on the new item | ✅ | e2e › "data can be added, renamed and deleted from the Data view" |
+| A new item is owed, with no source decided | ✅ | e2e (same) — "To be provided", "not assigned" |
+| Rename from the heading | ✅ | e2e (same) |
+| An empty name reverts | ✅ | e2e (same) |
+| Delete confirms, and undoes in one step | ✅ | e2e (same) |
+| Add inside nests without needing a name | ✅ | e2e › "adding inside an item nests it, and a full box refuses to be deleted" |
+| A box holding items refuses, and names them | ✅ | e2e (same) |
+| Emptying a box makes it deletable | ✅ | e2e (same) |
+| Data an agent depends on cannot be deleted | ✅ | e2e › "data an agent depends on cannot be deleted out from under it" |

@@ -969,12 +969,12 @@ test('the tree filter narrows the rows and never strands the detail pane', async
   // detail pane must move rather than keep showing a row that is no longer listed.
   await page.getByTestId('data-status-planned').click();
   await page.getByTestId('data-row').first().click();
-  const owed = await page.getByTestId('data-detail').locator('h3').textContent();
+  const owed = await page.getByTestId('data-rename').inputValue();
 
   await page.getByTestId('data-status-live').click();
   const ready = await page.getByTestId('data-row').count();
   expect(ready).toBeLessThan(all);
-  await expect(page.getByTestId('data-detail').locator('h3')).not.toHaveText(owed ?? '');
+  await expect(page.getByTestId('data-rename')).not.toHaveValue(owed);
 
   await page.getByTestId('data-status-all').click();
   await expect(page.getByTestId('data-row')).toHaveCount(all);
@@ -1115,4 +1115,93 @@ test('importing the same folder twice refreshes rather than doubles it', async (
   await page.getByTestId('folder-import').click();
   await page.getByTestId('import-apply').click();
   await expect(page.getByTestId('data-row')).toHaveCount(once);
+});
+
+test('data can be added, renamed and deleted from the Data view', async ({ page }) => {
+  await page.getByTestId('view-data').click();
+  const before = await page.getByTestId('data-row').count();
+
+  // Add: a new item is what you have realised you need, so it starts owed with
+  // nothing decided about where it will live.
+  await page.getByTestId('data-new-name').fill('Kampagnen-Kalender');
+  await page.getByTestId('data-add').click();
+  await expect(page.getByTestId('data-row')).toHaveCount(before + 1);
+
+  // It opens on the new item, ready to describe.
+  const detail = page.getByTestId('data-detail');
+  await expect(detail.getByTestId('data-rename')).toHaveValue('Kampagnen-Kalender');
+  await expect(detail).toContainText('To be provided');
+  await expect(detail).toContainText('not assigned');
+  await expect(detail.getByTestId('data-source')).toHaveValue('');
+
+  // Rename: the heading is the field, so there is only one place to do it.
+  await detail.getByTestId('data-rename').fill('Kampagnen-Kalender 2027');
+  await detail.getByTestId('data-rename').press('Enter');
+  await expect(
+    page.getByTestId('data-row').filter({ hasText: 'Kampagnen-Kalender 2027' }),
+  ).toHaveCount(1);
+
+  // An empty name is refused rather than accepted and lost.
+  await detail.getByTestId('data-rename').fill('   ');
+  await detail.getByTestId('data-rename').blur();
+  await expect(detail.getByTestId('data-rename')).toHaveValue('Kampagnen-Kalender 2027');
+
+  // Delete takes two clicks; the first is not the dangerous one.
+  await detail.getByTestId('data-delete').click();
+  await detail.getByTestId('data-delete-confirm').click();
+  await expect(page.getByTestId('data-row')).toHaveCount(before);
+  await expect(
+    page.getByTestId('data-row').filter({ hasText: 'Kampagnen-Kalender 2027' }),
+  ).toHaveCount(0);
+
+  // And it was one edit, so it comes back in one step.
+  await page.keyboard.press('Control+z');
+  await expect(page.getByTestId('data-row')).toHaveCount(before + 1);
+});
+
+test('adding inside an item nests it, and a full box refuses to be deleted', async ({ page }) => {
+  await page.getByTestId('view-data').click();
+
+  await page.getByTestId('data-new-name').fill('Produktdaten');
+  await page.getByTestId('data-add').click();
+  const detail = page.getByTestId('data-detail');
+
+  // "Add inside" needs no name: it makes a child of what is open and selects it.
+  await detail.getByTestId('data-add-inside').click();
+  await expect(detail.getByTestId('data-rename')).toHaveValue('New data');
+  await detail.getByTestId('data-rename').fill('Bilder');
+  await detail.getByTestId('data-rename').press('Enter');
+  await expect(page.locator('[data-testid="data-row"][data-depth="1"]')).toHaveCount(1);
+
+  // The box now holds something, so deleting it would orphan that: refused, with
+  // the name of what is in the way.
+  await page.getByTestId('data-row').filter({ hasText: 'Produktdaten' }).click();
+  await detail.getByTestId('data-delete').click();
+  await detail.getByTestId('data-delete-confirm').click();
+  await expect(page.getByTestId('data-problem')).toContainText('still contains');
+  await expect(page.getByTestId('data-problem')).toContainText('Bilder');
+
+  // Emptying it first makes the box deletable.
+  await page.getByTestId('data-row').filter({ hasText: 'Bilder' }).click();
+  await detail.getByTestId('data-delete').click();
+  await detail.getByTestId('data-delete-confirm').click();
+  await page.getByTestId('data-row').filter({ hasText: 'Produktdaten' }).click();
+  await detail.getByTestId('data-delete').click();
+  await detail.getByTestId('data-delete-confirm').click();
+  await expect(page.getByTestId('data-row').filter({ hasText: 'Produktdaten' })).toHaveCount(0);
+});
+
+test('data an agent depends on cannot be deleted out from under it', async ({ page }) => {
+  await page.getByTestId('view-data').click();
+
+  // Brand guidelines is linked to Marketing in the demo fleet.
+  await page.getByTestId('data-row').filter({ hasText: 'Brand guidelines' }).click();
+  const detail = page.getByTestId('data-detail');
+  await expect(detail.locator('.ubn').first()).toBeVisible();
+
+  await detail.getByTestId('data-delete').click();
+  await detail.getByTestId('data-delete-confirm').click();
+
+  await expect(page.getByTestId('data-problem')).toBeVisible();
+  await expect(page.getByTestId('data-row').filter({ hasText: 'Brand guidelines' })).toHaveCount(1);
 });
