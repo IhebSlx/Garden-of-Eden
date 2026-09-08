@@ -73,6 +73,10 @@ const EXEMPT: Record<string, string> = {
 
   // Set by direct manipulation instead of a field.
   'Agent.position': 'set by dragging the card',
+
+  // Imported rather than typed, and shown rather than edited.
+  'DataSource.description':
+    'carried in from a Copilot Studio export; shown as the item\'s subtitle, not a row to fill in',
 };
 
 /** `Foo.bar` for every field of every schema the document is made of. */

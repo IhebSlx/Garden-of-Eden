@@ -483,3 +483,20 @@ input.kind-name:focus-visible {
   outline: none;
   border-color: rgb(124 140 255 / 0.75);
 }
+
+/* The document link, with a way to actually open it. */
+.dialog-field span.linkrow {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+}
+.dialog-field span.linkrow input {
+  flex: 1;
+  min-width: 0;
+}
+.dialog-field span.linkrow .chrome-btn {
+  white-space: nowrap;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}

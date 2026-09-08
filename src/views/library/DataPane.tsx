@@ -151,6 +151,7 @@ function Detail({
               {sourceLabel(source.type)}
             </span>
             {(source.owner ?? '').trim() !== '' && <> · {source.owner}</>}
+            {(source.description ?? '').trim() !== '' && <> · {source.description}</>}
           </>
         }
         right={

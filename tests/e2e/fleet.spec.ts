@@ -826,7 +826,7 @@ test('a data item can be marked linked whatever state it is in', async ({ page }
   await expect(page.getByTestId('data-linked')).toBeChecked();
 });
 
-test('a data item carries a source that may be undecided, and a description', async ({ page }) => {
+test('a data item has an undecided source and one place for its link', async ({ page }) => {
   const library = await openData(page);
   await library.getByTestId('library-new-name').fill('Kampagnen-Kalender');
   await library.getByTestId('library-add').click();
@@ -836,15 +836,27 @@ test('a data item carries a source that may be undecided, and a description', as
   await expect(source).toHaveValue('');
   await expect(library.getByTestId('library-detail')).toContainText('not assigned');
 
-  await library.getByTestId('data-description').fill('Wann welche Kampagne läuft.');
-  await library.getByTestId('data-description').blur();
+  // A path is a reference, so there is nothing to open.
+  await library.getByTestId('data-link').fill('sites/marketing/kalender');
+  await library.getByTestId('data-link').blur();
+  await expect(library.getByTestId('data-link-open')).toHaveCount(0);
+
+  // A URL is somewhere a browser can go, so it gets an Open button.
+  await library.getByTestId('data-link').fill('https://solarlux.sharepoint.com/sites/Marketing');
+  await library.getByTestId('data-link').blur();
+  const open = library.getByTestId('data-link-open');
+  await expect(open).toBeVisible();
+  await expect(open).toHaveAttribute('href', 'https://solarlux.sharepoint.com/sites/Marketing');
+  await expect(open).toHaveAttribute('target', '_blank');
 
   await page.waitForTimeout(600);
   await page.reload();
   await openData(page);
   await openItem(page, 'Kampagnen-Kalender');
   await expect(page.getByTestId('data-source')).toHaveValue('');
-  await expect(page.getByTestId('data-description')).toHaveValue('Wann welche Kampagne läuft.');
+  await expect(page.getByTestId('data-link')).toHaveValue(
+    'https://solarlux.sharepoint.com/sites/Marketing',
+  );
 });
 
 test('data can be added, renamed, nested and deleted, and it all undoes', async ({ page }) => {
@@ -1038,7 +1050,7 @@ test('a folder of documents becomes the data library', async ({ page }) => {
 
   // A document knows where it lives, and reads as existing but not yet linked.
   await openItem(page, 'Rollen im Bauprojekt');
-  await expect(library.getByLabel(/Reference for/)).toHaveValue(
+  await expect(library.getByTestId('data-link')).toHaveValue(
     '03 Fachkontext/Objektvertrieb/Objektvertrieb Rollen im Bauprojekt.docx',
   );
   await expect(library.getByTestId('library-detail')).toContainText('Existing');

@@ -12,6 +12,12 @@ import { dataDescendants, departmentNamed, flattenData } from '../model/selector
 import { selectActiveFleet, useFleetStore } from '../store/fleetStore.js';
 import { allSourceKinds, STATUS_COLOR } from '../ui/palette.js';
 import { NotesField } from './NotesField.js';
+
+/** Whether a reference is somewhere a browser can actually go. */
+function isOpenable(ref: string | undefined): ref is string {
+  if (ref === undefined) return false;
+  return /^https?:\/\//i.test(ref.trim());
+}
 import { ProviderSelect } from './ProviderSelect.js';
 
 const STATUSES: Status[] = ['live', 'building', 'planned'];
@@ -31,7 +37,6 @@ export function DataFields({
   const department = departmentNamed(fleet, source.owner);
   return (
     <div className="lib-fields" data-testid="data-editor">
-      <p className="field-group">Where it comes from</p>
       <div className="lib-field-row">
         <label className="dialog-field">
           <span>Source</span>
@@ -85,7 +90,6 @@ export function DataFields({
         </span>
       </label>
 
-      <p className="field-group">Who provides it</p>
       <div className="lib-field-row">
         <label className="dialog-field">
           <span>Provided by</span>
@@ -129,7 +133,6 @@ export function DataFields({
         </p>
       )}
 
-      <p className="field-group">Where it sits</p>
       <label className="dialog-field">
         <span>Inside</span>
         <select
@@ -157,19 +160,6 @@ export function DataFields({
         </select>
       </label>
 
-      <p className="field-group">What it is, and what finished looks like</p>
-      <label className="dialog-field">
-        <span>What this is</span>
-        <textarea
-          rows={2}
-          defaultValue={source.description ?? ''}
-          aria-label={`Description of ${source.name}`}
-          placeholder="One line on what this holds, for whoever reads the library"
-          data-testid="data-description"
-          onBlur={(event) => updateDataSource(id, { description: event.target.value })}
-        />
-      </label>
-
       <label className="dialog-field">
         <span>What has to be prepared</span>
         <textarea
@@ -182,13 +172,29 @@ export function DataFields({
       </label>
 
       <label className="dialog-field">
-        <span>Reference (URI, path or table)</span>
-        <input
-          defaultValue={source.ref ?? ''}
-          aria-label={`Reference for ${source.name}`}
-          placeholder="sites/sales/prices"
-          onBlur={(event) => updateDataSource(id, { ref: event.target.value })}
-        />
+        <span>Link to the document</span>
+        <span className="linkrow">
+          <input
+            defaultValue={source.ref ?? ''}
+            aria-label={`Link for ${source.name}`}
+            placeholder="https://solarlux.sharepoint.com/sites/…"
+            data-testid="data-link"
+            onBlur={(event) => updateDataSource(id, { ref: event.target.value })}
+          />
+          {/* Only a real URL gets an Open button: a path or a table name is a
+              reference, not somewhere a browser can go. */}
+          {isOpenable(source.ref) && (
+            <a
+              className="chrome-btn"
+              href={source.ref}
+              target="_blank"
+              rel="noreferrer noopener"
+              data-testid="data-link-open"
+            >
+              Open ↗
+            </a>
+          )}
+        </span>
       </label>
 
       <NotesField

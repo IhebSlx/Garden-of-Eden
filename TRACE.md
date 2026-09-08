@@ -1025,3 +1025,17 @@ rendered only where a host actually supplies `onClose`.
 | An item in use cannot be deleted, in any tab | ✅ | e2e › "a tool in use cannot be deleted…"; "a library item in use cannot be deleted…"; "data an agent depends on cannot be deleted out from under it" |
 | Data keeps every behaviour it had | ✅ | e2e › the nine Data tests, from nesting and filters to the folder import |
 | The briefing follows the department filter | ✅ | e2e › "the briefing is offered once the filter says which department" |
+
+**The data editor stops repeating itself.** All four group headings went: "Who provides it" above
+"Provided by" is the same words twice, and the same was true of the rest. "What this is" went with
+them — a description is carried in from a Copilot export rather than typed, so it now reads as the
+item's subtitle instead of occupying a row nobody fills in. `Reference (URI, path or table)` became
+**Link to the document**, one dedicated place for where the document actually lives, with an
+**Open ↗** beside it when the value is a URL rather than a path or a table name.
+
+| Item | Status | Test(s) |
+|---|---|---|
+| A URL gets an Open button; a path does not | ✅ | e2e › "a data item has an undecided source and one place for its link" |
+| The link survives a reload | ✅ | e2e (same) |
+| The folder importer still records where a document lives | ✅ | e2e › "a folder of documents becomes the data library" |
+| The description is shown, not edited | ✅ | `fieldCoverage.test.ts` › exempt with a reason |
