@@ -1,7 +1,9 @@
 /** SPEC 7 - versioned JSON export/import, Zod-validated with readable errors. */
 import { describe, expect, it } from 'vitest';
 import { migrateFleetDocument } from '../../src/model/migrations.js';
+import { isFleetValid } from '../../src/model/integrity.js';
 import { SCHEMA_VERSION } from '../../src/model/schemas.js';
+import type { Fleet } from '../../src/model/schemas.js';
 import { exportFleetToJson, parseFleetJson, suggestFleetFileName } from '../../src/store/io.js';
 import { AGENT, makeFleet } from '../fixtures/fleets.js';
 
@@ -185,5 +187,70 @@ describe('the Ansprechpartner moved from the data item to the department', () =>
     const result = migrateFleetDocument(fleet);
     if (!result.ok) throw new Error(result.errors.join(' '));
     expect(result.fleet).toEqual(fleet);
+  });
+});
+
+/**
+ * An item nobody uses is still work somebody did.
+ *
+ * The library is flat on the fleet and agents only reference it by id, so an
+ * unattached skill, tool or data source is a legal state — you can add one in the
+ * Library before deciding which agent gets it. Export must carry it: a backup
+ * that quietly drops whatever is not wired up yet is worse than no backup, because
+ * it looks complete.
+ */
+describe('items attached to no agent', () => {
+  const withOrphans = (): Fleet => {
+    const fleet = makeFleet();
+    fleet.skills.push({ id: 'skl_orphan', name: 'Angebot prüfen' });
+    fleet.tools.push({
+      id: 'tol_orphan',
+      name: 'Objektportal',
+      description: 'Liest Bauprojekte aus dem Objektportal.',
+      type: 'python',
+    });
+    fleet.dataSources.push({
+      id: 'dsc_orphan',
+      name: 'Preisliste 2026',
+      status: 'planned',
+      owner: 'Vertrieb',
+    });
+    return fleet;
+  };
+
+  it('are a valid fleet — nothing has to be attached to exist', () => {
+    expect(isFleetValid(withOrphans())).toBe(true);
+  });
+
+  it('survive the export and come back whole', () => {
+    const fleet = withOrphans();
+    const result = parseFleetJson(exportFleetToJson(fleet));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.fleet.skills.find((s) => s.id === 'skl_orphan')?.name).toBe('Angebot prüfen');
+    expect(result.fleet.tools.find((t) => t.id === 'tol_orphan')?.type).toBe('python');
+    // Not just the name: who owes it and what state it is in come back too.
+    const data = result.fleet.dataSources.find((d) => d.id === 'dsc_orphan');
+    expect(data?.owner).toBe('Vertrieb');
+    expect(data?.status).toBe('planned');
+  });
+
+  it('are in the file whether or not any agent references them', () => {
+    const fleet = withOrphans();
+    const referenced = new Set([
+      ...fleet.agents.flatMap((a) => a.skillIds),
+      ...fleet.agents.flatMap((a) => a.toolIds),
+      ...fleet.agents.flatMap((a) => a.dataSourceIds),
+    ]);
+    // The premise of the test: these three really are attached to nobody.
+    expect(referenced.has('skl_orphan')).toBe(false);
+    expect(referenced.has('tol_orphan')).toBe(false);
+    expect(referenced.has('dsc_orphan')).toBe(false);
+
+    const json = exportFleetToJson(fleet);
+    expect(json).toContain('Angebot prüfen');
+    expect(json).toContain('Objektportal');
+    expect(json).toContain('Preisliste 2026');
   });
 });
