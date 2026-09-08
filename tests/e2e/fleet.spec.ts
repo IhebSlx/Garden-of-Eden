@@ -6,7 +6,7 @@
  * demo the suite below is written against - one click, the same one a user makes.
  */
 import { expect, test } from '@playwright/test';
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 
 const GHOST_OPACITY = 0.05;
 
@@ -1087,6 +1087,104 @@ test('the Source list is editable, and a source in use cannot be removed', async
   const again = page.getByTestId('source-kinds');
   await again.getByTestId('source-kind-delete').click();
   await expect(again.getByTestId('source-kinds-error')).toContainText('still use this source');
+});
+
+/* ---------- Choosing what to export ---------- */
+
+/** The fleet checkboxes only — the catalog is not a fleet. */
+function fleetBoxes(dialog: Locator) {
+  return dialog.locator('[data-testid^="export-fleet-"]');
+}
+
+/** Opens the fleet menu and the export dialog behind it. */
+async function openExport(page: Page) {
+  await page.getByTestId('fleet-menu-toggle').click();
+  await page.getByTestId('open-export').click();
+  return page.getByTestId('export-dialog');
+}
+
+test('export offers every fleet, and the catalog beside them', async ({ page }) => {
+  const before = await fleetBoxes(await openExport(page)).count();
+  await page.getByTestId('export-cancel').click();
+
+  // One more fleet is one more row: the dialog lists them all, not just the open one.
+  await page.getByTestId('fleet-menu-toggle').click();
+  await page.getByTestId('new-company-fleet').click();
+
+  const dialog = await openExport(page);
+  await expect(fleetBoxes(dialog)).toHaveCount(before + 1);
+  await expect(dialog.getByTestId('export-catalog')).toHaveCount(1);
+  // The question this screen exists to answer.
+  await expect(dialog).toContainText('A fleet brings its own Data, Tools and Skills with it');
+
+  // It opens on what you were looking at, so exporting one fleet is still one click.
+  await expect(fleetBoxes(dialog).filter({ has: page.locator(':checked') })).toHaveCount(0);
+  const checked = await dialog.locator('.export-row input:checked').count();
+  expect(checked).toBe(1);
+  await expect(dialog.getByTestId('export-catalog')).not.toBeChecked();
+});
+
+test('nothing ticked means nothing to write', async ({ page }) => {
+  const dialog = await openExport(page);
+  await dialog.locator('.export-row input:checked').uncheck();
+
+  await expect(dialog.getByTestId('export-nothing')).toBeVisible();
+  await expect(dialog.getByTestId('export-confirm')).toBeDisabled();
+});
+
+test('select everything ticks every fleet and the catalog', async ({ page }) => {
+  await page.getByTestId('fleet-menu-toggle').click();
+  await page.getByTestId('new-company-fleet').click();
+
+  const dialog = await openExport(page);
+  await dialog.getByTestId('export-all').click();
+
+  const boxes = dialog.locator('.export-row input');
+  const total = await boxes.count();
+  await expect(dialog.locator('.export-row input:checked')).toHaveCount(total);
+  // The button says what it will do, and there is nothing left to select.
+  await expect(dialog.getByTestId('export-confirm')).toHaveText('Export everything');
+  await expect(dialog.getByTestId('export-all')).toBeDisabled();
+});
+
+test('a one-fleet export writes the fleet document it always did', async ({ page }) => {
+  const dialog = await openExport(page);
+  const download = page.waitForEvent('download');
+  await dialog.getByTestId('export-confirm').click();
+
+  const file = await download;
+  expect(file.suggestedFilename()).toMatch(/\.fleet\.json$/);
+  await expect(page.getByTestId('export-dialog')).toHaveCount(0);
+});
+
+test('everything goes out as one dated file, and comes back in', async ({ page }) => {
+  await page.getByTestId('fleet-menu-toggle').click();
+  await page.getByTestId('new-company-fleet').click();
+
+  const dialog = await openExport(page);
+  await dialog.getByTestId('export-all').click();
+  const download = page.waitForEvent('download');
+  await dialog.getByTestId('export-confirm').click();
+
+  const file = await download;
+  expect(file.suggestedFilename()).toMatch(/^agent-visualiser-\d{4}-\d{2}-\d{2}\.json$/);
+
+  // And it restores. Every id in the file is already here, so each fleet arrives
+  // as a copy rather than overwriting the one it came from.
+  const path = await file.path();
+  const fleetsBefore = await fleetBoxes(await openExport(page)).count();
+  await page.getByTestId('export-cancel').click();
+
+  // As a person does it: the menu is open, because that is where Import lives —
+  // and where the summary appears afterwards.
+  await page.getByTestId('fleet-menu-toggle').click();
+  await page.setInputFiles('input[type="file"][accept*="json"]', path);
+  const menu = page.getByTestId('fleet-menu');
+  await expect(menu).toContainText('and the catalog');
+  await expect(menu).toContainText('came in as copies');
+
+  await page.getByTestId('open-export').click();
+  await expect(fleetBoxes(page.getByTestId('export-dialog'))).toHaveCount(fleetsBefore * 2);
 });
 
 /* ---------- Reading the agent-data folder ---------- */

@@ -15,20 +15,37 @@ import {
   useFleetStore,
 } from '../../store/fleetStore.js';
 import { useUiStore } from '../../store/uiStore.js';
-import { exportFleetToJson, suggestFleetFileName } from '../../store/io.js';
+import { exportSelectionToJson, suggestExportFileName } from '../../store/io.js';
+import { useCatalogStore } from '../../store/catalogStore.js';
+import { ExportDialog } from './ExportDialog.js';
+import type { ExportChoice } from './ExportDialog.js';
 import { solarluxFleet } from '../../model/seed.js';
 import { solarluxVisionFleet } from '../../model/visionFleet.js';
 import { FLEET_TEMPLATE_LABELS } from '../../model/templates.js';
 import type { Fleet } from '../../model/schemas.js';
 
-function download(fleet: Fleet): void {
-  const blob = new Blob([exportFleetToJson(fleet)], { type: 'application/json' });
+function download(text: string, fileName: string): void {
+  const blob = new Blob([text], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
-  anchor.download = suggestFleetFileName(fleet);
+  anchor.download = fileName;
   anchor.click();
   URL.revokeObjectURL(url);
+}
+
+/** What came back in, in a sentence — silence after a restore is unnerving. */
+function describeImport(result: { fleets: number; copies: number; catalog: boolean }): string {
+  const parts: string[] = [];
+  if (result.fleets > 0) {
+    parts.push(`${result.fleets} ${result.fleets === 1 ? 'fleet' : 'fleets'}`);
+  }
+  if (result.catalog) parts.push('the catalog');
+  const copies =
+    result.copies === 0
+      ? ''
+      : ` ${result.copies} came in as ${result.copies === 1 ? 'a copy' : 'copies'}, because a fleet with that id was already here.`;
+  return `Imported ${parts.join(' and ')}.${copies}`;
 }
 
 export function FleetBar(): React.JSX.Element {
@@ -39,7 +56,8 @@ export function FleetBar(): React.JSX.Element {
   const renameFleet = useFleetStore((s) => s.renameFleet);
   const duplicateFleet = useFleetStore((s) => s.duplicateFleet);
   const deleteFleet = useFleetStore((s) => s.deleteFleet);
-  const importFleetFromJson = useFleetStore((s) => s.importFleetFromJson);
+  const importExportFile = useFleetStore((s) => s.importExportFile);
+  const catalog = useCatalogStore((s) => s.catalog);
   const importFleet = useFleetStore((s) => s.importFleetObject);
   const resetForFleet = useUiStore((s) => s.resetForFleet);
   const openLibrary = useUiStore((s) => s.openLibrary);
@@ -53,6 +71,7 @@ export function FleetBar(): React.JSX.Element {
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -215,8 +234,17 @@ export function FleetBar(): React.JSX.Element {
                     : `${outstandingSources} still to provide`}
                 </small>
               </button>
-              <button type="button" className="fleetmenu-row" onClick={() => download(fleet)}>
-                Export JSON
+              <button
+                type="button"
+                className="fleetmenu-row"
+                data-testid="open-export"
+                onClick={() => {
+                  setExporting(true);
+                  setMenuOpen(false);
+                }}
+              >
+                Export…
+                <small>one fleet, several, or everything</small>
               </button>
               <button type="button" className="fleetmenu-row" onClick={() => fileInput.current?.click()}>
                 Import JSON…
@@ -255,6 +283,24 @@ export function FleetBar(): React.JSX.Element {
         </div>
       )}
 
+      {exporting && (
+        <ExportDialog
+          fleets={fleets}
+          activeFleetId={fleet?.id ?? null}
+          catalog={catalog}
+          onCancel={() => setExporting(false)}
+          onExport={(choice: ExportChoice) => {
+            const chosen = fleets.filter((one) => choice.fleetIds.includes(one.id));
+            const withCatalog = choice.catalog ? catalog : null;
+            download(
+              exportSelectionToJson(chosen, withCatalog),
+              suggestExportFileName(chosen, withCatalog),
+            );
+            setExporting(false);
+          }}
+        />
+      )}
+
       <input
         ref={fileInput}
         type="file"
@@ -265,12 +311,15 @@ export function FleetBar(): React.JSX.Element {
           event.target.value = '';
           if (!file) return;
           void file.text().then((text) => {
-            const result = importFleetFromJson(text);
-            setNotice(result.ok ? null : result.errors.join(' · '));
-            if (result.ok) {
-              resetForFleet();
-              setMenuOpen(false);
+            const result = importExportFile(text);
+            if (!result.ok) {
+              setNotice(result.errors.join(' · '));
+              return;
             }
+            resetForFleet();
+            // The menu stays open: it is where the notice lives, and "2 fleets, one
+            // of them a copy" is the whole point of having restored anything.
+            setNotice(describeImport(result));
           });
         }}
       />

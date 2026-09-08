@@ -4,7 +4,15 @@ import { migrateFleetDocument } from '../../src/model/migrations.js';
 import { isFleetValid } from '../../src/model/integrity.js';
 import { SCHEMA_VERSION } from '../../src/model/schemas.js';
 import type { Fleet } from '../../src/model/schemas.js';
-import { exportFleetToJson, parseFleetJson, suggestFleetFileName } from '../../src/store/io.js';
+import {
+  exportFleetToJson,
+  exportSelectionToJson,
+  parseExport,
+  parseFleetJson,
+  suggestExportFileName,
+  suggestFleetFileName,
+} from '../../src/store/io.js';
+import type { Catalog } from '../../src/model/catalog.js';
 import { AGENT, makeFleet } from '../fixtures/fleets.js';
 
 describe('export / import round-trip', () => {
@@ -252,5 +260,126 @@ describe('items attached to no agent', () => {
     expect(json).toContain('Angebot prüfen');
     expect(json).toContain('Objektportal');
     expect(json).toContain('Preisliste 2026');
+  });
+});
+
+/**
+ * Exporting more than one thing.
+ *
+ * The shape depends on the selection: one fleet alone stays the plain fleet
+ * document it has always been, so every `.fleet.json` already saved keeps
+ * working and a single fleet stays diffable. Anything else needs an envelope.
+ */
+describe('exporting a selection', () => {
+  const catalogWith = (): Catalog => ({
+    schemaVersion: 1,
+    agents: [],
+    skills: [{ id: 'skl_cat', name: 'Angebot prüfen' }],
+    tools: [],
+    dataSources: [],
+    documents: [
+      {
+        id: 'doc_1',
+        agentId: 'agt_x',
+        fileName: 'objektvertrieb.yaml',
+        importedAt: '2026-09-01T00:00:00.000Z',
+        text: 'kind: GptComponentMetadata\n',
+      },
+    ],
+  });
+
+  it('writes one fleet as the fleet document it has always been', () => {
+    const fleet = makeFleet();
+    expect(exportSelectionToJson([fleet], null)).toBe(exportFleetToJson(fleet));
+  });
+
+  it('names a single-fleet file after the fleet, and a bundle after the day', () => {
+    const fleet = makeFleet();
+    expect(suggestExportFileName([fleet], null)).toBe(suggestFleetFileName(fleet));
+    expect(suggestExportFileName([fleet], catalogWith(), new Date('2026-09-08T09:00:00Z'))).toBe(
+      'agent-visualiser-2026-09-08.json',
+    );
+  });
+
+  it('carries several fleets, each one whole', () => {
+    const first = makeFleet();
+    const second = { ...makeFleet(), id: 'flt_second', name: 'Zweite Flotte' };
+
+    const result = parseExport(exportSelectionToJson([first, second], null));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.fleets).toEqual([first, second]);
+    expect(result.catalog).toBeNull();
+  });
+
+  it('carries the catalog, including the file kept verbatim', () => {
+    const catalog = catalogWith();
+    const result = parseExport(exportSelectionToJson([makeFleet()], catalog));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.catalog).toEqual(catalog);
+    expect(result.catalog?.documents[0]?.text).toBe('kind: GptComponentMetadata\n');
+  });
+
+  it('carries the catalog with no fleet at all', () => {
+    const catalog = catalogWith();
+    const result = parseExport(exportSelectionToJson([], catalog));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.fleets).toEqual([]);
+    expect(result.catalog).toEqual(catalog);
+  });
+
+  it('reads a plain fleet document as a one-fleet export', () => {
+    const fleet = makeFleet();
+    const result = parseExport(exportFleetToJson(fleet));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.fleets).toEqual([fleet]);
+    expect(result.catalog).toBeNull();
+  });
+});
+
+describe('refusing a broken export', () => {
+  const bundle = (body: Record<string, unknown>): string =>
+    JSON.stringify({
+      kind: 'solarlux-agent-visualiser-export',
+      bundleVersion: 1,
+      exportedAt: '2026-09-08T09:00:00.000Z',
+      ...body,
+    });
+
+  it('says which fleet in the file is the bad one', () => {
+    const result = parseExport(bundle({ fleets: [makeFleet(), { id: 'nope' }] }));
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors.join(' ')).toContain('Fleet 2');
+  });
+
+  it('refuses the whole file rather than restoring half of it', () => {
+    // A half-restored backup is worse than a refused one: it looks like it worked.
+    const result = parseExport(bundle({ fleets: [makeFleet(), { id: 'nope' }] }));
+    expect(result.ok).toBe(false);
+  });
+
+  it('names the catalog when the catalog is what is wrong', () => {
+    const result = parseExport(bundle({ fleets: [], catalog: { schemaVersion: 99 } }));
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors.join(' ')).toContain('Catalog');
+  });
+
+  it('refuses an empty export rather than reporting a silent success', () => {
+    const result = parseExport(bundle({ fleets: [] }));
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors[0]).toContain('empty');
+  });
+
+  it('still reports plain malformed JSON', () => {
+    const result = parseExport('{ not json');
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors[0]).toContain('not valid JSON');
   });
 });

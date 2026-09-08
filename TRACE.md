@@ -1105,3 +1105,54 @@ scrolls itself into view, on open and again when the create form makes it taller
 Verified live at http://localhost:5178 on the Solarlux Vision fleet: `Berechtigungen prüfen` made
 from HR's Skills `+` in one click, and `Entra Admin` made through the tool form with type
 *workflow* — both attached to the agent and present in the Library afterwards.
+
+**Export can save more than the fleet you happen to be looking at.** Export wrote the active fleet
+and nothing else, which made it a way to share one fleet but not a way to back the app up: a second
+fleet, and the catalog, were simply not in the file — and the catalog holds the Copilot Studio
+uploads, which nothing else saves. `Export…` now opens a dialog: tick one fleet, several, all of
+them, and the catalog beside them. `Select everything` does what it says.
+
+The catalog is listed apart because it is the only thing here that is not inside a fleet. A fleet
+carries its own Data, Tools and Skills (SPEC §7: a fleet document is self-contained), and the dialog
+says so in a line at the top, because "I ticked the fleet — did I get its data?" is the question the
+screen exists to answer.
+
+**The file shape follows the selection rather than a setting.** One fleet and nothing else is written
+as the plain fleet document it has always been, so every `.fleet.json` already saved keeps working, a
+single fleet stays diffable in git, and sending one to a colleague is unchanged. Anything else needs
+an envelope, so it gets one — `solarlux-agent-visualiser-export`, named by the day. Import takes
+either, and a file never has to be explained before it is opened.
+
+Two choices that protect what is already there. A fleet whose id is already in use arrives as a
+**copy** rather than overwriting the one here, and the catalog is **merged** by id rather than
+replacing — an import must never quietly remove something that simply was not in the file. And a
+bundle with one bad fleet in it is refused whole: a half-restored backup is worse than a refused one,
+because it looks like it worked.
+
+Found by using it: the import summary was written to a notice that lives inside the fleet menu, and
+the same code closed the menu — so nobody ever saw it. The menu now stays open after a restore.
+
+| Item | Status | Test(s) |
+|---|---|---|
+| One fleet alone is byte-identical to the old export | ✅ | `io.test.ts` › "writes one fleet as the fleet document it has always been" |
+| A single-fleet file keeps its name; a bundle is named by the day | ✅ | `io.test.ts` › "names a single-fleet file after the fleet, and a bundle after the day" |
+| Several fleets travel whole | ✅ | `io.test.ts` › "carries several fleets, each one whole"; e2e › "everything goes out as one dated file, and comes back in" |
+| The catalog travels, including files kept verbatim | ✅ | `io.test.ts` › "carries the catalog, including the file kept verbatim" |
+| The catalog can go on its own, with no fleet | ✅ | `io.test.ts` › "carries the catalog with no fleet at all"; `fleetStore.test.ts` › "takes the catalog on its own…" |
+| An old `.fleet.json` still opens | ✅ | `io.test.ts` › "reads a plain fleet document as a one-fleet export"; `fleetStore.test.ts` › "reads a plain fleet document, so old backups still open" |
+| A broken fleet in a bundle is named, and the whole file refused | ✅ | `io.test.ts` › "says which fleet in the file is the bad one"; "refuses the whole file rather than restoring half of it" |
+| A bad catalog is named as the catalog | ✅ | `io.test.ts` › "names the catalog when the catalog is what is wrong" |
+| An empty export is refused, not silently succeeded | ✅ | `io.test.ts` › "refuses an empty export rather than reporting a silent success" |
+| A colliding fleet arrives as a copy; the original is untouched | ✅ | `fleetStore.test.ts` › "adds a colliding fleet as a copy rather than overwriting the one here" |
+| The catalog is merged, never replaced | ✅ | `fleetStore.test.ts` › "merges the catalog instead of replacing it" |
+| A broken file changes nothing | ✅ | `fleetStore.test.ts` › "changes nothing when the file is broken" |
+| The dialog lists every fleet, and the catalog beside them | ✅ | e2e › "export offers every fleet, and the catalog beside them" |
+| It opens on the fleet you were looking at | ✅ | e2e (same) |
+| Nothing ticked disables the button and says why | ✅ | e2e › "nothing ticked means nothing to write" |
+| Select everything ticks all of it | ✅ | e2e › "select everything ticks every fleet and the catalog" |
+| The import says what it restored | ✅ | e2e › "everything goes out as one dated file, and comes back in" |
+
+Verified live at http://localhost:5178: with two fleets present the dialog lists *Solarlux Fleet*
+(16 agents · 56 library items) and *Company fleet* (5 agents · 0 library items) with the Catalog
+under **Beside the fleets**, and `Select everything` ticks all three and turns the button into
+**Export everything**.

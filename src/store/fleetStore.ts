@@ -41,7 +41,7 @@ import { instantiateIntoFleet } from '../model/catalog.js';
 import type { CatalogAgent } from '../model/catalog.js';
 import { useCatalogStore } from './catalogStore.js';
 import type { FleetTemplate } from '../model/templates.js';
-import { parseFleetJson } from './io.js';
+import { parseExport, parseFleetJson } from './io.js';
 
 // ---------- action results ----------
 
@@ -96,6 +96,11 @@ export type AgentDeletionPreview = {
   orphanedChildIds: string[];
 };
 
+/** What an import actually did, so the notice can say it. */
+export type ImportSummary =
+  | { ok: true; fleets: number; copies: number; catalog: boolean }
+  | { ok: false; errors: string[] };
+
 export type FleetStoreState = {
   fleets: Record<string, Fleet>;
   /** Display order of the fleet switcher (SPEC 5.11). */
@@ -109,6 +114,12 @@ export type FleetStoreState = {
   deleteFleet: (fleetId: string) => ActionResult;
   setActiveFleet: (fleetId: string) => ActionResult;
   importFleetFromJson: (text: string) => { ok: true; id: string } | { ok: false; errors: string[] };
+  /**
+   * Restore an export file: one fleet, several fleets, the catalog, or any
+   * combination. Reports what it did rather than only whether it worked, because
+   * "3 fleets, 2 of them copies" is the thing a person needs to be told.
+   */
+  importExportFile: (text: string) => ImportSummary;
   /** Load an in-memory fleet (the shipped Solarlux example, SPEC 5.11). */
   importFleetObject: (fleet: Fleet) => { ok: true; id: string } | { ok: false; errors: string[] };
   /**
@@ -299,6 +310,30 @@ export const useFleetStore = create<FleetStoreState>()(
           if (!get().fleets[fleetId]) return fail(`Unknown fleet "${fleetId}".`);
           set({ activeFleetId: fleetId });
           return OK;
+        },
+
+        importExportFile: (text) => {
+          const parsed = parseExport(text);
+          if (!parsed.ok) return parsed;
+
+          let copies = 0;
+          const errors: string[] = [];
+          for (const fleet of parsed.fleets) {
+            // An id already in use means this is a second copy, not the same fleet
+            // coming home; importFleetObject re-ids it so nothing is overwritten.
+            if (get().fleets[fleet.id]) copies += 1;
+            const added = get().importFleetObject(fleet);
+            if (!added.ok) errors.push(...added.errors);
+          }
+          if (errors.length > 0) return { ok: false, errors };
+
+          if (parsed.catalog !== null) useCatalogStore.getState().mergeCatalog(parsed.catalog);
+          return {
+            ok: true,
+            fleets: parsed.fleets.length,
+            copies,
+            catalog: parsed.catalog !== null,
+          };
         },
 
         importFleetFromJson: (text) => {

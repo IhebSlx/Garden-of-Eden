@@ -16,7 +16,9 @@ import {
   undo,
   useFleetStore,
 } from '../../src/store/fleetStore.js';
-import { exportFleetToJson, parseFleetJson } from '../../src/store/io.js';
+import { exportFleetToJson, exportSelectionToJson, parseFleetJson } from '../../src/store/io.js';
+import { useCatalogStore } from '../../src/store/catalogStore.js';
+import type { Catalog } from '../../src/model/catalog.js';
 import { makeFleet } from '../fixtures/fleets.js';
 
 const store = () => useFleetStore.getState();
@@ -546,5 +548,86 @@ describe('the source of a data item can be taken back', () => {
     const round = parseFleetJson(json);
     expect(round.ok).toBe(true);
     if (round.ok) expect(round.fleet.dataSources[0]?.type).toBeUndefined();
+  });
+});
+
+/**
+ * Restoring an export file.
+ *
+ * The point of it is a backup that comes back whole, so what matters here is that
+ * nothing already in the app is destroyed on the way in and that the caller is
+ * told what actually happened.
+ */
+describe('importing an export file', () => {
+  const catalogWith = (skillName: string): Catalog => ({
+    schemaVersion: 1,
+    agents: [],
+    skills: [{ id: 'skl_cat', name: skillName }],
+    tools: [],
+    dataSources: [],
+    documents: [],
+  });
+
+  it('restores several fleets and the catalog in one go', () => {
+    const first = makeFleet();
+    const second = { ...makeFleet(), id: 'flt_second', name: 'Zweite Flotte' };
+    const text = exportSelectionToJson([first, second], catalogWith('Angebot prüfen'));
+
+    const result = store().importExportFile(text);
+    expect(result).toEqual({ ok: true, fleets: 2, copies: 0, catalog: true });
+    expect(selectFleetList(store()).map((f) => f.name)).toEqual([first.name, 'Zweite Flotte']);
+    expect(useCatalogStore.getState().catalog.skills.map((s) => s.name)).toEqual(['Angebot prüfen']);
+  });
+
+  it('takes the catalog on its own, with no fleet in the file', () => {
+    const result = store().importExportFile(exportSelectionToJson([], catalogWith('Nur Katalog')));
+    expect(result).toEqual({ ok: true, fleets: 0, copies: 0, catalog: true });
+    expect(useCatalogStore.getState().catalog.skills[0]?.name).toBe('Nur Katalog');
+  });
+
+  it('adds a colliding fleet as a copy rather than overwriting the one here', () => {
+    const fleet = load();
+    const before = active().agents.length;
+
+    const result = store().importExportFile(exportSelectionToJson([fleet, fleet], null));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // Both collide with the one already loaded, so both arrive as copies.
+    expect(result.copies).toBe(2);
+    expect(selectFleetList(store())).toHaveLength(3);
+    // And the original is untouched.
+    expect(store().fleets[fleet.id]?.agents).toHaveLength(before);
+  });
+
+  it('merges the catalog instead of replacing it', () => {
+    useCatalogStore.getState().hydrate({
+      schemaVersion: 1,
+      agents: [],
+      skills: [{ id: 'skl_mine', name: 'Schon da' }],
+      tools: [],
+      dataSources: [],
+      documents: [],
+    });
+
+    store().importExportFile(exportSelectionToJson([], catalogWith('Neu dazu')));
+
+    // An import must never quietly remove what simply was not in the file.
+    expect(useCatalogStore.getState().catalog.skills.map((s) => s.name).sort()).toEqual([
+      'Neu dazu',
+      'Schon da',
+    ]);
+  });
+
+  it('reads a plain fleet document, so old backups still open', () => {
+    const result = store().importExportFile(exportFleetToJson(makeFleet()));
+    expect(result).toEqual({ ok: true, fleets: 1, copies: 0, catalog: false });
+  });
+
+  it('changes nothing when the file is broken', () => {
+    load();
+    const before = selectFleetList(store()).length;
+    const result = store().importExportFile('{ not json');
+    expect(result.ok).toBe(false);
+    expect(selectFleetList(store())).toHaveLength(before);
   });
 });

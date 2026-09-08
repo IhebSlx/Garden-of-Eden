@@ -35,6 +35,15 @@ export type CatalogState = {
   catalog: Catalog;
 
   hydrate: (catalog: Catalog) => void;
+  /**
+   * Fold a restored catalog into this one, by id.
+   *
+   * Merge rather than replace: an import must never silently remove a catalog
+   * agent that simply was not in the file. Same id means the same thing, so the
+   * incoming copy wins — that is what makes restoring the same backup twice
+   * land in the same place.
+   */
+  mergeCatalog: (catalog: Catalog) => void;
 
   /** Create an agent by hand, with no fleet involved. */
   addAgent: (input: NewCatalogAgent) => CatalogCreate;
@@ -99,6 +108,22 @@ export const useCatalogStore = create<CatalogState>()((set, get) => {
     catalog: emptyCatalog(),
 
     hydrate: (catalog) => set({ catalog }),
+
+    mergeCatalog: (incoming) =>
+      patchCatalog((catalog) => ({
+        schemaVersion: catalog.schemaVersion,
+        agents: upsertManyById(catalog.agents, incoming.agents),
+        skills: upsertManyById(catalog.skills, incoming.skills),
+        tools: upsertManyById(catalog.tools, incoming.tools),
+        dataSources: upsertManyById(catalog.dataSources, incoming.dataSources),
+        // One document per agent, so the newer upload replaces the older.
+        documents: [
+          ...catalog.documents.filter(
+            (kept) => !incoming.documents.some((one) => one.agentId === kept.agentId),
+          ),
+          ...incoming.documents,
+        ],
+      })),
 
     addAgent: (input) => {
       const name = input.name.trim();
