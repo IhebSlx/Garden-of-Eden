@@ -19,8 +19,8 @@ import {
   peerIdsOf,
   sharedCount,
 } from '../model/selectors.js';
-import { sourceLabel } from '../model/schemas.js';
-import type { Agent, AgentKind, LibraryKind } from '../model/schemas.js';
+import { sourceLabel, ToolTypeSchema } from '../model/schemas.js';
+import type { Agent, AgentKind, LibraryKind, ToolType } from '../model/schemas.js';
 import {
   dataDotColor,
   KIND_COLOR,
@@ -29,12 +29,13 @@ import {
   SHARED_KIND_LABEL,
   STATUS_COLOR,
   TOOL_TYPE_COLOR,
+  TOOL_TYPE_LABEL,
 } from '../ui/palette.js';
 import { StatusChip } from './StatusChip.js';
 import { NotesField } from './NotesField.js';
 import { DataSourceDetail, InstructionsDetail, SkillDetail, ToolDetail } from './ItemDetail.js';
 import { Picker } from './Picker.js';
-import type { PickerOption } from './Picker.js';
+import type { PickerCreate, PickerOption } from './Picker.js';
 
 type PickerMode = LibraryKind | 'link' | null;
 
@@ -115,6 +116,9 @@ export function Inspector(): React.JSX.Element | null {
   const deleteAgent = useFleetStore((s) => s.deleteAgent);
   const previewAgentDeletion = useFleetStore((s) => s.previewAgentDeletion);
   const attachLibraryItem = useFleetStore((s) => s.attachLibraryItem);
+  const addSkill = useFleetStore((s) => s.addSkill);
+  const addTool = useFleetStore((s) => s.addTool);
+  const addDataSource = useFleetStore((s) => s.addDataSource);
   const detachLibraryItem = useFleetStore((s) => s.detachLibraryItem);
   const startPicking = useLinkDraft((s) => s.startPicking);
   const openLinkDraft = useLinkDraft((s) => s.open);
@@ -170,7 +174,28 @@ export function Inspector(): React.JSX.Element | null {
   const kindColor = shared ? SHARED_COLOR : KIND_COLOR[agent.kind];
   const deletion = confirmingDelete ? previewAgentDeletion(agent.id) : null;
 
-  const pickerOptions = (): { title: string; options: PickerOption[]; empty: string } => {
+  /**
+   * Make it, then attach it — the two halves of what the + button is asked for.
+   * The item lands in the library exactly as one added there would; this is a
+   * shorter road, not a second kind of thing.
+   */
+  const createAndAttach = (
+    kind: LibraryKind,
+    result: { ok: true; id: string } | { ok: false; reason: string },
+  ): string | null => {
+    if (!result.ok) return result.reason;
+    const attached = attachLibraryItem(agent.id, kind, result.id);
+    if (!attached.ok) return attached.reason;
+    setPicker(null);
+    return null;
+  };
+
+  const pickerOptions = (): {
+    title: string;
+    options: PickerOption[];
+    empty: string;
+    create?: PickerCreate;
+  } => {
     if (picker === 'skill') {
       return {
         title: 'Add a skill',
@@ -178,6 +203,8 @@ export function Inspector(): React.JSX.Element | null {
         options: fleet.skills
           .filter((s) => !agent.skillIds.includes(s.id))
           .map((s) => ({ id: s.id, label: s.name })),
+        // A name is all the schema asks of a skill; the rest is written later.
+        create: { noun: 'skill', onCreate: (name) => createAndAttach('skill', addSkill({ name })) },
       };
     }
     if (picker === 'tool') {
@@ -187,6 +214,37 @@ export function Inspector(): React.JSX.Element | null {
         options: fleet.tools
           .filter((t) => !agent.toolIds.includes(t.id))
           .map((t) => ({ id: t.id, label: t.name, hint: t.type, dotColor: TOOL_TYPE_COLOR[t.type] })),
+        create: {
+          noun: 'tool',
+          // SPEC §4: "every tool explains itself", and the schema enforces it, so
+          // the form asks rather than inventing copy to get past the check.
+          fields: [
+            {
+              key: 'type',
+              label: 'Type',
+              kind: 'select',
+              options: ToolTypeSchema.options.map((type) => ({
+                value: type,
+                label: TOOL_TYPE_LABEL[type],
+              })),
+            },
+            {
+              key: 'description',
+              label: 'What it does',
+              kind: 'text',
+              placeholder: 'Reads the order book and returns open positions',
+            },
+          ],
+          onCreate: (name, values) =>
+            createAndAttach(
+              'tool',
+              addTool({
+                name,
+                description: (values.description ?? '').trim(),
+                type: (values.type ?? 'microsoft') as ToolType,
+              }),
+            ),
+        },
       };
     }
     if (picker === 'dataSource') {
@@ -198,11 +256,20 @@ export function Inspector(): React.JSX.Element | null {
           // would attach a part the agent already has by inheritance.
           .filter((d) => !dataSources.some((have) => have.id === d.id))
           .map((d) => ({ id: d.id, label: d.name, hint: sourceLabel(d.type), dotColor: dataDotColor(d.type) })),
+        create: {
+          noun: 'data source',
+          // Needed, with nothing decided about it yet — the same blank the Data
+          // library starts an item on. Where it lives is answered there.
+          onCreate: (name) =>
+            createAndAttach('dataSource', addDataSource({ name, status: 'planned' })),
+        },
       };
     }
     return {
       title: 'Link an existing agent',
       empty: 'No other agent to link.',
+      // No create here: a new sub-agent has its own button, and "link existing"
+      // means exactly that.
       options: fleet.agents
         .filter((a) => a.id !== agent.id)
         .map((a) => ({ id: a.id, label: a.name, hint: KIND_LABEL[a.kind], dotColor: KIND_COLOR[a.kind] })),
@@ -611,6 +678,7 @@ export function Inspector(): React.JSX.Element | null {
               emptyText={config.empty}
               onPick={handlePick}
               onCancel={() => setPicker(null)}
+              {...(config.create === undefined ? {} : { create: config.create })}
             />
           );
         })()}

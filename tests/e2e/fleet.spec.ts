@@ -940,6 +940,103 @@ test('linking a box gives the agent what is inside it', async ({ page }) => {
   await expect(box.getByRole('button', { name: 'Remove Produktdaten' })).toHaveCount(1);
 });
 
+/* ---------- Making a library item from the agent panel ---------- */
+
+/**
+ * A picker that can only offer what exists is a dead end. These cover the other
+ * road: type a name that matches nothing, make it, and it is attached AND in the
+ * library — one item, not a copy (SPEC 8.7).
+ */
+test('a skill can be made from the agent panel and lands in the library', async ({ page }) => {
+  await cards(page, 'Lead Qualifier').first().click();
+  const inspector = page.getByTestId('inspector');
+
+  await inspector.getByRole('button', { name: 'Add skill' }).click();
+  const picker = page.getByTestId('picker');
+  await picker.getByTestId('picker-search').fill('Angebot prüfen');
+
+  // Nothing matches, so the picker offers to make it.
+  await expect(picker.getByTestId('picker-create')).toContainText('New skill “Angebot prüfen”');
+  await picker.getByTestId('picker-create').click();
+
+  // Attached to the agent, and the picker is done.
+  await expect(page.getByTestId('picker')).toHaveCount(0);
+  await expect(inspector.locator('.chip.ichip', { hasText: 'Angebot prüfen' })).toHaveCount(1);
+
+  // And in the library, where every other skill lives.
+  await page.getByTestId('view-library').click();
+  await page.getByTestId('library-tab-skills').click();
+  await expect(
+    page.getByTestId('library-row').filter({ hasText: 'Angebot prüfen' }),
+  ).toHaveCount(1);
+});
+
+test('a tool is asked for its type and description before it can exist', async ({ page }) => {
+  await cards(page, 'Lead Qualifier').first().click();
+  const inspector = page.getByTestId('inspector');
+
+  await inspector.getByRole('button', { name: 'Add tool' }).click();
+  const picker = page.getByTestId('picker');
+  await picker.getByTestId('picker-search').fill('Objektportal');
+  await picker.getByTestId('picker-create').click();
+
+  // SPEC 4: "every tool explains itself", so the form asks rather than inventing
+  // copy. Until it is answered, Create cannot fire.
+  const form = picker.getByTestId('picker-form');
+  await expect(form).toBeVisible();
+  await expect(picker.getByTestId('picker-create-confirm')).toBeDisabled();
+
+  await picker.getByTestId('picker-field-type').selectOption('python');
+  await picker.getByTestId('picker-field-description').fill('Liest Bauprojekte aus dem Objektportal.');
+  await picker.getByTestId('picker-create-confirm').click();
+
+  await expect(page.getByTestId('picker')).toHaveCount(0);
+  await expect(inspector.locator('.chip.ichip', { hasText: 'Objektportal' })).toHaveCount(1);
+
+  // The type it was given is the type it has.
+  await page.getByTestId('view-library').click();
+  await page.getByTestId('library-tab-tools').click();
+  const row = page.getByTestId('library-row').filter({ hasText: 'Objektportal' });
+  await expect(row).toHaveCount(1);
+  await expect(row).toContainText('python script');
+});
+
+test('a data source can be made from the agent panel, still to be provided', async ({ page }) => {
+  await cards(page, 'Lead Qualifier').first().click();
+  const inspector = page.getByTestId('inspector');
+
+  await inspector.getByRole('button', { name: 'Add data' }).click();
+  const picker = page.getByTestId('picker');
+  await picker.getByTestId('picker-search').fill('Preisliste 2026');
+  await picker.getByTestId('picker-create').click();
+
+  await expect(page.getByTestId('picker')).toHaveCount(0);
+  await expect(inspector.locator('.chip.ichip', { hasText: 'Preisliste 2026' })).toHaveCount(1);
+
+  // It arrives as work still owed, with nothing decided about where it lives.
+  await openData(page);
+  await openItem(page, 'Preisliste 2026');
+  await expect(page.getByTestId('data-source')).toHaveValue('');
+  await expect(page.getByTestId('library-detail')).toContainText('To be provided');
+});
+
+test('the picker will not offer to make something already in the library', async ({ page }) => {
+  const library = await openData(page);
+  await library.getByTestId('library-new-name').fill('Kundenstamm');
+  await library.getByTestId('library-add').click();
+
+  await page.getByTestId('view-2d').click();
+  await cards(page, 'Lead Qualifier').first().click();
+  const inspector = page.getByTestId('inspector');
+  await inspector.getByRole('button', { name: 'Add data' }).click();
+
+  const picker = page.getByTestId('picker');
+  await picker.getByTestId('picker-search').fill('Kundenstamm');
+  // It is in the list, so attaching it is the only thing on offer.
+  await expect(picker.getByTestId('picker-create')).toHaveCount(0);
+  await expect(picker.locator('.picker-row', { hasText: 'Kundenstamm' })).toHaveCount(1);
+});
+
 test('the briefing is offered once the filter says which department', async ({ page }) => {
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
   const library = await openData(page);

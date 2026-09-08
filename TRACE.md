@@ -1074,3 +1074,34 @@ has."*
 
 Dead CSS went with it: the Coverage and Department panes were removed from the UI when the Library
 tabs landed, and their 94 lines of styling outlived them.
+
+**The `+` buttons can make things, not only find them.** The agent panel's Skills, Tools and Data
+pickers offered the library and nothing else, so the moment the thing you wanted was not in it yet
+the panel was a dead end: close it, go to the Library, add the item, come back, search for it again.
+Type a name that matches nothing and the last row now offers `+ New skill “…”`, which creates it and
+attaches it in one step. Same item, same library — a shorter road, not a second kind of thing
+(SPEC §8.7).
+
+What a new one needs is declared per kind rather than assumed. A skill needs a name. A data source
+arrives as `planned` with its source undecided, the same blank the Data library starts an item on. A
+tool is asked for its type and a description first, because SPEC §4 says "every tool explains
+itself" and `ToolSchema` enforces it — asking for exactly the required fields beats inventing
+placeholder copy to get past the check.
+
+Two things found by using it rather than by reading it: the picker opens at the bottom of a panel
+that is usually already scrolled, so it landed below the fold and had to be hunted for — it now
+scrolls itself into view, on open and again when the create form makes it taller.
+
+| Item | Status | Test(s) |
+|---|---|---|
+| A skill can be made from the agent panel and lands in the library | ✅ | e2e › "a skill can be made from the agent panel and lands in the library" |
+| A tool is asked for type and description before it can exist | ✅ | e2e › "a tool is asked for its type and description before it can exist" |
+| The type chosen is the type it gets | ✅ | e2e (same) |
+| A new data source arrives as still-to-be-provided, source undecided | ✅ | e2e › "a data source can be made from the agent panel, still to be provided" |
+| An exact name match offers attaching, never creating a duplicate | ✅ | e2e › "the picker will not offer to make something already in the library" |
+| The created item is attached to the agent, not merely created | ✅ | all three creation tests assert the chip |
+| No create on the agent picker — "link existing" means existing | ✅ | `Inspector.tsx` passes no `create` for `'link'`; e2e › the link flows are unchanged |
+
+Verified live at http://localhost:5178 on the Solarlux Vision fleet: `Berechtigungen prüfen` made
+from HR's Skills `+` in one click, and `Entra Admin` made through the tool form with type
+*workflow* — both attached to the agent and present in the Library afterwards.
