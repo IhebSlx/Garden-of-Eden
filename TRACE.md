@@ -1039,3 +1039,38 @@ item's subtitle instead of occupying a row nobody fills in. `Reference (URI, pat
 | The link survives a reload | ✅ | e2e (same) |
 | The folder importer still records where a document lives | ✅ | e2e › "a folder of documents becomes the data library" |
 | The description is shown, not edited | ✅ | `fieldCoverage.test.ts` › exempt with a reason |
+
+**The document itself, in the library.** The link said where a document lives; reading it still meant
+a trip to Explorer. A data item whose link is a path to a `.docx` now shows the document's text under
+the fields, read straight from the folder `Open folder` already grants — no second copy, nothing here
+can edit it, and the label says **as uploaded · read-only**. The reader is dependency-free
+(`src/model/docx.ts`): a `.docx` is a zip, and the browser inflates it with `DecompressionStream`.
+Plain paragraphs rather than faithful HTML, deliberately — the agent is handed text, not formatting,
+and a prettier rendering would be a less honest one.
+
+The folder handle is kept in memory for the tab and **not** persisted. Storing it would mean a second
+document store beside the fleet, a version bump on live data and a permission prompt on load; losing
+it costs one click, and the pane says so plainly rather than showing an empty box.
+
+| Item | Status | Test(s) |
+|---|---|---|
+| Word XML → paragraphs: runs joined, tabs, breaks, entities, styling ignored | ✅ | `docx.test.ts` › "pulling paragraphs out of Word XML" (7 cases) |
+| A `.docx` is read whether stored or deflated | ✅ | `docx.test.ts` › "reads a deflated document"; "reads a stored document…" |
+| Every real document under `agent_data/UPLOAD` reads | ✅ | `docx.test.ts` › "reads every .docx under agent_data/UPLOAD" (16 files, skipped where absent) |
+| A non-zip, a zip without a document part, an empty file are reported, not thrown | ✅ | `docx.test.ts` › "reading the file" (3 cases) |
+| Only a path to a `.docx` is previewable — not a URL, a table name or an `.md` | ✅ | `folderHandle.test.ts` › "deciding what can be previewed" (9 cases); e2e › "a reference that is not a document in the folder shows no reader" |
+| A path that climbs out of the granted folder is refused | ✅ | `folderHandle.test.ts` › "refuses a path that climbs out of the folder that was granted" |
+| Reading by the path the importer stored | ✅ | `folderHandle.test.ts` › "reads a real document by the path the importer stored"; e2e › "an imported document can be read in the library" |
+| A missing file is named rather than blank | ✅ | `folderHandle.test.ts` › "says the file is not there rather than throwing"; e2e › "a document says it needs the folder open, and says when it is missing" |
+| No folder open: the pane says so | ✅ | e2e (same) |
+| Moving to another document swaps the text | ✅ | e2e › "an imported document can be read in the library" |
+| The folder is remembered for the tab, and forgotten on request | ✅ | `folderHandle.test.ts` › "remembering the folder" |
+
+Verified live at http://localhost:5178 on the Solarlux Vision fleet: `Objektvertrieb Rollen im
+Bauprojekt.docx` renders eight paragraphs with the footer
+`8 paragraphs from UPLOAD/03 Fachkontext/Objektvertrieb/…`, and the same item after a reload — the
+handle gone — reads *"Open folder to read this here. Until then the reference is all the library
+has."*
+
+Dead CSS went with it: the Coverage and Department panes were removed from the UI when the Library
+tabs landed, and their 94 lines of styling outlived them.

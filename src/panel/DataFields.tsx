@@ -12,13 +12,13 @@ import { dataDescendants, departmentNamed, flattenData } from '../model/selector
 import { selectActiveFleet, useFleetStore } from '../store/fleetStore.js';
 import { allSourceKinds, STATUS_COLOR } from '../ui/palette.js';
 import { NotesField } from './NotesField.js';
+import { ProviderSelect } from './ProviderSelect.js';
 
 /** Whether a reference is somewhere a browser can actually go. */
 function isOpenable(ref: string | undefined): ref is string {
   if (ref === undefined) return false;
   return /^https?:\/\//i.test(ref.trim());
 }
-import { ProviderSelect } from './ProviderSelect.js';
 
 const STATUSES: Status[] = ['live', 'building', 'planned'];
 

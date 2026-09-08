@@ -16,18 +16,14 @@ import { useState } from 'react';
 import { planFolderImport } from '../../model/folderImport.js';
 import type { ImportPlan, ScannedFile } from '../../model/folderImport.js';
 import { selectActiveFleet, useFleetStore } from '../../store/fleetStore.js';
+import { useFolderStore } from '../../store/folderHandle.js';
+import type { DirectoryHandle } from '../../store/folderHandle.js';
 
 /**
  * A mis-picked folder — a whole OneDrive root — must not lock the tab up walking
  * it. The real folder holds tens of files, so this is far out of the way.
  */
 const MAX_FILES = 2000;
-
-type DirectoryHandle = {
-  name: string;
-  values: () => AsyncIterable<DirectoryHandle | { kind: 'file'; name: string }>;
-  kind: 'directory' | 'file';
-};
 
 type PickerWindow = Window & {
   showDirectoryPicker?: (options?: { mode?: 'read' | 'readwrite' }) => Promise<DirectoryHandle>;
@@ -54,6 +50,7 @@ async function scan(
 export function FolderImport(): React.JSX.Element {
   const fleet = useFleetStore(selectActiveFleet);
   const importDataFolder = useFleetStore((s) => s.importDataFolder);
+  const connectFolder = useFolderStore((s) => s.connect);
 
   const [plan, setPlan] = useState<ImportPlan | null>(null);
   const [root, setRoot] = useState<string>('');
@@ -72,6 +69,11 @@ export function FolderImport(): React.JSX.Element {
       // The picker throws when it is dismissed, which is not an error.
       return;
     }
+
+    // Kept whether or not the import is applied: the library reads documents
+    // through this same grant, and cancelling the preview is not a reason to
+    // make the user pick the folder again.
+    connectFolder(handle);
 
     setBusy(true);
     try {

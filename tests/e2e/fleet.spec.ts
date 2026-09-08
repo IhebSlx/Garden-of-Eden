@@ -996,26 +996,112 @@ test('the Source list is editable, and a source in use cannot be removed', async
 
 /**
  * The directory picker is a native dialog Playwright cannot drive, so the handle
- * it returns is stubbed. Everything after that - the walk, the plan, the preview
- * and the apply - is the real code path.
+ * it returns is stubbed. Everything after that - the walk, the plan, the preview,
+ * the apply and reading a document back out - is the real code path.
+ *
+ * The files carry real bytes: a `.docx` is a zip, and the reader is only worth
+ * testing against one. They are stored rather than deflated, which is a shape zip
+ * allows and this keeps the stub short; Word's deflate is covered by the unit
+ * suite, which reads the actual documents off disk.
  */
 async function stubFolder(page: Page): Promise<void> {
   await page.addInitScript(() => {
-    const file = (name: string) => ({ kind: 'file' as const, name });
-    // `for await` iterates a plain array happily, so the handle can return one.
-    const make = (name: string, children: unknown[]): unknown => ({
+    type Entry =
+      | { kind: 'file'; name: string; getFile: () => Promise<Blob> }
+      | {
+          kind: 'directory';
+          name: string;
+          values: () => Entry[];
+          getDirectoryHandle: (name: string) => Promise<Entry>;
+          getFileHandle: (name: string) => Promise<Entry>;
+        };
+
+    /** One stored entry, which is all a reader needs to find the text. */
+    const zip = (partName: string, text: string): Uint8Array => {
+      const encoder = new TextEncoder();
+      const name = encoder.encode(partName);
+      const body = encoder.encode(text);
+
+      const local = new Uint8Array(30 + name.length);
+      const lv = new DataView(local.buffer);
+      lv.setUint32(0, 0x04034b50, true);
+      lv.setUint32(18, body.length, true);
+      lv.setUint32(22, body.length, true);
+      lv.setUint16(26, name.length, true);
+      local.set(name, 30);
+
+      const central = new Uint8Array(46 + name.length);
+      const cv = new DataView(central.buffer);
+      cv.setUint32(0, 0x02014b50, true);
+      cv.setUint32(20, body.length, true);
+      cv.setUint32(24, body.length, true);
+      cv.setUint16(28, name.length, true);
+      central.set(name, 46);
+
+      const eocd = new Uint8Array(22);
+      const ev = new DataView(eocd.buffer);
+      ev.setUint32(0, 0x06054b50, true);
+      ev.setUint16(8, 1, true);
+      ev.setUint16(10, 1, true);
+      ev.setUint32(12, central.length, true);
+      ev.setUint32(16, local.length + body.length, true);
+
+      const out = new Uint8Array(local.length + body.length + central.length + eocd.length);
+      out.set(local, 0);
+      out.set(body, local.length);
+      out.set(central, local.length + body.length);
+      out.set(eocd, local.length + body.length + central.length);
+      return out;
+    };
+
+    const file = (name: string, lines: string[] = ['Stand: August 2026']): Entry => ({
+      kind: 'file',
+      name,
+      getFile: () =>
+        Promise.resolve(
+          new Blob([
+            zip(
+              'word/document.xml',
+              `<?xml version="1.0"?><w:document xmlns:w="x"><w:body>${lines
+                .map((line) => `<w:p><w:r><w:t>${line}</w:t></w:r></w:p>`)
+                .join('')}</w:body></w:document>`,
+            ) as BlobPart,
+          ]),
+        ),
+    });
+
+    const plain = (name: string): Entry => ({
+      kind: 'file',
+      name,
+      getFile: () => Promise.resolve(new Blob(['# Arbeitskopie, nicht hochladen'])),
+    });
+
+    const named = (children: Entry[], kind: Entry['kind'], name: string): Promise<Entry> => {
+      const found = children.find((child) => child.kind === kind && child.name === name);
+      return found === undefined ? Promise.reject(new Error('NotFoundError')) : Promise.resolve(found);
+    };
+
+    const make = (name: string, children: Entry[]): Entry => ({
       kind: 'directory',
       name,
       values: () => children,
+      getDirectoryHandle: (child) => named(children, 'directory', child),
+      getFileHandle: (child) => named(children, 'file', child),
     });
 
     const kern = make('01 Kern', [
       file('Solarlux Unternehmensprofil.docx'),
       file('Solarlux Produktsysteme Register.docx'),
-      file('Solarlux Unternehmensprofil.md'),
+      plain('Solarlux Unternehmensprofil.md'),
     ]);
     const vertrieb = make('02 Vertrieb', [file('Solarlux Vertriebsorganisation.docx')]);
-    const objekt = make('Objektvertrieb', [file('Objektvertrieb Rollen im Bauprojekt.docx')]);
+    const objekt = make('Objektvertrieb', [
+      file('Objektvertrieb Rollen im Bauprojekt.docx', [
+        'Rollen im Bauprojekt',
+        'Stand: August 2026',
+        'Bauherr, Architekt, Generalunternehmer und Verarbeiter.',
+      ]),
+    ]);
     const fach = make('03 Fachkontext', [objekt]);
     const upload = make('UPLOAD', [kern, vertrieb, fach]);
 
@@ -1073,6 +1159,78 @@ test('importing the same folder twice refreshes rather than doubles it', async (
   await library.getByTestId('folder-import').click();
   await page.getByTestId('import-apply').click();
   await expect(library.getByTestId('library-row')).toHaveCount(once);
+});
+
+/* ---------- Reading a document without leaving the library ---------- */
+
+test('an imported document can be read in the library', async ({ page }) => {
+  await stubFolder(page);
+  await page.goto('/');
+  await expect(page.getByTestId('board')).toBeVisible();
+  const library = await openData(page);
+
+  await library.getByTestId('folder-import').click();
+  await page.getByTestId('import-apply').click();
+
+  await openItem(page, 'Rollen im Bauprojekt');
+  const preview = library.getByTestId('document-preview');
+  await expect(preview).toContainText('Objektvertrieb Rollen im Bauprojekt.docx');
+  await expect(preview).toContainText('as uploaded · read-only');
+
+  // The text itself, read out of the folder rather than copied into the app.
+  await expect(library.getByTestId('document-preview-text')).toContainText(
+    'Bauherr, Architekt, Generalunternehmer und Verarbeiter.',
+  );
+  await expect(preview).toContainText('3 paragraphs from UPLOAD/03 Fachkontext/Objektvertrieb/');
+
+  // Moving to another document swaps the text rather than keeping the last one.
+  await openItem(page, 'Unternehmensprofil');
+  await expect(library.getByTestId('document-preview-text')).toContainText('Stand: August 2026');
+  await expect(library.getByTestId('document-preview-text')).not.toContainText('Bauherr');
+});
+
+test('a reference that is not a document in the folder shows no reader', async ({ page }) => {
+  const library = await openData(page);
+  await library.getByTestId('library-new-name').fill('Kundenstamm');
+  await library.getByTestId('library-add').click();
+
+  // A Dataverse table is not a file, so there is nothing to read.
+  await library.getByTestId('data-link').fill('cr123_kunden');
+  await library.getByTestId('data-link').blur();
+  await expect(library.getByTestId('document-preview')).toHaveCount(0);
+
+  // Neither is a SharePoint page: that one already has Open.
+  await library.getByTestId('data-link').fill('https://solarlux.sharepoint.com/sites/Vertrieb');
+  await library.getByTestId('data-link').blur();
+  await expect(library.getByTestId('document-preview')).toHaveCount(0);
+  await expect(library.getByTestId('data-link-open')).toBeVisible();
+});
+
+test('a document says it needs the folder open, and says when it is missing', async ({ page }) => {
+  await stubFolder(page);
+  await page.goto('/');
+  await expect(page.getByTestId('board')).toBeVisible();
+  const library = await openData(page);
+
+  await library.getByTestId('library-new-name').fill('Preisliste');
+  await library.getByTestId('library-add').click();
+  await library.getByTestId('data-link').fill('01 Kern/Preisliste 2026.docx');
+  await library.getByTestId('data-link').blur();
+
+  // No folder opened yet: the reference is all the library has, and it says so.
+  await expect(library.getByTestId('document-preview-closed')).toContainText('Open folder to read');
+
+  // With the folder open, a path that is not in it is named rather than blank.
+  await library.getByTestId('folder-import').click();
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  await expect(library.getByTestId('document-preview-error')).toContainText(
+    'No file at 01 Kern/Preisliste 2026.docx',
+  );
+
+  // And one that is in it reads.
+  await library.getByTestId('data-link').fill('01 Kern/Solarlux Unternehmensprofil.docx');
+  await library.getByTestId('data-link').blur();
+  await expect(library.getByTestId('document-preview-text')).toContainText('Stand: August 2026');
 });
 
 test('a fresh install opens the Solarlux Vision fleet, not the demo', async ({ browser }) => {

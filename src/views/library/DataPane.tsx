@@ -19,6 +19,7 @@ import { DataFields } from '../../panel/DataFields.js';
 import { useFleetStore } from '../../store/fleetStore.js';
 import { useUiStore } from '../../store/uiStore.js';
 import { dataDotColor, STATUS_COLOR } from '../../ui/palette.js';
+import { DocumentPreview } from './DocumentPreview.js';
 import { ItemHeader } from './ItemHeader.js';
 import { LibraryList } from './LibraryList.js';
 import { UsedBy } from './UsedBy.js';
@@ -185,6 +186,8 @@ function Detail({
       )}
 
       <DataFields id={source.id} onError={setError} />
+
+      <DocumentPreview refValue={source.ref} />
     </>
   );
 }
