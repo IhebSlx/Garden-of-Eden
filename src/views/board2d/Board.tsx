@@ -23,11 +23,14 @@ import type { AgentFlowNode } from './AgentNode.js';
 import { ArrowMarkers, WireEdge } from './WireEdge.js';
 import { Minimap } from './Minimap.js';
 import { ZoomControls } from './ZoomControls.js';
+import { PaneMenu } from './PaneMenu.js';
+import { NewAgentDialog } from './NewAgentDialog.js';
+import type { NewAgentChoice } from './NewAgentDialog.js';
 import { cardSizeAt, useBoardModel, zoomBucket } from './boardModel.js';
 import type { ZoomBucket } from './boardModel.js';
 import { boundsOf } from '../../layout/treeLayout.js';
 import { fitViewport, frameViewport } from '../../layout/viewport.js';
-import { useFleetStore } from '../../store/fleetStore.js';
+import { selectActiveFleet, useFleetStore } from '../../store/fleetStore.js';
 import { useUiStore } from '../../store/uiStore.js';
 import { useLinkDraft } from '../../store/linkDraft.js';
 import { usePrefersReducedMotion } from '../../ui/usePrefersReducedMotion.js';
@@ -43,7 +46,7 @@ const edgeTypes = { wire: WireEdge };
 
 function BoardCanvas(): React.JSX.Element {
   const wrapper = useRef<HTMLDivElement>(null);
-  const { setViewport, getViewport } = useReactFlow();
+  const { setViewport, getViewport, screenToFlowPosition } = useReactFlow();
   const { zoom } = useViewport();
 
   // Semantic-zoom stage is a pure function of the live zoom - no state to drift.
@@ -56,7 +59,15 @@ function BoardCanvas(): React.JSX.Element {
   const focusId = useUiStore((s) => s.focusId);
   const showDetails = useUiStore((s) => s.showDetails);
   const setAgentPosition = useFleetStore((s) => s.setAgentPosition);
+  const fleet = useFleetStore(selectActiveFleet);
+  const addAgent = useFleetStore((s) => s.addAgent);
+  const linkAgents = useFleetStore((s) => s.linkAgents);
   const openLinkDraft = useLinkDraft((s) => s.open);
+
+  /** Where the right-click happened: screen point for the menu, flow point for the card. */
+  const [paneMenu, setPaneMenu] = useState<{ x: number; y: number } | null>(null);
+  const [placing, setPlacing] = useState<{ x: number; y: number } | null>(null);
+  const [newAgentError, setNewAgentError] = useState<string | null>(null);
   const linking = useLinkDraft((s) => s.pending !== null);
   // SPEC 10: with reduced motion the viewport jumps instead of gliding.
   const reducedMotion = usePrefersReducedMotion();
@@ -158,6 +169,46 @@ function BoardCanvas(): React.JSX.Element {
     if (useUiStore.getState().focusId !== null) clearFocus();
   }, [clearFocus]);
 
+  /** SPEC 5.8: an agent had to be born under a selected card; empty space had no answer. */
+  const onPaneContextMenu = useCallback((event: React.MouseEvent | MouseEvent) => {
+    event.preventDefault();
+    setPaneMenu({ x: event.clientX, y: event.clientY });
+  }, []);
+
+  const createAgent = useCallback(
+    (choice: NewAgentChoice, at: { x: number; y: number }) => {
+      const created = addAgent({
+        name: choice.name,
+        role: choice.role,
+        kind: choice.kind,
+        ...(choice.parentId === '' ? {} : { parentId: choice.parentId }),
+      });
+      if (!created.ok) {
+        setNewAgentError(created.reason);
+        return;
+      }
+
+      // Put it where the right-click was, so it appears where it was asked for
+      // rather than wherever the layout would otherwise have placed it.
+      setAgentPosition(created.id, at);
+
+      // Children are hierarchy edges from the new agent, not a re-parenting: an
+      // agent may have several parents (SPEC 2), so nothing is taken away.
+      const refused: string[] = [];
+      for (const childId of choice.childIds) {
+        const linked = linkAgents(created.id, childId, 'hierarchy');
+        if (!linked.ok) refused.push(linked.reason);
+      }
+
+      setPlacing(null);
+      setNewAgentError(null);
+      activate(created.id);
+      // Said out loud rather than swallowed: the agent exists either way.
+      if (refused.length > 0) console.warn('Some links were refused:', refused.join(' · '));
+    },
+    [addAgent, activate, linkAgents, setAgentPosition],
+  );
+
   const onDoubleClick = useCallback(
     (event: React.MouseEvent) => {
       if ((event.target as HTMLElement).closest('.react-flow__node')) return;
@@ -200,6 +251,29 @@ function BoardCanvas(): React.JSX.Element {
   return (
     <div ref={wrapper} className={surfaceClass} onDoubleClick={onDoubleClick} data-testid="board">
       <ArrowMarkers />
+
+      {paneMenu !== null && (
+        <PaneMenu
+          at={paneMenu}
+          onClose={() => setPaneMenu(null)}
+          onNewAgent={() => {
+            setNewAgentError(null);
+            setPlacing(screenToFlowPosition({ x: paneMenu.x, y: paneMenu.y }));
+          }}
+        />
+      )}
+
+      {placing !== null && fleet !== undefined && (
+        <NewAgentDialog
+          fleet={fleet}
+          error={newAgentError}
+          onCancel={() => {
+            setPlacing(null);
+            setNewAgentError(null);
+          }}
+          onCreate={(choice) => createAgent(choice, placing)}
+        />
+      )}
       <ReactFlow
         nodes={nodes}
         edges={model.edges}
@@ -209,6 +283,7 @@ function BoardCanvas(): React.JSX.Element {
         onNodeClick={onNodeClick}
         onNodeDragStop={onNodeDragStop}
         onPaneClick={onPaneClick}
+        onPaneContextMenu={onPaneContextMenu}
         onEdgeClick={(_event, edge) => selectEdge(edge.data?.edgeId ?? null)}
         onConnect={onConnect}
         onInit={() => setInitialized(true)}

@@ -603,6 +603,83 @@ test('Library is a third view, with three filtrable tabs', async ({ page }) => {
   await expect(page.getByTestId('filter-bar')).toBeVisible();
 });
 
+/* ---------- Making an agent from the board ---------- */
+
+/** Right-click empty space and open the dialog behind it. */
+async function newAgentDialog(page: Page) {
+  await page.locator('.react-flow__pane').click({ button: 'right', position: { x: 80, y: 420 } });
+  await expect(page.getByTestId('pane-menu')).toBeVisible();
+  await page.getByTestId('pane-menu-new-agent').click();
+  const dialog = page.getByTestId('new-agent-dialog');
+  await expect(dialog).toBeVisible();
+  return dialog;
+}
+
+test('an agent can be made from empty space, with a parent and children', async ({ page }) => {
+  const dialog = await newAgentDialog(page);
+
+  await dialog.getByTestId('new-agent-name').fill('Angebots-Bot');
+  await dialog.getByTestId('new-agent-role').fill('Erstellt Angebote aus Projektdaten');
+  await dialog.getByTestId('new-agent-kind-department').click();
+
+  // Reports to Marketing, and Content Writer moves under it.
+  const parent = dialog.getByTestId('new-agent-parent');
+  await parent.selectOption({ label: 'Marketing' });
+  const child = dialog.locator('[data-testid^="new-agent-child-"]').last();
+  await child.check();
+
+  await dialog.getByTestId('new-agent-create').click();
+  await expect(page.getByTestId('new-agent-dialog')).toHaveCount(0);
+
+  // It exists, it is selected, and the panel says where it sits. Name and role
+  // are editable lines, so they are values rather than text.
+  const inspector = page.getByTestId('inspector');
+  await expect(inspector.getByTestId('panel-name')).toHaveValue('Angebots-Bot');
+  await expect(inspector.getByTestId('panel-role')).toHaveValue('Erstellt Angebote aus Projektdaten');
+  await expect(inspector).toContainText('Reports to Marketing');
+  await expect(cards(page, 'Angebots-Bot').first()).toBeVisible();
+});
+
+test('nothing the new agent sits under is offered as its child', async ({ page }) => {
+  const dialog = await newAgentDialog(page);
+  const boxes = dialog.locator('[data-testid^="new-agent-child-"]');
+  const before = await boxes.count();
+
+  await dialog.getByTestId('new-agent-parent').selectOption({ label: 'Marketing' });
+
+  // Marketing AND the orchestrator above it: either as a child is a cycle, and
+  // offering a choice the store will refuse loses the link without saying so.
+  await expect(boxes).toHaveCount(before - 2);
+  await expect(dialog.locator('.newagent-childlist')).not.toContainText('Marketing');
+  await expect(dialog.locator('.newagent-childlist')).not.toContainText('Orchestrator');
+});
+
+test('a second orchestrator is refused rather than offered', async ({ page }) => {
+  const dialog = await newAgentDialog(page);
+  // SPEC 4: exactly one. A button the store would refuse is a button that lies.
+  await expect(dialog.getByTestId('new-agent-kind-orchestrator')).toBeDisabled();
+  await expect(dialog.getByTestId('new-agent-kind-department')).toBeEnabled();
+});
+
+test('a nameless agent cannot be created', async ({ page }) => {
+  const dialog = await newAgentDialog(page);
+  await expect(dialog.getByTestId('new-agent-create')).toBeDisabled();
+  await dialog.getByTestId('new-agent-name').fill('Irgendwas');
+  await expect(dialog.getByTestId('new-agent-create')).toBeEnabled();
+});
+
+test('the board menu closes on Escape and on a click elsewhere', async ({ page }) => {
+  await page.locator('.react-flow__pane').click({ button: 'right', position: { x: 80, y: 420 } });
+  await expect(page.getByTestId('pane-menu')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('pane-menu')).toHaveCount(0);
+
+  await page.locator('.react-flow__pane').click({ button: 'right', position: { x: 80, y: 420 } });
+  await expect(page.getByTestId('pane-menu')).toBeVisible();
+  await page.locator('.react-flow__pane').click({ position: { x: 300, y: 200 } });
+  await expect(page.getByTestId('pane-menu')).toHaveCount(0);
+});
+
 /* ---------- The catalog can see what the fleets already hold ---------- */
 
 /**

@@ -1193,3 +1193,43 @@ Verified live at http://localhost:5178 on the Solarlux Vision fleet: the Agents 
 fleet agents with their roles, the Data tab offered the data library with each item's status, and
 copying `Unternehmenskontext` in moved it into the catalog, raised the tab count to 1 and dropped the
 offer from 13 to 12.
+
+**An agent can be made from empty space.** Creating one meant selecting a card and pressing
+"+ Add sub-agent", so an agent could only be born *under* something already there — the first agent
+of a branch, or anything belonging at the top, had nowhere to come from. Right-click the board and
+**New agent here** opens a dialog for the name, what it does, its type, what it reports to, and which
+existing agents move under it. It lands where the right-click was, not where the layout would have
+put it.
+
+SPEC §5.8's friction rule still holds: name and role are all that is required. Everything else is
+offered because the board is where you already know it.
+
+Two choices that keep the dialog honest. **Orchestrator is disabled when the fleet has one** (SPEC §4:
+exactly one) rather than offered and then refused. And the child list excludes the chosen parent *and
+everything above it* — any of those as a child is a cycle, the store refuses it, and refusing after
+the agent already exists is how a link goes missing without anyone being told. Found by reading a
+console warning in a passing test, which is exactly the kind of quiet wrongness that survives a
+green suite.
+
+Children are hierarchy edges from the new agent, not a re-parenting: an agent may have several
+hierarchy parents (SPEC §2), so nothing is taken away from where a child sits now.
+
+| Item | Status | Test(s) |
+|---|---|---|
+| Right-click on empty space opens a board menu | ✅ | e2e › "the board menu closes on Escape and on a click elsewhere" |
+| The menu closes on Escape and on a click elsewhere | ✅ | e2e (same) |
+| An agent is created with type, parent and children in one step | ✅ | e2e › "an agent can be made from empty space, with a parent and children" |
+| It is selected afterwards, and its parent is shown | ✅ | e2e (same) |
+| Nothing the agent sits under is offered as its child | ✅ | e2e › "nothing the new agent sits under is offered as its child" |
+| A second orchestrator is disabled, not refused later | ✅ | e2e › "a second orchestrator is refused rather than offered" |
+| A nameless agent cannot be created | ✅ | e2e › "a nameless agent cannot be created" |
+
+Verified live at http://localhost:5178 on the Solarlux Vision fleet: right-click → **New agent here**
+→ `Angebots-Bot`, sub-agent, reporting to IT, with `Kalkulationsagent` under it. Read back out of
+IndexedDB afterwards: `kind: worker`, `parents: ["IT"]`, `children: ["Kalkulationsagent"]`, and a
+position matching where the right-click landed.
+
+Two bugs found by using it rather than by reading it. The menu's dismiss listener runs on capture, so
+it unmounted the menu before its own button could be clicked — it now ignores presses inside itself.
+And Escape never arrived, because the board's keyboard handling sits between the menu and the window;
+the menu now captures that too.
