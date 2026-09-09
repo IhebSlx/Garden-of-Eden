@@ -349,8 +349,12 @@ test('a shortcut key typed into a field stays in the field', async ({ page }) =>
 
 test('an edge can be selected and its status and label edited (SPEC 8.5)', async ({ page }) => {
   await cards(page, 'Marketing').first().click();
-  // Click the wire running from Marketing down to Content Writer.
-  await page.locator('.react-flow__edge').first().click({ force: true });
+
+  // Dispatched on the edge rather than clicked at a coordinate. A force-click
+  // lands on the centre of the path's bounding box, which for a curve is usually
+  // not on the curve — and the focus cascade is still moving it when the click
+  // arrives, so the point that worked a moment ago no longer does.
+  await page.locator('.react-flow__edge').first().dispatchEvent('click');
 
   const panel = page.getByTestId('edge-inspector');
   await expect(panel).toBeVisible();
@@ -469,11 +473,6 @@ test('the catalog survives a reload', async ({ page }) => {
 });
 
 
-
-test('the fleet menu counts what is still to provide', async ({ page }) => {
-  await page.getByTestId('fleet-menu-toggle').click();
-  await expect(page.getByTestId('open-library')).toContainText('still to provide');
-});
 
 test('the app is branded as the Solarlux Agent Visualiser', async ({ page }) => {
   await expect(page).toHaveTitle('Solarlux Agent Visualiser');
@@ -604,9 +603,71 @@ test('Library is a third view, with three filtrable tabs', async ({ page }) => {
   await expect(page.getByTestId('filter-bar')).toBeVisible();
 });
 
-test('the fleet menu opens the Library rather than a dialog over the board', async ({ page }) => {
+/* ---------- The catalog can see what the fleets already hold ---------- */
+
+/**
+ * A catalog that starts empty and cannot see the work already done reads as
+ * broken. Each tab ends with what the fleets hold and an offer to copy it in.
+ */
+test('the catalog offers what the fleets already hold', async ({ page }) => {
+  await openCatalog(page);
+  const catalog = page.getByTestId('catalog');
+
+  // Nothing of its own yet, but the fleet's agents are all on offer.
+  await expect(catalog).toContainText('No agents yet');
+  const offered = catalog.getByTestId('catalog-fleet-item');
+  expect(await offered.count()).toBeGreaterThan(5);
+  await expect(catalog.getByTestId('catalog-from-fleets')).toContainText('not in the catalog');
+
+  // And the data tab offers the data library, not the agents.
+  await catalog.getByTestId('catalog-tab-dataSource').click();
+  await expect(catalog.getByTestId('catalog-fleet-item').first()).toBeVisible();
+});
+
+test('copying one in takes it out of the offer and into the catalog', async ({ page }) => {
+  await openCatalog(page);
+  const catalog = page.getByTestId('catalog');
+  await catalog.getByTestId('catalog-tab-dataSource').click();
+
+  const before = await catalog.getByTestId('catalog-fleet-item').count();
+  const first = catalog.getByTestId('catalog-fleet-item').first();
+  // The row also carries its status and the button; only the name is the name.
+  const name = ((await first.locator('.cat-fromfleets-name').textContent()) ?? '').trim();
+
+  await first.getByTestId('catalog-take').click();
+
+  // One fewer on offer, and it is now the catalog's own.
+  await expect(catalog.getByTestId('catalog-fleet-item')).toHaveCount(before - 1);
+  await expect(catalog.getByTestId('catalog-tab-dataSource')).toContainText('1');
+  await expect(catalog.locator('.lib-name').first()).toHaveValue(name);
+
+  // Offering it twice would be how a duplicate gets made.
+  await expect(catalog.getByTestId('catalog-fleet-item').filter({ hasText: name })).toHaveCount(0);
+});
+
+test('copying an agent in brings the parts it needs', async ({ page }) => {
+  await openCatalog(page);
+  const catalog = page.getByTestId('catalog');
+
+  // Objektvertrieb is the fleet's busiest agent, so it has parts to bring.
+  const row = catalog.getByTestId('catalog-fleet-item').filter({ hasText: 'Objektvertrieb' }).first();
+  await row.getByTestId('catalog-take').click();
+
+  // An agent in the catalog whose skills and data are missing would be a shell.
+  await expect(catalog.getByTestId('catalog-tab-agents')).toContainText('1');
+  await expect(catalog.getByTestId('catalog-tab-dataSource')).not.toContainText('0');
+});
+
+test('the fleet menu no longer offers the Library, which has its own tab', async ({ page }) => {
   await page.getByTestId('fleet-menu-toggle').click();
-  await page.getByTestId('open-library').click();
+  await expect(page.getByTestId('fleet-menu')).toBeVisible();
+  await expect(page.getByTestId('open-library')).toHaveCount(0);
+  // The tab beside 2D and 3D is the way in.
+  await expect(page.getByTestId('view-library')).toBeVisible();
+});
+
+test('the Library is a view, not a dialog over the board', async ({ page }) => {
+  await page.getByTestId('view-library').click();
 
   await expect(page.getByTestId('view-switch')).toHaveAttribute('data-view', 'library');
   await expect(page.getByTestId('library-view')).toHaveAttribute('data-tab', 'data');

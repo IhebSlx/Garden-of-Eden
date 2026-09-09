@@ -44,6 +44,20 @@ export type CatalogState = {
    * land in the same place.
    */
   mergeCatalog: (catalog: Catalog) => void;
+  /**
+   * Take a copy of something that already exists in a fleet.
+   *
+   * Ids are kept, which is the whole point: the catalog copy and the fleet copy
+   * are the same thing seen twice, so adding it back to that fleet updates rather
+   * than duplicates. Adopting an agent brings the skills, tools and data it
+   * references, or the catalog would hold an agent whose parts are missing.
+   */
+  adoptFromFleet: (items: {
+    agents?: CatalogAgent[];
+    skills?: Skill[];
+    tools?: Tool[];
+    dataSources?: DataSource[];
+  }) => void;
 
   /** Create an agent by hand, with no fleet involved. */
   addAgent: (input: NewCatalogAgent) => CatalogCreate;
@@ -108,6 +122,17 @@ export const useCatalogStore = create<CatalogState>()((set, get) => {
     catalog: emptyCatalog(),
 
     hydrate: (catalog) => set({ catalog }),
+
+    adoptFromFleet: (items) =>
+      patchCatalog((catalog) => ({
+        ...catalog,
+        // A fleet agent has no `source`, which is right: it was not imported from
+        // a file, so there is no file to hand back.
+        agents: upsertManyById(catalog.agents, items.agents ?? []),
+        skills: upsertManyById(catalog.skills, items.skills ?? []),
+        tools: upsertManyById(catalog.tools, items.tools ?? []),
+        dataSources: upsertManyById(catalog.dataSources, items.dataSources ?? []),
+      })),
 
     mergeCatalog: (incoming) =>
       patchCatalog((catalog) => ({

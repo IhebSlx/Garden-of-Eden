@@ -874,3 +874,54 @@
   line-height: 1.5;
   color: #6f7fb4;
 }
+
+/* ---------- Catalog: what the fleets already hold ---------- */
+
+.cat-fromfleets {
+  margin-top: 14px;
+  padding-top: 11px;
+  border-top: 1px solid rgb(124 140 255 / 0.16);
+}
+.cat-fromfleets-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 5px;
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6f7fb4;
+}
+.cat-fromfleets-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 8px;
+}
+.cat-fromfleets-row:hover {
+  background: rgb(90 110 200 / 0.1);
+}
+.cat-fromfleets-name {
+  font-size: 12px;
+  color: #cfd8f5;
+  overflow-wrap: anywhere;
+}
+/* The hint takes the slack so the button stays pinned right. */
+.cat-fromfleets-row small {
+  margin-left: auto;
+  padding-left: 10px;
+  font-size: 10px;
+  color: #6f7fb4;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 45%;
+}
+.cat-fromfleets-row .chrome-btn {
+  flex: none;
+  text-transform: none;
+  letter-spacing: 0;
+}

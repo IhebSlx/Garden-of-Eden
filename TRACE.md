@@ -1156,3 +1156,40 @@ Verified live at http://localhost:5178: with two fleets present the dialog lists
 (16 agents · 56 library items) and *Company fleet* (5 agents · 0 library items) with the Catalog
 under **Beside the fleets**, and `Select everything` ticks all three and turns the button into
 **Export everything**.
+
+**The catalog can see the work already done.** It held only what was created inside it, so on a fleet
+built up over weeks it opened empty and read as broken — the answer to "where are my tools?" was
+"somewhere else". Each tab now ends with **Already in your fleets**: everything across every fleet
+that the catalog does not hold, with the status or type it carries and a **Copy in** beside it.
+
+Matched by id *and* by name. An item copied between the two keeps its id, but one typed separately in
+each place has two ids and one name, and offering that again reads as a duplicate rather than as
+something new. Copying keeps the id, which is what makes a copy taken from a fleet and later added
+back update that fleet instead of doubling it. An agent brings the skills, tools and data it
+references, or the catalog would hold a shell.
+
+`dependenciesOf` now takes the three libraries structurally rather than a `Catalog`, because a fleet
+carries exactly the same three and the question is the same in both directions.
+
+**The Library row is gone from the fleet menu**, since the Library is a tab beside 2D and 3D. The
+outstanding-data count that lived on that row went with it — it is not shown anywhere else now.
+
+| Item | Status | Test(s) |
+|---|---|---|
+| Each tab offers what the fleets hold and the catalog does not | ✅ | e2e › "the catalog offers what the fleets already hold" |
+| Copying one in removes it from the offer and adds it to the catalog | ✅ | e2e › "copying one in takes it out of the offer and into the catalog" |
+| The same item is never offered twice | ✅ | e2e (same) |
+| An agent arrives with its skills, tools and data | ✅ | e2e › "copying an agent in brings the parts it needs" |
+| The fleet menu no longer offers the Library | ✅ | e2e › "the fleet menu no longer offers the Library, which has its own tab" |
+| The Library is still a view, not a dialog | ✅ | e2e › "the Library is a view, not a dialog over the board" |
+
+**A flaky test, fixed rather than retried.** `an edge can be selected…` failed in two full runs and
+passed alone in both. It force-clicked the centre of an edge's bounding box — which for a curve is
+usually not on the curve — while the focus cascade was still moving it. Keyboard selection is not
+available (`edgesFocusable={false}`), so the click is now dispatched on the edge element itself,
+removing the geometry and timing dependence. Six consecutive runs green, then the full suite.
+
+Verified live at http://localhost:5178 on the Solarlux Vision fleet: the Agents tab offered all 15
+fleet agents with their roles, the Data tab offered the data library with each item's status, and
+copying `Unternehmenskontext` in moved it into the catalog, raised the tab count to 1 and dropped the
+offer from 13 to 12.

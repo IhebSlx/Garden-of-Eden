@@ -2,21 +2,27 @@
  * The catalog: build agents, skills, tools and data sources on their own, with no
  * fleet involved, then draw on them when you assemble a fleet.
  *
- * Three ways in:
+ * Four ways in:
  *  - create an agent by hand (name + role, SPEC 5.8's two-field friction rule)
  *  - upload a Microsoft Copilot Studio export (.yaml), which is parsed into an
  *    agent + its skills, flows and knowledge, and kept verbatim for download
  *  - build skills and workflow tools directly, on their own tabs
+ *  - take a copy of something already in a fleet. A catalog that starts empty and
+ *    cannot see the work already done reads as broken, so each tab ends with what
+ *    the fleets hold and an offer to copy it in. Ids are kept, so a copy taken
+ *    from a fleet and later added back updates that fleet rather than doubling it.
  *
  * Adding a catalog agent to the open fleet copies it in with everything it
  * references (SPEC 7: a fleet stays self-contained and exportable).
  */
 import { useRef, useState } from 'react';
 import { useCatalogStore } from '../store/catalogStore.js';
-import { selectActiveFleet, useFleetStore } from '../store/fleetStore.js';
+import { selectActiveFleet, selectFleetList, useFleetStore } from '../store/fleetStore.js';
+import { useShallow } from 'zustand/react/shallow';
 import { useUiStore } from '../store/uiStore.js';
-import { describeCatalogAgent } from '../model/catalog.js';
+import { dependenciesOf, describeCatalogAgent } from '../model/catalog.js';
 import type { CatalogAgent } from '../model/catalog.js';
+import type { Agent, DataSource, Fleet, Skill, Tool } from '../model/schemas.js';
 import type { LibraryKind, Status } from '../model/schemas.js';
 import { DATA_SOURCE_STATUS_LABELS } from '../model/schemas.js';
 import {
@@ -66,6 +72,8 @@ export function CatalogManager(): React.JSX.Element | null {
   const store = useCatalogStore();
 
   const fleet = useFleetStore(selectActiveFleet);
+  const fleets = useFleetStore(useShallow(selectFleetList));
+  const adoptFromFleet = useCatalogStore((s) => s.adoptFromFleet);
   const addToFleet = useFleetStore((s) => s.addCatalogAgent);
   const replaceInFleet = useFleetStore((s) => s.replaceWithCatalogAgent);
 
@@ -364,6 +372,23 @@ export function CatalogManager(): React.JSX.Element | null {
           })}
         </div>
 
+        <FromFleets
+          rows={fleetAgentRows().map(({ item, ...row }) => row)}
+          onTake={(key) => {
+            const found = fleetAgentRows().find((row) => row.key === key);
+            if (found === undefined) return;
+            // An agent without its parts would be an empty shell in the catalog,
+            // so what it references comes with it.
+            const parts = dependenciesOf(found.from, [found.item]);
+            adoptFromFleet({ agents: [{ ...found.item }], ...parts });
+            say(
+              'ok',
+              `"${found.name}" copied in with ${plural(parts.skills.length, 'skill')}, ` +
+                `${plural(parts.tools.length, 'tool')} and ${plural(parts.dataSources.length, 'data item')}.`,
+            );
+          }}
+        />
+
         <div className="catalog-new">
           <input
             value={newName}
@@ -482,6 +507,167 @@ export function CatalogManager(): React.JSX.Element | null {
     );
   }
 
+  /**
+   * What the fleets already hold that the catalog does not.
+   *
+   * Matched by id AND by name: an item copied between the two keeps its id, but
+   * one typed separately in each place has two ids and the same name, and
+   * offering it again would read as a duplicate rather than as something new.
+   */
+  function alreadyInCatalog(kind: 'skill' | 'tool' | 'dataSource' | 'agent'): (item: { id: string; name: string }) => boolean {
+    const mine =
+      kind === 'skill'
+        ? catalog.skills
+        : kind === 'tool'
+          ? catalog.tools
+          : kind === 'dataSource'
+            ? catalog.dataSources
+            : catalog.agents;
+    const ids = new Set(mine.map((entry) => entry.id));
+    const names = new Set(mine.map((entry) => entry.name.trim().toLowerCase()));
+    return (item) => ids.has(item.id) || names.has(item.name.trim().toLowerCase());
+  }
+
+  /** One offer to copy something out of a fleet, and the call that does it. */
+  type FleetRow = {
+    key: string;
+    name: string;
+    dot: string;
+    hint: string;
+    fleetName: string;
+    take: { skills?: Skill[]; tools?: Tool[]; dataSources?: DataSource[] };
+  };
+
+  /** Which fleet a row came from, shown only when there is more than one. */
+  function FromFleets({
+    rows,
+    onTake,
+  }: {
+    rows: { key: string; name: string; dot: string; hint: string; fleetName: string }[];
+    onTake: (key: string) => void;
+  }): React.JSX.Element | null {
+    if (rows.length === 0) return null;
+    return (
+      <div className="cat-fromfleets" data-testid="catalog-from-fleets">
+        <div className="cat-fromfleets-head">
+          <span>Already in your fleets</span>
+          <small>{rows.length} not in the catalog</small>
+        </div>
+        {rows.map((row) => (
+          <div key={row.key} className="cat-fromfleets-row" data-testid="catalog-fleet-item">
+            <span className="tdot" style={{ background: row.dot }} />
+            <span className="cat-fromfleets-name">{row.name}</span>
+            <small>
+              {row.hint}
+              {fleets.length > 1 && ` · ${row.fleetName}`}
+            </small>
+            <button
+              type="button"
+              className="chrome-btn"
+              data-testid="catalog-take"
+              title={`Copy "${row.name}" into the catalog so other fleets can use it`}
+              onClick={() => onTake(row.key)}
+            >
+              Copy in
+            </button>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  /**
+   * Skills / tools / data across every fleet that the catalog does not hold.
+   *
+   * Each row carries the exact call that copies it in, built here where the item's
+   * type is still known. Deciding that at the click site would mean casting a
+   * union back into the right shape, which is a cast that can be wrong.
+   */
+  function fleetLibraryRows(): FleetRow[] {
+    const taken = alreadyInCatalog(tab === 'agents' ? 'agent' : tab);
+    const rows: FleetRow[] = [];
+    // The same item can sit in several fleets; it is still one thing to copy.
+    const seen = new Set<string>();
+
+    const add = (item: { id: string; name: string }, row: Omit<FleetRow, 'key' | 'name'>): void => {
+      if (taken(item) || seen.has(item.id)) return;
+      seen.add(item.id);
+      rows.push({ key: item.id, name: item.name, ...row });
+    };
+
+    for (const one of fleets) {
+      if (tab === 'skill') {
+        for (const item of one.skills) {
+          add(item, {
+            dot: SKILL_COLOR,
+            hint: (item.description ?? '').trim() || 'skill',
+            fleetName: one.name,
+            take: { skills: [item] },
+          });
+        }
+      } else if (tab === 'tool') {
+        for (const item of one.tools) {
+          add(item, {
+            dot: TOOL_TYPE_COLOR[item.type],
+            hint: item.type,
+            fleetName: one.name,
+            take: { tools: [item] },
+          });
+        }
+      } else {
+        for (const item of one.dataSources) {
+          add(item, {
+            dot: dataDotColor(item.type),
+            hint: DATA_SOURCE_STATUS_LABELS[item.status],
+            fleetName: one.name,
+            take: { dataSources: [item] },
+          });
+        }
+      }
+    }
+    return rows;
+  }
+
+  /** Agents across every fleet that the catalog does not hold. */
+  function fleetAgentRows(): {
+    key: string;
+    name: string;
+    dot: string;
+    hint: string;
+    fleetName: string;
+    item: Agent;
+    from: Fleet;
+  }[] {
+    const taken = alreadyInCatalog('agent');
+    const rows: {
+      key: string;
+      name: string;
+      dot: string;
+      hint: string;
+      fleetName: string;
+      item: Agent;
+      from: Fleet;
+    }[] = [];
+    const seen = new Set<string>();
+
+    for (const one of fleets) {
+      for (const agent of one.agents) {
+        if (taken(agent) || seen.has(agent.id)) continue;
+        seen.add(agent.id);
+        rows.push({
+          key: agent.id,
+          name: agent.name,
+          dot: KIND_COLOR[agent.kind],
+          hint: agent.role.trim() === '' ? KIND_LABEL[agent.kind] : agent.role,
+          fleetName: one.name,
+          item: agent,
+          from: one,
+        });
+      }
+    }
+    return rows;
+  }
+
   function LibraryTab(): React.JSX.Element {
     const items =
       tab === 'skill'
@@ -574,6 +760,16 @@ export function CatalogManager(): React.JSX.Element | null {
             );
           })}
         </div>
+
+        <FromFleets
+          rows={fleetLibraryRows()}
+          onTake={(key) => {
+            const found = fleetLibraryRows().find((row) => row.key === key);
+            if (found === undefined) return;
+            adoptFromFleet(found.take);
+            say('ok', `"${found.name}" copied into the catalog.`);
+          }}
+        />
 
         <div className="lib-add">
           <input

@@ -80,19 +80,26 @@ export function upsertManyById<T extends { id: string }>(list: T[], items: T[]):
   return items.reduce(upsertById, list);
 }
 
-/** Which catalog library items a set of agents depends on. */
+/**
+ * Which library items a set of agents depends on.
+ *
+ * Takes the three libraries structurally rather than a `Catalog`, because a fleet
+ * carries exactly the same three and the question is the same one in both
+ * directions: pulling an agent out of a fleet needs its parts just as putting one
+ * into a fleet does.
+ */
 export function dependenciesOf(
-  catalog: Catalog,
-  agents: CatalogAgent[],
+  source: { skills: Skill[]; tools: Tool[]; dataSources: DataSource[] },
+  agents: { skillIds: string[]; toolIds: string[]; dataSourceIds: string[] }[],
 ): { skills: Skill[]; tools: Tool[]; dataSources: DataSource[] } {
   const skillIds = new Set(agents.flatMap((a) => a.skillIds));
   const toolIds = new Set(agents.flatMap((a) => a.toolIds));
   const dataIds = new Set(agents.flatMap((a) => a.dataSourceIds));
 
   return {
-    skills: catalog.skills.filter((s) => skillIds.has(s.id)),
-    tools: catalog.tools.filter((t) => toolIds.has(t.id)),
-    dataSources: catalog.dataSources.filter((d) => dataIds.has(d.id)),
+    skills: source.skills.filter((s) => skillIds.has(s.id)),
+    tools: source.tools.filter((t) => toolIds.has(t.id)),
+    dataSources: source.dataSources.filter((d) => dataIds.has(d.id)),
   };
 }
 
