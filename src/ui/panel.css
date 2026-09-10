@@ -331,12 +331,15 @@
   border-radius: 7px;
   padding: 4px 8px;
 }
+/* Built at runtime as `wfs kind-${step.kind}` in ItemDetail, so these names
+   appear nowhere in the source — do not "clean them up". */
 .wfs.kind-trigger {
   border-color: rgb(74 222 128 / 0.5);
 }
 .wfs.kind-condition {
   border-color: rgb(246 185 84 / 0.5);
 }
+
 .wfa {
   text-align: center;
   color: #4d5a8c;
@@ -561,7 +564,6 @@
   font-weight: 700;
   line-height: 1.35;
 }
-
 
 .lib-tabs {
   display: flex;
@@ -1017,25 +1019,4 @@
 .ins-contact input:focus-visible {
   outline: none;
   border-color: rgb(124 140 255 / 0.7);
-}
-
-/* Nine fields in one column is a scroll, not a form: name what each group answers. */
-.lib-fields .field-group {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  margin: 14px 0 8px;
-  font-size: 9.5px;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: #6f7fb4;
-}
-.lib-fields .field-group::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: rgb(124 140 255 / 0.14);
-}
-.lib-fields .field-group:first-child {
-  margin-top: 2px;
 }

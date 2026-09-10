@@ -1233,3 +1233,46 @@ Two bugs found by using it rather than by reading it. The menu's dismiss listene
 it unmounted the menu before its own button could be clicked — it now ignores presses inside itself.
 And Escape never arrived, because the board's keyboard handling sits between the menu and the window;
 the menu now captures that too.
+
+**A maintainability pass, with the findings verified rather than guessed.** Every export, CSS class
+and dependency was cross-checked against the whole of `src/` and `tests/` before anything was cut.
+
+Removed: **`@react-three/drei`** and **`motion`**, declared as dependencies and imported nowhere —
+confirmed absent from the built bundle too, so the win is install weight and supply-chain surface
+rather than bytes shipped. Seven unreferenced constants and helpers (`GHOST_WIRE_OPACITY`,
+`CARD_POP_MS`, `WIRE_OPACITY`, `WIRE_DASH`, `PAN_THRESHOLD_PX`, `SELECTION_PULSE_MS`,
+`dataSourceName`). And 55 CSS rules — about 335 lines — belonging to the data-prep UI that the
+Library tabs replaced.
+
+The CSS was cut rule by rule rather than section by section, because the dead `prep-*` rules are
+interleaved with live ones and whole-section deletion would have taken `.unassigned`, `.ub`,
+`.fdot` and `.editing` with them.
+
+**A guard, because SPEC §6 is duplicated and nothing checked it.** `CLAUDE.md` says the normative
+constants are "defined once in `tokens.css`", but TypeScript cannot read a custom property without a
+live document, so `constants.ts` and `palette.ts` carry their own copies — **seventeen values exist
+twice**, eight numbers and nine colours. `normativeConstants.test.ts` now asserts both homes against
+the SPEC value rather than against each other, so agreeing on the wrong number fails too. All
+seventeen already agreed; the test was mutation-checked by changing `--ghost-opacity` to 0.06 and
+confirming it fails.
+
+| Item | Status | Test(s) |
+|---|---|---|
+| Every SPEC §6 number matches in `tokens.css` and `constants.ts` | ✅ | `normativeConstants.test.ts` › "SPEC §6 numbers, in both homes" (10) |
+| Every SPEC §6 colour matches in `tokens.css` and `palette.ts` | ✅ | `normativeConstants.test.ts` › "SPEC §6 colours, in both homes" (13) |
+| The background colours keep their spec values | ✅ | `normativeConstants.test.ts` › "the background, which only CSS holds" |
+| The guard fails when a value drifts | ✅ | mutation-checked by hand: `--ghost-opacity` 0.05 → 0.06 fails |
+
+**One mistake, caught before commit.** `.kind-trigger` and `.kind-condition` were deleted as unused
+and are not: `ItemDetail.tsx` builds them at runtime as `` `wfs kind-${node.step.kind}` ``, so the
+names appear nowhere in the source. They are restored, with a comment saying why a text search will
+never find them. The same trap was avoided for `d0`–`d3` and `st-*`, which `AgentNode` and
+`WireEdge` build the same way. Verified afterwards by probing the live stylesheet: trigger renders
+green, condition amber, action falls through to the base rule.
+
+Verified live at http://localhost:5178: none of the 28 removed class names appear in the DOM on the
+board, the Catalog (all four tabs), the Export dialog or the Library (all three tabs).
+
+Not done, deliberately: `CatalogManager.tsx` (890 lines) and `Inspector.tsx` (769) are the two files
+a reader must hold the most in their head, but both are fully covered and heavily commented, and
+splitting them speculatively buys less than it risks.

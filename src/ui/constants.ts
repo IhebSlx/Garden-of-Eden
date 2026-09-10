@@ -11,29 +11,16 @@
 
 /** `.card.ghost{opacity:.05}` - never hidden, always still there. */
 export const GHOST_OPACITY = 0.05;
-/** `.w2.ghost{opacity:.03}` - wires ghost a touch harder than cards. */
-export const GHOST_WIRE_OPACITY = 0.03;
 /** `popAt = now + (depth - focusDepth) * 110` */
 export const FOCUS_CASCADE_STAGGER_MS = 110;
-/** `.card.pop` / `cardpop` keyframes. */
-export const CARD_POP_MS = 380;
 /** `w.opT = 1.7` on the focused branch. */
 export const FOCUSED_WIRE_BRIGHTNESS = 1.7;
 
 // ---------- 2D wires (prototype `.w2` rules) ----------
 
-export const WIRE_OPACITY = {
-  base: 0.55,
-  building: 0.6,
-  planned: 0.25,
-  /** `.w2.lit` - a wire inside the focused branch. */
-  lit: 0.9,
-  ghost: GHOST_WIRE_OPACITY,
-} as const;
 
 /** `stroke-width`: peer 1.8, from the orchestrator 3, otherwise 2.2. */
 export const WIRE_WIDTH = { peer: 1.8, fromOrchestrator: 3, hierarchy: 2.2 } as const;
-export const WIRE_DASH = { peer: '5 7', planned: '4 7' } as const;
 export const PEER_WIRE_COLOR = '#9bb8ff';
 /** Peer wires arc this far above the two cards. */
 export const PEER_WIRE_LIFT = 70;
@@ -137,7 +124,6 @@ export const BOARD_ANIM_MS = 500;
  * click-to-focus at overview zoom in the prototype.
  */
 export const DRAG_THRESHOLD_PX = 5;
-export const PAN_THRESHOLD_PX = 6;
 
 // ---------- minimap ----------
 
@@ -182,9 +168,6 @@ export const ORBIT_INERTIA_DECAY = 0.92;
 /** Auto-rotate only after this much idle time (SPEC 5.4). */
 export const AUTO_ROTATE_IDLE_MS = 6000;
 export const AUTO_ROTATE_SPEED = 0.0009;
-/** Selection-ring pulse (SPEC 6). */
-export const SELECTION_PULSE_MS = 2400;
-
 /**
  * DEVIATION from the prototype's tuned values, at the user's request: the scene
  * fanned out too fast to read as one shape. Two things caused it — the ring radius

@@ -89,12 +89,6 @@ export function dataDotColor(type: DataSourceType | undefined, fleet?: Fleet): s
   return sourceKindOf(fleet, type)?.color ?? DATA_TYPE_UNSET_COLOR;
 }
 
-/** What a source is called, this fleet's own kinds included. */
-export function dataSourceName(type: DataSourceType | undefined, fleet?: Fleet): string {
-  if (type === undefined) return 'not assigned';
-  return sourceKindOf(fleet, type)?.name ?? type;
-}
-
 /** Panel kind chip text (`KIND_LABEL`). */
 export const KIND_LABEL: Record<AgentKind, string> = {
   orchestrator: 'Orchestrator',
